@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# -----------------------------------------------------------------------------
+# Run unit tests before committing.
+#
+# To skip running tests, set the environment variable SKIP_TESTS to "true":
+#   Example: SKIP_TESTS=true git commit -m "message"
+# -----------------------------------------------------------------------------
+if [ "$SKIP_TESTS" != "true" ]; then
+	bun run test
+fi
+
+# -----------------------------------------------------------------------------
+# Run type, lint, JSDoc, and type location checks.
+# -----------------------------------------------------------------------------
+bun check
+
+# -----------------------------------------------------------------------------
+# Format and lint staged files.
+# -----------------------------------------------------------------------------
+bun lint-staged

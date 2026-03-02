@@ -1,0 +1,10 @@
+{
+  "overrides": [
+    {
+      "files": ["edge/relay/alchemy.run.ts"],
+      "rules": {
+        "new-cap": "off"
+      }
+    }
+  ]
+}

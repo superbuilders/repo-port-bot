@@ -1,0 +1,34 @@
+{
+  "rules": {
+    "jsdoc-js/require-jsdoc": [
+      "error",
+      {
+        "require": {
+          "FunctionDeclaration": true,
+          "ClassDeclaration": true,
+          "ArrowFunctionExpression": false,
+          "FunctionExpression": false,
+          "MethodDefinition": false
+        },
+        "contexts": [
+          "Program > VariableDeclaration[kind=const] > VariableDeclarator > ArrowFunctionExpression",
+          "Program > ExportNamedDeclaration > VariableDeclaration[kind=const] > VariableDeclarator > ArrowFunctionExpression"
+        ],
+        "enableFixer": false,
+        "exemptOverloadedImplementations": true,
+        "skipInterveningOverloadedDeclarations": true
+      }
+    ],
+    "jsdoc-js/require-param": "error",
+    "jsdoc-js/require-param-description": "error",
+    "jsdoc-js/require-returns": "error",
+    "jsdoc-js/require-returns-description": "error",
+    "jsdoc-js/tag-lines": [
+      "error",
+      "any",
+      {
+        "startLines": 1
+      }
+    ]
+  }
+}

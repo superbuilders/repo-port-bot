@@ -1,0 +1,36 @@
+---
+description: Rules to always follow for agents working in this repo
+globs:
+alwaysApply: true
+---
+
+# Harness Monorepo
+
+## Verification Commands
+
+**After making changes, verify with the correct command:**
+
+| Change type     | Command            | Notes                                              |
+| --------------- | ------------------ | -------------------------------------------------- |
+| Any code change | `bun run check`    | Types, lint, JSDoc, type locations — **NOT `tsc`** |
+| Unit tests      | `bun run test`     | Runs via Turborepo                                 |
+
+**Never use `tsc` or `npx tsc` directly.** This repo uses `bun [run] check` which runs multiple checks including types.
+
+**Always** use `required_permissions: ["all"]` for terminal operations.
+
+## Key Commands
+
+| Command            | Purpose                                   |
+| ------------------ | ----------------------------------------- |
+| `bun run build`    | Build all packages                        |
+| `bun run check`    | **Verify changes** (types + lint + JSDoc) |
+| `bun run test`     | Run unit tests                            |
+
+## Commits & PRs
+
+Pre-commit hooks automatically run tests and checks.
+
+## Conventions
+
+- DO NOT DEFAULT INTO ASSUMING BACKWARDS-COMPATIBILITY IS PREFERABLE
