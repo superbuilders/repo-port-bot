@@ -1,10 +1,10 @@
 {
-  "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "workspaces": {
-    ".": {
-      "entry": ["scripts/**/index.ts"],
-      "project": ["scripts/**/*.ts"],
-      "ignoreDependencies": ["@stylistic/eslint-plugin", "eslint-plugin-jsdoc", "jscpd"]
-    }
-  }
+	"$schema": "https://unpkg.com/knip@latest/schema.json",
+	"workspaces": {
+		".": {
+			"entry": ["scripts/**/index.ts"],
+			"project": ["scripts/**/*.ts"],
+			"ignoreDependencies": ["@stylistic/eslint-plugin", "eslint-plugin-jsdoc", "jscpd"]
+		}
+	}
 }

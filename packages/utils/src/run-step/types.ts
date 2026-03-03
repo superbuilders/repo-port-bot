@@ -1,5 +1,5 @@
 export type RunStepOptions = Readonly<{
-  replace?: boolean;
-}>;
+	replace?: boolean
+}>
 
-export type TaskStatus = "pending" | "running" | "success" | "error" | "cancelled";
+export type TaskStatus = 'pending' | 'running' | 'success' | 'error' | 'cancelled'

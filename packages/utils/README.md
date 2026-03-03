@@ -11,7 +11,7 @@ bun add @hbot/utils
 ## Usage
 
 ```typescript
-import "@hbot/utils";
+import '@hbot/utils'
 
 // Minimal working example (<10 lines)
 ```
