@@ -1,4 +1,4 @@
-import { blue, green, red } from "colorette";
+import { blue, dim, green, red } from "colorette";
 
 import type { TaskStatus } from "./types.ts";
 
@@ -7,6 +7,7 @@ const STARTING_FRAME_INDEX = 0;
 const NEXT_FRAME_STEP = 1;
 const CHECK_MARK = "\u2714";
 const CROSS_MARK = "\u2716";
+const CANCEL_MARK = "\u25CB";
 const ANSI_CLEAR_LINE = "\u001B[2K";
 const ANSI_CURSOR_HIDE = "\u001B[?25l";
 const ANSI_CURSOR_SHOW = "\u001B[?25h";
@@ -41,6 +42,10 @@ function formatSpinnerLine(status: TaskStatus, text: string, frame: string): str
 
   if (status === "error") {
     return `${red(CROSS_MARK)} Failed: ${text}`;
+  }
+
+  if (status === "cancelled") {
+    return `${dim(CANCEL_MARK)} Cancelled: ${dim(text)}`;
   }
 
   return text;

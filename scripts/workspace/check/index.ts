@@ -21,6 +21,11 @@ const config: TaskRunnerConfig = {
         name: "Unused code",
         command: "bunx knip-bun",
       },
+      {
+        id: "cpd",
+        name: "Copy/paste",
+        command: "bunx jscpd --config jscpd.json .",
+      },
     ],
     {
       id: "lint",

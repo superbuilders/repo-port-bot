@@ -4,7 +4,7 @@
     ".": {
       "entry": ["scripts/**/index.ts"],
       "project": ["scripts/**/*.ts"],
-      "ignoreDependencies": ["@stylistic/eslint-plugin", "eslint-plugin-jsdoc"]
+      "ignoreDependencies": ["@stylistic/eslint-plugin", "eslint-plugin-jsdoc", "jscpd"]
     }
   }
 }

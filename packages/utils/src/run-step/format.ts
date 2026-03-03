@@ -43,9 +43,14 @@ export function formatTaskResultText(input: {
   ok: boolean;
   label: string;
   durationMs: number;
+  cancelled?: boolean;
   includeFailurePrefix?: boolean;
 }): string {
   const formattedLabel = formatStepSuccessText(input.label, input.durationMs);
+
+  if (input.cancelled === true) {
+    return `Cancelled: ${dim(input.label)} ${dim(`[${formatDurationLabel(input.durationMs)}]`)}`;
+  }
 
   if (input.includeFailurePrefix === true && !input.ok) {
     return `Failed: ${formattedLabel}`;

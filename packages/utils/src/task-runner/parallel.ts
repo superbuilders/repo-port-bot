@@ -6,6 +6,8 @@ import type { TaskDef, TaskResult } from "./types.ts";
 
 const CHECK_MARK = "\u2714";
 const CROSS_MARK = "\u2716";
+const CANCEL_MARK = "\u25CB";
+const ABORT_EXIT_CODE = -2;
 
 type ShellError = Error &
   Readonly<{
@@ -15,6 +17,7 @@ type ShellError = Error &
   }>;
 
 type TaskOutcome = Readonly<{
+  cancelled: boolean;
   error?: unknown;
   label: string;
   result: TaskResult;
@@ -58,6 +61,16 @@ function isShellError(error: unknown): error is ShellError {
 }
 
 /**
+ * Check whether a shell error is from an abort signal rather than a real failure.
+ *
+ * @param error - Value to test.
+ * @returns True when the error is a shell abort.
+ */
+function isAbortError(error: unknown): boolean {
+  return isShellError(error) && error.exitCode === ABORT_EXIT_CODE;
+}
+
+/**
  * Print captured shell command diagnostics.
  *
  * @param error - Shell error with buffered stdout/stderr.
@@ -96,15 +109,26 @@ function logShellError(error: ShellError): void {
  */
 function printNonInteractiveParallelOutcomes(outcomes: readonly TaskOutcome[]): void {
   for (const outcome of outcomes) {
-    const symbol = outcome.result.ok ? CHECK_MARK : CROSS_MARK;
-    const text = formatTaskResultText({
-      durationMs: outcome.result.durationMs,
-      includeFailurePrefix: true,
-      label: outcome.label,
-      ok: outcome.result.ok,
-    });
+    if (outcome.cancelled) {
+      const text = formatTaskResultText({
+        cancelled: true,
+        durationMs: outcome.result.durationMs,
+        label: outcome.label,
+        ok: false,
+      });
 
-    console.log(`${symbol} ${text}`);
+      console.log(`${CANCEL_MARK} ${text}`);
+    } else {
+      const symbol = outcome.result.ok ? CHECK_MARK : CROSS_MARK;
+      const text = formatTaskResultText({
+        durationMs: outcome.result.durationMs,
+        includeFailurePrefix: true,
+        label: outcome.label,
+        ok: outcome.result.ok,
+      });
+
+      console.log(`${symbol} ${text}`);
+    }
   }
 }
 
@@ -149,8 +173,9 @@ export async function executeParallelTasks(tasks: readonly TaskDef[]): Promise<T
         );
         settled[index] = true;
 
-        return { label, result, task };
+        return { cancelled: false, label, result, task };
       } catch (error) {
+        const cancelled = isAbortError(error);
         const result: TaskResult = {
           durationMs: Date.now() - startedAt,
           id: task.id,
@@ -159,8 +184,9 @@ export async function executeParallelTasks(tasks: readonly TaskDef[]): Promise<T
 
         spinnerGroup?.update(
           index,
-          "error",
+          cancelled ? "cancelled" : "error",
           formatTaskResultText({
+            cancelled,
             durationMs: result.durationMs,
             label,
             ok: false,
@@ -168,7 +194,7 @@ export async function executeParallelTasks(tasks: readonly TaskDef[]): Promise<T
         );
         settled[index] = true;
 
-        if (task.allowFailure !== true && cancellationTriggered === false) {
+        if (!cancelled && task.allowFailure !== true && cancellationTriggered === false) {
           cancellationTriggered = true;
 
           for (
@@ -182,7 +208,7 @@ export async function executeParallelTasks(tasks: readonly TaskDef[]): Promise<T
           }
         }
 
-        return { error, label, result, task };
+        return { cancelled, error, label, result, task };
       }
     }),
   );
@@ -193,30 +219,41 @@ export async function executeParallelTasks(tasks: readonly TaskDef[]): Promise<T
     printNonInteractiveParallelOutcomes(outcomes);
   }
 
-  for (const outcome of outcomes) {
-    if (!outcome.result.ok && outcome.task.allowFailure === true) {
-      console.error(`Warning: task failed but allowFailure=true (${outcome.label})`);
+  const realFailures: TaskOutcome[] = [];
 
-      if (isShellError(outcome.error)) {
-        logShellError(outcome.error);
+  for (const outcome of outcomes) {
+    if (!outcome.result.ok && !outcome.cancelled) {
+      if (outcome.task.allowFailure === true) {
+        console.error(`Warning: task failed but allowFailure=true (${outcome.label})`);
+
+        if (isShellError(outcome.error)) {
+          logShellError(outcome.error);
+        } else {
+          console.error(
+            `  ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`,
+          );
+        }
       } else {
-        console.error(
-          `  ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`,
-        );
+        realFailures.push(outcome);
       }
     }
   }
 
-  const failure = outcomes.find(
-    (outcome) => outcome.result.ok === false && outcome.task.allowFailure !== true,
-  );
+  for (const failure of realFailures) {
+    console.error("");
+    console.error(`${failure.label}:`);
 
-  if (failure !== undefined) {
     if (isShellError(failure.error)) {
       logShellError(failure.error);
+    } else if (failure.error instanceof Error) {
+      console.error(`  ${failure.error.message}`);
     }
+  }
 
-    throw new Error(`task failed: ${failure.label}`);
+  if (realFailures.length > 0) {
+    const labels = realFailures.map((f) => f.label).join(", ");
+
+    throw new Error(`task failed: ${labels}`);
   }
 
   return outcomes;
