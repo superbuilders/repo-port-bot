@@ -67,7 +67,6 @@ function makeDecision(kind: PortDecision['kind']): PortDecision {
 	return {
 		kind,
 		reason: 'Decision reason',
-		signals: ['signal-a'],
 	}
 }
 

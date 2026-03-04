@@ -62,7 +62,6 @@ function makeDecision(kind: PortDecision['kind']): PortDecision {
 	return {
 		kind,
 		reason: 'Decision reason',
-		signals: ['signal-a'],
 	}
 }
 
@@ -139,11 +138,12 @@ describe('render-body', () => {
 		const title = renderNeedsHumanIssueTitle(context)
 		const body = renderNeedsHumanIssueBody({ context, decision })
 
-		expect(title).toBe('Port needs human review: Add execution orchestration (#42)')
-		expect(body).toContain('## Source')
-		expect(body).toContain('Decision reason')
-		expect(body).toContain('`signal-a`')
-		expect(body).toContain('`src/app.ts`')
+		expect(title).toBe('Needs review: Add execution orchestration')
+		expect(body).toContain(
+			'[Add execution orchestration](https://github.com/acme/source-repo/pull/42) was merged in `acme/source-repo`',
+		)
+		expect(body).toContain('**Why:** Decision reason')
+		expect(body).toContain('**Changed files:** 1')
 	})
 
 	test('renders source comment for ready PR outcome', () => {

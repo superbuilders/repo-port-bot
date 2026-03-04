@@ -37,6 +37,22 @@ interface RenderRunSummaryInput {
 }
 
 const SHORT_SHA_LENGTH = 7
+const MAX_NEEDS_HUMAN_SOURCE_TITLE_LENGTH = 60
+
+/**
+ * Truncate text for compact issue titles.
+ *
+ * @param value - Raw text.
+ * @param maxLength - Maximum output length.
+ * @returns Truncated text with ellipsis when needed.
+ */
+function truncateForTitle(value: string, maxLength: number): string {
+	if (value.length <= maxLength) {
+		return value
+	}
+
+	return `${value.slice(0, maxLength - 1)}…`
+}
 
 /**
  * Render the standard target pull request title.
@@ -64,10 +80,10 @@ export function renderNeedsHumanIssueTitle(context: PortContext): string {
 	const sourcePullRequest = context.sourceChange.pullRequest
 
 	if (!sourcePullRequest) {
-		return `Port needs human review (${context.sourceChange.mergedCommitSha.slice(0, SHORT_SHA_LENGTH)})`
+		return `Needs review: ${context.sourceChange.mergedCommitSha.slice(0, SHORT_SHA_LENGTH)}`
 	}
 
-	return `Port needs human review: ${sourcePullRequest.title} (#${String(sourcePullRequest.number)})`
+	return `Needs review: ${truncateForTitle(sourcePullRequest.title, MAX_NEEDS_HUMAN_SOURCE_TITLE_LENGTH)}`
 }
 
 /**
@@ -164,30 +180,18 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
  */
 export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput): string {
 	const sourcePullRequest = input.context.sourceChange.pullRequest
-	const sourceReference = sourcePullRequest
-		? `[#${String(sourcePullRequest.number)}](${sourcePullRequest.url})`
-		: `commit \`${input.context.sourceChange.mergedCommitSha}\``
-	const signals =
-		input.decision.signals && input.decision.signals.length > 0
-			? input.decision.signals.map(signal => `- \`${signal}\``).join('\n')
-			: '- None.'
-	const changedFiles =
-		input.context.sourceChange.files.length > 0
-			? input.context.sourceChange.files.map(file => `- \`${file.path}\``).join('\n')
-			: '- No files detected.'
+	const sourceRepo = `${input.context.sourceRepo.owner}/${input.context.sourceRepo.name}`
+	const openingSentence = sourcePullRequest
+		? `[${sourcePullRequest.title}](${sourcePullRequest.url}) was merged in \`${sourceRepo}\` but could not be automatically ported.`
+		: `Commit \`${input.context.sourceChange.mergedCommitSha}\` was pushed to \`${sourceRepo}\` but could not be automatically ported.`
+	const fileCount = String(input.context.sourceChange.files.length)
 
 	return [
-		'## Source',
-		`- ${sourceReference}`,
+		openingSentence,
 		'',
-		'## Decision rationale',
-		`- ${input.decision.reason}`,
+		`**Why:** ${input.decision.reason}`,
 		'',
-		'## Signals',
-		signals,
-		'',
-		'## Changed files',
-		changedFiles,
+		`**Changed files:** ${fileCount}`,
 	].join('\n')
 }
 

@@ -29,7 +29,6 @@ function checkMissingPullRequest(context: PortContext): PortDecision | null {
 		return {
 			kind: 'NEEDS_HUMAN',
 			reason: 'Source commit could not be associated with a pull request.',
-			signals: ['missing-pr'],
 		}
 	}
 
@@ -51,7 +50,6 @@ function checkLoopPrevention(context: PortContext): PortDecision | null {
 		return {
 			kind: 'PORT_NOT_REQUIRED',
 			reason: 'Skipping because source PR is labeled auto-port (loop prevention).',
-			signals: ['loop-prevention', 'auto-port-label'],
 		}
 	}
 
@@ -73,7 +71,6 @@ function checkNoPortLabel(context: PortContext): PortDecision | null {
 		return {
 			kind: 'PORT_NOT_REQUIRED',
 			reason: 'Skipping because source PR is labeled no-port.',
-			signals: ['no-port-label'],
 		}
 	}
 
@@ -109,7 +106,6 @@ function checkDocsOnly(context: PortContext): PortDecision | null {
 		return {
 			kind: 'PORT_NOT_REQUIRED',
 			reason: 'Skipping because all changed files are documentation-only.',
-			signals: ['docs-only'],
 		}
 	}
 
@@ -173,7 +169,6 @@ function checkConfigOnly(context: PortContext): PortDecision | null {
 		return {
 			kind: 'PORT_NOT_REQUIRED',
 			reason: 'Skipping because all changed files are config-only or explicitly ignored.',
-			signals: ['config-only'],
 		}
 	}
 
