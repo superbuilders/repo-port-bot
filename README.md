@@ -80,18 +80,22 @@ with:
 
 ### 4. Configure your repo pair
 
-There are two ways to teach the bot about your repos. Pick whichever fits your situation.
+There are two ways to configure the bot. Pick whichever fits your situation.
 
-**Option A: Built-in plugin**: add plugin config under `src/plugins/` in this repo:
+**Option A: Action inputs**: pass config directly in your workflow file. This is the simplest approach — `target-repo` is required, everything else has sensible defaults:
 
+```yaml
+with:
+    target-repo: acme/target-repo
+    validation-commands: |
+        bun run check
+        bun run test
+    path-mappings: '{"src/": "packages/client/src/"}'
+    naming-conventions: 'camelCase -> snake_case'
+    prompt: 'Always preserve backward compat...'
 ```
-src/plugins/my-project/
-  config.ts       # repo pairing, ignore patterns, validation commands
-  mapping.json    # module-to-module path correspondences
-  prompts.md      # custom agent instructions
-```
 
-**Option B: Declarative config in your repos**: best when you want to keep porting config alongside the code it describes. Add a `port-bot.json` to each SDK repo's root:
+**Option B: Declarative config in your repos**: best when you want to keep porting config alongside the code it describes. Add a `port-bot.json` to the source repo's root:
 
 ```json
 {
@@ -112,20 +116,20 @@ The engine reads `port-bot.json` from the source repo at runtime. No code execut
 
 Both options configure the same things:
 
-- **Repo pairing**: source ↔ target mapping, ignore patterns, validation commands
-- **Mapping rules**: path correspondences, naming conventions (camelCase ↔ snake_case), how errors/auth/pagination translate
+- **Repo pairing**: target repo, ignore patterns, validation commands
+- **Mapping rules**: path correspondences, naming conventions (camelCase ↔ snake_case)
 - **Agent instructions**: style rules, domain context, edge-case guidance
 
-Option A takes precedence when both exist. You can also combine them — e.g., keep the plugin in this repo for stable config and use `port-bot.json` in each SDK for repo-specific overrides that change more often.
+Action inputs take precedence when both exist. You can combine them — e.g., keep stable config in the workflow and use `port-bot.json` for repo-specific overrides that change more often.
 
 ## Port decision logic
 
 The bot skips porting when:
 
 - Only docs changed (README, markdown, `docs/`)
-- Only CI/config changed (`.github/`, tooling)
-- Only formatting changed
+- Only CI/config changed (`.github/`, tooling, root JSON files)
 - The PR is labeled `no-port`
+- The PR is a bot-generated port (loop prevention via `auto-port` label)
 
 Otherwise, the LLM classifies the change as `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`.
 
@@ -144,10 +148,4 @@ bun run build    # build all packages
 
 ## Project structure
 
-```
-packages/
-  engine/         # core automation + agent runner
-  plugins/        # repo-specific port logic (one dir per plugin)
-  utils/          # shared CLI utilities
-scripts/          # workspace tooling
-```
+Monorepo managed with `bun` workspaces and `turbo`. Packages live under `packages/`, architecture docs under `docs/`.

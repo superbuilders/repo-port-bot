@@ -34,85 +34,50 @@ Source PR merged
 
 Each stage has an explicit input/output type. Modules compose through these — never by reaching into each other's internals.
 
-| Stage   | Input                          | Output            | Owner                                |
-| ------- | ------------------------------ | ----------------- | ------------------------------------ |
-| Gather  | PR event payload               | `PortContext`     | `run-port.ts` + `adapters/github.ts` |
-| Decide  | `PortContext`                  | `PortDecision`    | `decision/`                          |
-| Execute | `PortContext` + `PortDecision` | `ExecutionResult` | `execution/`                         |
-| Deliver | `ExecutionResult`              | `PortRunResult`   | `run-port.ts` + `adapters/github.ts` |
+| Stage   | Input                          | Output            | Owner                   |
+| ------- | ------------------------------ | ----------------- | ----------------------- |
+| Gather  | PR event payload               | `PortContext`     | `pipeline/` + `github/` |
+| Decide  | `PortContext`                  | `PortDecision`    | `decision/`             |
+| Execute | `PortContext` + `PortDecision` | `ExecutionResult` | `execution/`            |
+| Deliver | `ExecutionResult`              | `PortRunResult`   | `pipeline/` + `github/` |
 
 ### Key types (`types.ts`)
 
 - **`PortContext`** — source PR metadata, diff, resolved plugin config
-- **`PortDecision`** — `REQUIRED | NOT_REQUIRED | NEEDS_HUMAN` + reason string
+- **`PortDecision`** — `PORT_REQUIRED | PORT_NOT_REQUIRED | NEEDS_HUMAN` + reason string
 - **`ExecutionResult`** — success/failure, retry count, touched files, validation logs
 - **`PortRunResult`** — final outcome + PR/issue URLs + summary payload
 
-## Structure
-
-```
-src/
-  index.ts                # public API surface
-  types.ts                # stage contracts (PortContext, PortDecision, etc.)
-  errors.ts               # typed error hierarchy
-  run-port.ts             # top-level orchestrator (gather → decide → execute → deliver)
-  plugin-loader.ts        # load built-in plugin + merge port-bot.json from source repo
-  summary.ts              # PR body + run summary rendering
-  telemetry.ts            # structured events, step timing, reason codes
-
-  adapters/               # external side-effects (all dumb — no policy)
-    github.ts             # read PR data, write branches/PRs/labels
-    workspace.ts          # checkout repos, create branches, file workspace
-    llm.ts                # thin wrapper over model provider
-
-  decision/               # should we port?
-    decide.ts             # orchestrates heuristics → classifier fallback
-    heuristics.ts         # fast pure skip rules (docs-only, CI-only, loop detection)
-    classify.ts           # LLM classification (uses adapters/llm)
-
-  execution/              # do the port
-    execute-port.ts       # orchestrates agent loop + validation retries
-    agent.ts              # LLM agent interaction + tool wiring
-    validate.ts           # run configured validation commands, parse errors
-    retry-policy.ts       # retry/backoff/stop rules (pure — no side effects)
-```
-
 ## Architectural boundaries
 
-### Policy vs. adapters
+### Policy vs. side-effects
 
 Policy modules contain business rules and are pure / easily testable:
 
-- `decision/heuristics.ts`, `execution/retry-policy.ts`
+- `decision/heuristics.ts`, `execution/execute-port.ts` (retry logic)
 
-Adapter modules talk to external systems and have no opinions:
+Side-effect modules talk to external systems:
 
-- `adapters/github.ts`, `adapters/workspace.ts`, `adapters/llm.ts`
+- `github/read-source-context.ts`, `github/deliver.ts`
 
 This matters because you can test all decision and retry logic without touching GitHub or an LLM.
 
 ### Orchestration is thin
 
-`run-port.ts` and `execution/execute-port.ts` are orchestrators — they call other modules in sequence and handle errors. They should stay thin. If an orchestrator is getting complex, logic is leaking in.
+`pipeline/run-port.ts` and `execution/execute-port.ts` are orchestrators — they call other modules in sequence and handle errors. They should stay thin. If an orchestrator is getting complex, logic is leaking in.
 
-### Directories earn their keep
+### Agent provider is external
 
-Each directory groups 3+ files with a shared concern:
-
-- `adapters/` — external integrations (GitHub, workspace, LLM)
-- `decision/` — port decision pipeline (heuristics + LLM fallback)
-- `execution/` — agent loop + validation + retry
-
-Standalone modules (`plugin-loader`, `summary`, `telemetry`) stay flat at root until they grow.
+The engine depends on the `AgentProvider` interface, not on any specific agent SDK. The v1 implementation lives in `packages/agent-claude/`.
 
 ## Retry behavior
 
-The agent treats validation failures like a developer would: read the error, fix it, re-run. `retry-policy.ts` controls max attempts and backoff. Only after exhausting retries does the engine fall back to opening a draft PR.
+The execution orchestrator treats validation failures like a developer would: read the error, pass it back to the agent, re-run. Max attempts are configurable (default 3). Only after exhausting retries does the engine fall back to opening a draft PR with `port-stalled` label.
 
-## Plugin resolution
+## Config resolution
 
-1. Check for built-in plugin in `packages/plugins/<name>/`
-2. Check for `port-bot.json` in the source repo root
-3. Merge (built-in takes precedence, `port-bot.json` overrides specific fields)
-4. Validate merged config against schema
+1. Accept optional `port-bot.json` (parsed via `port-bot-json.decoder.ts`)
+2. Accept optional built-in config from the caller (e.g. action inputs)
+3. Merge (built-in takes precedence, `port-bot.json` fills gaps)
+4. Validate merged config via `resolve-plugin-config.ts`
 5. Return resolved `PluginConfig` as part of `PortContext`

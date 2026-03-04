@@ -8,21 +8,17 @@ This is the least-determined part of the system. Use this doc to capture decisio
 
 The agent loop runs inside a **GitHub Actions runner** triggered by the source repo workflow.
 
-### What's known
-
 - **Ephemeral filesystem**: fresh checkout each run, no persistent state between runs.
-- **Two repos on disk**: source (read-only, pinned to merge SHA) and target (writable, checked out at default branch).
-- **Available tooling**: whatever the runner image provides (git, common runtimes) plus anything the workflow installs.
-- **Network access**: can reach GitHub API, package registries, LLM provider endpoints.
-- **Time budget**: GitHub Actions has a per-job timeout (default 6 hours, configurable). The engine should enforce its own shorter timeout.
+- **Source context via API**: source PR metadata and diffs are fetched via GitHub REST API — the source repo is not checked out to disk.
+- **Target repo on disk**: shallow-cloned into a temp directory at the target's default branch, with bot git identity configured.
+- **Available tooling**: stock `ubuntu-latest` runner plus whatever the workflow installs before the action step.
+- **Network access**: GitHub API, package registries, LLM provider endpoints.
+- **Budget control**: the Claude Agent SDK accepts `maxBudgetUsd` and `maxTurns` per attempt; the engine enforces `maxAttempts` across retries.
 
-### What's undetermined
+### Still undetermined
 
-- **Runner image**: stock `ubuntu-latest` or a custom image with pre-installed toolchains?
 - **Language runtimes**: does the target repo need Node, Python, Rust, etc. for validation? Who installs them — the workflow or the engine?
-- **Engine timeout**: what's a reasonable wall-clock limit per run? (Agent loop + retries must fit within it.)
-- **Resource constraints**: memory/CPU limits on the runner, especially if the LLM agent is doing heavy context loading.
-- **Local vs. CI execution**: should the engine also work when run locally (e.g., `bun run port --pr 123`) or is CI the only supported path?
+- **Local execution**: should the engine also work when run locally (e.g., `bun run port --pr 123`) or is CI the only supported path?
 
 ## Current understanding
 
@@ -41,9 +37,9 @@ The agent receives a `PortContext` containing:
 
 ### Workspace
 
-- Target repo is checked out at latest default branch.
-- Port branch is created: `port/<sourceRepo>/<sourcePrNumber>-<shortSha>`
-- Source repo is available read-only at the merged commit SHA.
+- Target repo is shallow-cloned at the default branch into a temp directory.
+- Port branch is created at delivery time: `port/<sourceRepo>/<sourcePrNumber>-<shortSha>`
+- Source context (PR metadata, diffs, patches) comes via GitHub REST API — not from disk.
 
 ### Execution cycle
 
@@ -83,8 +79,10 @@ The agent receives a `PortContext` containing:
 
 ### Retry policy
 
-- Max attempts: configurable (default TBD).
-- Each attempt: agent reads validation output, applies targeted fix, reruns.
+- Max attempts: configurable (default 3).
+- Each attempt: agent receives `previousAttempts` feedback (validation errors, touched files), applies targeted fix, reruns.
+- Conversation model: fresh per attempt (new `query()` call each retry).
+- Working directory: incremental (no reset between attempts; each builds on previous edits).
 - On exhaustion: execution returns `success: false` with `failureReason`.
 
 ### Output
@@ -130,15 +128,16 @@ interface AgentProvider {
 
 The orchestrator (`execute-port.ts`) calls the provider, runs validation itself, and decides whether to retry based on the retry policy. The provider never runs validation commands — it only produces edits.
 
-### v1 provider: `claude-agent-sdk-typescript`
+### v1 provider: `@repo-port-bot/agent-claude`
 
-Anthropic's own Claude Code Action uses this SDK. It handles multi-turn tool use, streaming, and context management.
+Uses `@anthropic-ai/claude-agent-sdk` via the `ClaudeAgentProvider` class.
 
-Open questions specific to this provider:
-
-- Single conversation across retries or fresh conversation per attempt?
-- How much source context fits in the initial prompt vs. tool-retrieved on demand?
-- Which Claude model? (Cost vs. quality tradeoff per run.)
+- **Conversation model**: fresh per attempt (new `query()` call each retry).
+- **Tools**: `Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash` — built-in SDK tools.
+- **Permissions**: runs in `bypassPermissions` mode for non-interactive CI usage.
+- **Observability**: `ToolCallEntry[]` collected via SDK `PreToolUse`/`PostToolUse` hooks; touched files tracked from `Edit`/`Write` tool inputs.
+- **Default model**: `claude-sonnet-4-6` (configurable via action input).
+- **Budget**: `maxTurns` (default 50) and optional `maxBudgetUsd` per attempt.
 
 ### Future providers
 
@@ -150,47 +149,19 @@ Potential alternatives that would implement the same interface:
 
 ## Open questions
 
-### Provider integration
+### Tool sandboxing
 
-- Single conversation across retries or fresh context per attempt?
+- Can the agent run arbitrary shell commands or only the configured validation set?
+- Should `Bash` tool access be restricted to read-only commands + validation commands?
+
+### Prompt tuning
+
 - How much source context fits in the initial prompt vs. tool-retrieved on demand?
-- Which Claude model for v1? (Cost vs. quality per run.)
-- Should the provider return structured edits or just mutate the filesystem directly?
-
-### Tool surface
-
-What tools does the agent get?
-
-- File read / write / list
-- Search (ripgrep)
-- Shell command execution (validation commands, git)
-- Git operations (commit, status, diff)
-
-How are tools sandboxed? Can the agent run arbitrary shell commands or only the configured validation set?
-
-### Prompt construction
-
-- How are plugin mapping rules and conventions injected into the prompt?
-- Is the source diff included verbatim or summarized?
-- How does the prompt change between first attempt and retry attempts?
-- Does the agent see full validation output or a truncated/parsed version?
-
-### Scope of edits
-
-- Does the agent commit after each attempt or only on final success?
-- Can the agent create new files in the target repo or only modify existing ones?
-- How does the agent handle cases where source files have no target mapping?
-
-### Validation strategy
-
-- Are validation commands run sequentially or can they run in parallel?
-- Does the agent see all validation failures at once or stop at the first?
-- Should partial validation success (some commands pass, some fail) influence retry behavior?
+- Does the agent see full validation output or a truncated/parsed version on retry?
 
 ### Quality signals
 
 - How do we measure whether the agent's edits are "correct" beyond validation passing?
-- Should the agent produce a confidence score or uncertainty notes?
 - Is there a complexity threshold where the agent should bail early rather than attempt?
 
 ## Decisions log
@@ -206,8 +177,38 @@ Record decisions here as they're made.
 ### 2026-03-01 — v1 agent framework
 
 - **Question**: Which agent SDK for v1?
-- **Decision**: `claude-agent-sdk-typescript`
+- **Decision**: `@anthropic-ai/claude-agent-sdk` via `ClaudeAgentProvider`.
 - **Rationale**: Anthropic's own Claude Code Action uses it. Handles multi-turn tool use, streaming, and context management out of the box.
+
+### 2026-03-03 — Conversation model
+
+- **Question**: Single conversation across retries or fresh context per attempt?
+- **Decision**: Fresh per attempt (new `query()` call each retry).
+- **Rationale**: Simpler state management; `previousAttempts` feedback provides retry context without carrying stale conversation history.
+
+### 2026-03-03 — Working directory reset
+
+- **Question**: Reset target repo between attempts or build incrementally?
+- **Decision**: Incremental (no reset); each attempt builds on previous edits.
+- **Rationale**: Avoids re-doing successful work; agent receives `previousAttempts` to understand what already happened.
+
+### 2026-03-03 — Commit strategy
+
+- **Question**: Commit after each attempt or only on final state?
+- **Decision**: One commit per run on the final working tree state (both success and exhaustion).
+- **Rationale**: Keeps git history clean; delivery always creates exactly one commit regardless of attempt count.
+
+### 2026-03-03 — Validation policy
+
+- **Question**: Run all validation commands or stop on first failure?
+- **Decision**: Sequential execution, stop on first failing command.
+- **Rationale**: Fast feedback for the agent; no point running later commands if an earlier one fails.
+
+### 2026-03-03 — Tool surface
+
+- **Question**: What tools does the agent get?
+- **Decision**: `Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash` (Claude Agent SDK built-ins).
+- **Rationale**: Covers file operations, search, and shell access. Agent can run validation commands and inspect errors via Bash.
 
 ### Decision template
 
