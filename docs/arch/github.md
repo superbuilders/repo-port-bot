@@ -156,18 +156,18 @@ Responsible for:
 - Running the engine entrypoint from `packages/action/dist/index.js`
 - Publishing action outputs for downstream workflow steps
 
-### workflow_dispatch (v2)
+### Release workflow
 
-Manual re-run support:
+`.github/workflows/release.yml` triggers on push to `main` or manual dispatch:
 
-```yaml
-on:
-    workflow_dispatch:
-        inputs:
-            pr_number:
-                description: 'Source PR number to port'
-                required: true
-```
+1. Install, check, test
+2. Build action bundle via esbuild
+3. Force-add `packages/action/dist/index.js` and commit (if changed)
+4. Force-update `v1` tag
+
+Users reference `@v1` which always points to the latest release build on `main`.
+
+### workflow_dispatch for port re-runs (v2)
 
 Not in scope for v1 but the engine should accept a PR number as input rather than only discovering it from the push event.
 
