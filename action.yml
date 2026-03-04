@@ -77,4 +77,4 @@ outputs:
 
 runs:
     using: node20
-    main: packages/action/dist/index.js
+    main: packages/action/dist/index.cjs
