@@ -7,7 +7,7 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.js --external:@img/*",
+		"build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.cjs --external:@img/*",
 		"test": "bun test --no-env-file"
 	},
 	"dependencies": {
