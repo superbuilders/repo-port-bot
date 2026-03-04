@@ -4,13 +4,14 @@ import {
 	formatPortBotLine,
 } from '@repo-port-bot/logger'
 
-import { joinNonEmptyLines, toErrorMessage } from '../utils.ts'
+import { extractFilePath, joinNonEmptyLines, toErrorMessage, truncateLogText } from '../utils.ts'
 import { runValidationCommands } from './run-validation.ts'
 import { buildValidationFailureReason } from './utils.ts'
 
 import type { Logger } from '@repo-port-bot/logger'
 
 import type {
+	AgentMessage,
 	AgentProvider,
 	ExecutionAttempt,
 	ExecutionResult,
@@ -71,6 +72,13 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 				diffFilePath: options.diffFilePath,
 				pluginConfig: options.context.pluginConfig,
 				previousAttempts: history,
+				onMessage: message => {
+					logAgentMessage({
+						logger,
+						runId: options.context.runId,
+						message,
+					})
+				},
 			})
 
 			for (const path of agentOutput.touchedFiles) {
@@ -193,4 +201,56 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 		touchedFiles: [...touchedFiles],
 		failureReason: `Execution stopped before completing after ${String(history.length)} attempts.`,
 	}
+}
+
+/**
+ * Log one streamed agent message using structured line formatting.
+ *
+ * @param input - Message logging input.
+ * @param input.logger - Logger implementation.
+ * @param input.runId - Run identifier for correlation.
+ * @param input.message - Streamed agent message.
+ */
+function logAgentMessage(input: { logger: Logger; runId: string; message: AgentMessage }): void {
+	const { logger, runId, message } = input
+
+	if (message.kind === 'tool_start') {
+		logger.info(
+			formatPortBotLine({
+				runId,
+				fields: {
+					stage: 'execute',
+					tool: message.toolName,
+					file: extractFilePath(message.toolInput),
+				},
+			}),
+		)
+
+		return
+	}
+
+	if (message.kind === 'tool_end') {
+		logger.debug(
+			formatPortBotLine({
+				runId,
+				fields: {
+					stage: 'execute',
+					tool: message.toolName,
+					toolDurationMs: message.durationMs,
+				},
+			}),
+		)
+
+		return
+	}
+
+	logger.debug(
+		formatPortBotLine({
+			runId,
+			fields: {
+				stage: 'execute',
+				[message.kind]: truncateLogText(message.text),
+			},
+		}),
+	)
 }

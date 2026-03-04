@@ -4,7 +4,13 @@ import { buildSystemPrompt, buildUserPrompt } from './build-prompt.ts'
 
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
-import type { AgentInput, AgentOutput, AgentProvider, ToolCallEntry } from '@repo-port-bot/engine'
+import type {
+	AgentInput,
+	AgentOutput,
+	AgentProvider,
+	AgentMessage,
+	ToolCallEntry,
+} from '@repo-port-bot/engine'
 
 import type { ClaudeProviderOptions, QueryFn } from './types.ts'
 
@@ -42,6 +48,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 		const toolCallLog: ToolCallEntry[] = []
 		const assistantNotes: string[] = []
 		const startTimesByToolUseId = new Map<string, number>()
+		const onMessage = input.onMessage
 		const systemPrompt = buildSystemPrompt({
 			pluginConfig: input.pluginConfig,
 			sourceWorkingDirectory: input.sourceWorkingDirectory,
@@ -73,6 +80,11 @@ export class ClaudeAgentProvider implements AgentProvider {
 								}
 
 								startTimesByToolUseId.set(hookInput.tool_use_id, Date.now())
+								onMessage?.({
+									kind: 'tool_start',
+									toolName: hookInput.tool_name,
+									toolInput: toRecord(hookInput.tool_input),
+								})
 
 								return {}
 							},
@@ -95,6 +107,11 @@ export class ClaudeAgentProvider implements AgentProvider {
 									toolName: hookInput.tool_name,
 									input: hookInput.tool_input,
 									output: hookInput.tool_response,
+									durationMs,
+								})
+								onMessage?.({
+									kind: 'tool_end',
+									toolName: hookInput.tool_name,
 									durationMs,
 								})
 
@@ -122,6 +139,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 
 		for await (const message of this.queryFn({ prompt: userPrompt, options: queryOptions })) {
 			if (message.type === 'assistant') {
+				emitAssistantMessages(message, onMessage)
 				assistantNotes.push(...extractAssistantText(message))
 			} else if (message.type === 'result') {
 				resultMessage = message
@@ -164,6 +182,35 @@ function extractAssistantText(message: Extract<SDKMessage, { type: 'assistant' }
 	}
 
 	return lines
+}
+
+/**
+ * Emit streamable assistant message blocks for observability.
+ *
+ * @param message - SDK assistant message.
+ * @param onMessage - Optional callback for message emission.
+ */
+function emitAssistantMessages(
+	message: Extract<SDKMessage, { type: 'assistant' }>,
+	onMessage: ((message: AgentMessage) => void) | undefined,
+): void {
+	if (!onMessage) {
+		return
+	}
+
+	for (const block of message.message.content) {
+		if (block.type === 'text') {
+			onMessage({
+				kind: 'text',
+				text: block.text,
+			})
+		} else if (block.type === 'thinking') {
+			onMessage({
+				kind: 'thinking',
+				text: block.thinking,
+			})
+		}
+	}
 }
 
 /**
@@ -236,4 +283,18 @@ function joinNonEmptyLines(lines: (string | undefined)[], delimiter = '\n'): str
 	}
 
 	return nonEmpty.join(delimiter)
+}
+
+/**
+ * Convert a loose tool input payload to a plain record when possible.
+ *
+ * @param value - Arbitrary tool payload.
+ * @returns Record view for structured logging.
+ */
+function toRecord(value: unknown): Record<string, unknown> | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined
+	}
+
+	return value as Record<string, unknown>
 }

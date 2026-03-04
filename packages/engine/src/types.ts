@@ -257,6 +257,41 @@ export interface ToolCallEntry {
 }
 
 /**
+ * Streaming message kinds emitted by an agent provider during execution.
+ */
+export type AgentMessageKind = 'thinking' | 'tool_start' | 'tool_end' | 'text'
+
+/**
+ * Structured streaming message emitted during one agent attempt.
+ */
+export interface AgentMessage {
+	/**
+	 * Message category for routing to observability sinks.
+	 */
+	kind: AgentMessageKind
+
+	/**
+	 * Free-form message text (thinking or assistant text blocks).
+	 */
+	text?: string
+
+	/**
+	 * Tool name for tool lifecycle messages.
+	 */
+	toolName?: string
+
+	/**
+	 * Tool input payload at start time for context-rich logging.
+	 */
+	toolInput?: Record<string, unknown>
+
+	/**
+	 * Tool call duration in milliseconds when available.
+	 */
+	durationMs?: number
+}
+
+/**
  * Everything the agent provider needs to perform one edit attempt.
  *
  * The orchestrator constructs this before each call to the provider. On
@@ -294,6 +329,11 @@ export interface AgentInput {
 	 * from validation failures. Empty array on the first attempt.
 	 */
 	previousAttempts: ExecutionAttempt[]
+
+	/**
+	 * Optional callback for streaming provider messages during execution.
+	 */
+	onMessage?: (message: AgentMessage) => void
 }
 
 /**

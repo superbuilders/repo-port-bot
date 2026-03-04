@@ -9,6 +9,8 @@ export { executePort } from './execution/execute-port.ts'
 export { runPort } from './pipeline/run-port.ts'
 
 export type {
+	AgentMessage,
+	AgentMessageKind,
 	AgentInput,
 	AgentOutput,
 	AgentProvider,

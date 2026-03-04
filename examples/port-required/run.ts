@@ -8,7 +8,7 @@
  * Forces decision to PORT_REQUIRED so the agent executes. Validation is
  * `true` (always passes) so the focus is on seeing what Claude produces.
  */
-import { cpSync, mkdtempSync } from 'node:fs'
+import { cpSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -137,15 +137,22 @@ const targetDir = mkdtempSync(join(tmpdir(), 'port-bot-target-'))
 const sourceDir = mkdtempSync(join(tmpdir(), 'port-bot-source-'))
 
 cpSync(join(EXAMPLE_DIR, 'target'), targetDir, { recursive: true })
-cpSync(join(EXAMPLE_DIR, 'source'), sourceDir, { recursive: true })
 
 Bun.spawnSync(['git', 'init'], { cwd: targetDir })
 Bun.spawnSync(['git', 'add', '-A'], { cwd: targetDir })
 Bun.spawnSync(['git', 'commit', '-m', 'initial'], { cwd: targetDir })
 
-const diffFilePath = join(sourceDir, 'port-diff.patch')
+cpSync(join(EXAMPLE_DIR, 'target'), sourceDir, { recursive: true })
+Bun.spawnSync(['git', 'init'], { cwd: sourceDir })
+Bun.spawnSync(['git', 'add', '-A'], { cwd: sourceDir })
+Bun.spawnSync(['git', 'commit', '-m', 'before'], { cwd: sourceDir })
 
-Bun.spawnSync(['touch', diffFilePath])
+cpSync(join(EXAMPLE_DIR, 'source'), sourceDir, { recursive: true })
+
+const diffFilePath = join(sourceDir, 'port-diff.patch')
+const diffResult = Bun.spawnSync(['git', 'diff'], { cwd: sourceDir })
+
+writeFileSync(diffFilePath, diffResult.stdout.toString())
 
 console.log(`Source: ${sourceDir}`)
 console.log(`Target: ${targetDir}`)
@@ -165,7 +172,7 @@ const result = await runPort({
 	sourceWorkingDirectory: sourceDir,
 	diffFilePath,
 	portBotJson: { target: 'example/target-repo', validation: ['true'] },
-	logger: createConsoleLogger('info'),
+	logger: createConsoleLogger('debug'),
 	stageOverrides: {
 		decide: () => ({
 			kind: 'PORT_REQUIRED',

@@ -45,3 +45,51 @@ export function joinNonEmptyLines(
 
 	return nonEmptyLines.join(delimiter)
 }
+
+/**
+ * Extract file path from a tool input payload by checking common key names.
+ *
+ * @param toolInput - Tool input payload from streamed event.
+ * @returns File path when present.
+ */
+export function extractFilePath(
+	toolInput: Record<string, unknown> | undefined,
+): string | undefined {
+	if (!toolInput) {
+		return undefined
+	}
+
+	for (const key of ['file_path', 'path', 'file'] as const) {
+		const value = toolInput[key]
+
+		if (typeof value === 'string' && value.length > 0) {
+			return value
+		}
+	}
+
+	return undefined
+}
+
+const DEFAULT_MAX_LOG_TEXT_LENGTH = 240
+
+/**
+ * Truncate long text to keep line-oriented log output readable.
+ *
+ * @param value - Candidate text value.
+ * @param maxLength - Maximum length before truncation. Defaults to 240.
+ * @returns Truncated text with ellipsis when needed.
+ */
+export function truncateLogText(
+	value: string | undefined,
+	maxLength = DEFAULT_MAX_LOG_TEXT_LENGTH,
+): string | undefined {
+	if (!value) {
+		return undefined
+	}
+
+	if (value.length <= maxLength) {
+		return value
+	}
+
+	return `${value.slice(0, maxLength - 3)}...`
+}

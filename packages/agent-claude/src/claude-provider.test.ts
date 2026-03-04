@@ -48,21 +48,16 @@ function makeInput(): AgentInput {
 }
 
 /**
- * Build a mock SDK assistant message with one text block.
+ * Build a mock SDK assistant message with provided content blocks.
  *
- * @param text - Assistant text content.
+ * @param content - Assistant content blocks.
  * @returns SDK message fixture.
  */
-function makeAssistantMessage(text: string): SDKMessage {
+function makeAssistantMessage(content: unknown[]): SDKMessage {
 	return {
 		type: 'assistant',
 		message: {
-			content: [
-				{
-					type: 'text',
-					text,
-				},
-			],
+			content,
 		},
 		parent_tool_use_id: null,
 		uuid: 'uuid-assistant',
@@ -73,6 +68,7 @@ function makeAssistantMessage(text: string): SDKMessage {
 describe('ClaudeAgentProvider', () => {
 	test('returns complete output with touched files and tool call log on success', async () => {
 		const queryCalls: { options: unknown; prompt: unknown }[] = []
+		const streamedMessages: unknown[] = []
 		const provider = new ClaudeAgentProvider({
 			queryFn: ({ options, prompt }) =>
 				(async function* queryFn(): AsyncGenerator<SDKMessage, void> {
@@ -141,7 +137,16 @@ describe('ClaudeAgentProvider', () => {
 						{ signal: new AbortController().signal },
 					)
 
-					yield makeAssistantMessage('Applied source changes and updated imports.')
+					yield makeAssistantMessage([
+						{
+							type: 'thinking',
+							thinking: 'Need to inspect the destination file before editing.',
+						},
+						{
+							type: 'text',
+							text: 'Applied source changes and updated imports.',
+						},
+					])
 					yield {
 						type: 'result',
 						subtype: 'success',
@@ -167,7 +172,10 @@ describe('ClaudeAgentProvider', () => {
 				})(),
 		})
 
-		const output = await provider.executePort(makeInput())
+		const output = await provider.executePort({
+			...makeInput(),
+			onMessage: message => streamedMessages.push(message),
+		})
 
 		expect(queryCalls).toHaveLength(1)
 		expect(output.complete).toBe(true)
@@ -176,13 +184,36 @@ describe('ClaudeAgentProvider', () => {
 		expect(output.toolCallLog[0]?.toolName).toBe('Read')
 		expect(output.toolCallLog[1]?.toolName).toBe('Edit')
 		expect(output.notes).toContain('Applied source changes')
+		expect(streamedMessages).toContainEqual({
+			kind: 'thinking',
+			text: 'Need to inspect the destination file before editing.',
+		})
+		expect(streamedMessages).toContainEqual({
+			kind: 'text',
+			text: 'Applied source changes and updated imports.',
+		})
+		expect(streamedMessages).toContainEqual({
+			kind: 'tool_start',
+			toolName: 'Read',
+			toolInput: { file_path: '/tmp/target/src/example.ts' },
+		})
+		expect(streamedMessages).toContainEqual({
+			kind: 'tool_end',
+			toolName: 'Edit',
+			durationMs: expect.any(Number),
+		})
 	})
 
 	test('returns incomplete output with error notes on max-turns result', async () => {
 		const provider = new ClaudeAgentProvider({
 			queryFn: () =>
 				(async function* queryFn(): AsyncGenerator<SDKMessage, void> {
-					yield makeAssistantMessage('Attempted update but hit constraints.')
+					yield makeAssistantMessage([
+						{
+							type: 'text',
+							text: 'Attempted update but hit constraints.',
+						},
+					])
 					yield {
 						type: 'result',
 						subtype: 'error_max_turns',

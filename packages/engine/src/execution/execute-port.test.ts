@@ -237,4 +237,75 @@ describe('executePort', () => {
 			true,
 		)
 	})
+
+	test('routes streamed agent messages to info/debug logs', async () => {
+		const directory = await createTempDirectory()
+		const infoMessages: string[] = []
+		const debugMessages: string[] = []
+		const logger: Logger = {
+			error: () => {},
+			warn: () => {},
+			info: message => infoMessages.push(message),
+			debug: message => debugMessages.push(message),
+			group: () => {},
+			groupEnd: () => {},
+		}
+		const provider: AgentProvider = {
+			async executePort(
+				input: AgentInput,
+			): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
+				input.onMessage?.({
+					kind: 'thinking',
+					text: 'Inspecting source and target trees.',
+				})
+				input.onMessage?.({
+					kind: 'tool_start',
+					toolName: 'Read',
+					toolInput: { file_path: '/tmp/target/src/example.ts' },
+				})
+				input.onMessage?.({
+					kind: 'tool_end',
+					toolName: 'Read',
+					durationMs: 12,
+				})
+				input.onMessage?.({
+					kind: 'text',
+					text: 'Applied changes.',
+				})
+
+				return {
+					touchedFiles: ['src/example.ts'],
+					complete: true,
+					toolCallLog: [],
+				}
+			},
+		}
+
+		await executePort({
+			agentProvider: provider,
+			context: makeContext(['echo ok']),
+			targetWorkingDirectory: directory,
+			maxAttempts: 1,
+			logger,
+		})
+
+		expect(
+			infoMessages.some(message =>
+				message.includes('stage=execute tool=Read file=/tmp/target/src/example.ts'),
+			),
+		).toBe(true)
+		expect(
+			debugMessages.some(message =>
+				message.includes('stage=execute thinking=Inspecting source'),
+			),
+		).toBe(true)
+		expect(
+			debugMessages.some(message =>
+				message.includes('stage=execute tool=Read toolDurationMs=12'),
+			),
+		).toBe(true)
+		expect(
+			debugMessages.some(message => message.includes('stage=execute text=Applied changes.')),
+		).toBe(true)
+	})
 })
