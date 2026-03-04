@@ -131,6 +131,7 @@ function createAgentProvider(): AgentProvider {
 describe('runPort', () => {
 	test('runs full PORT_REQUIRED flow and returns pr_opened', async () => {
 		const callOrder: string[] = []
+		const commentOutcomes: string[] = []
 		const sourceChange = makeSourceChange()
 		const pluginConfig = makePluginConfig()
 		const sourceWorkingDirectory = '/tmp/source-repo'
@@ -184,10 +185,17 @@ describe('runPort', () => {
 						targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
 					}
 				},
+				commentOnSourcePr: async input => {
+					callOrder.push('comment')
+					commentOutcomes.push(input.outcome)
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-1'
+				},
 			},
 		})
 
-		expect(callOrder).toEqual(['read', 'resolve', 'decide', 'execute', 'deliver'])
+		expect(callOrder).toEqual(['read', 'resolve', 'decide', 'execute', 'deliver', 'comment'])
+		expect(commentOutcomes).toEqual(['pr_opened'])
 		expect(result.outcome).toBe('pr_opened')
 		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/901')
 		expect(result.durationMs).toBeGreaterThan(0)
@@ -200,6 +208,7 @@ describe('runPort', () => {
 	test('returns skipped_not_required and does not execute or deliver', async () => {
 		let executeCalled = false
 		let deliverCalled = false
+		let commentCalled = false
 
 		const result = await runPort({
 			octokit: createOctokitMock(),
@@ -221,6 +230,11 @@ describe('runPort', () => {
 
 					return { outcome: 'skipped' }
 				},
+				commentOnSourcePr: async () => {
+					commentCalled = true
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-1'
+				},
 			},
 		})
 
@@ -228,10 +242,12 @@ describe('runPort', () => {
 		expect(result.summary).toContain('Skipped:')
 		expect(executeCalled).toBe(false)
 		expect(deliverCalled).toBe(false)
+		expect(commentCalled).toBe(false)
 	})
 
 	test('routes NEEDS_HUMAN to issue delivery and returns needs_human', async () => {
 		let executeCalled = false
+		const commentOutcomes: string[] = []
 
 		const result = await runPort({
 			octokit: createOctokitMock(),
@@ -252,6 +268,11 @@ describe('runPort', () => {
 					outcome: 'needs_human',
 					followUpIssueUrl: 'https://github.com/acme/target-repo/issues/55',
 				}),
+				commentOnSourcePr: async input => {
+					commentOutcomes.push(input.outcome)
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-2'
+				},
 			},
 		})
 
@@ -259,9 +280,12 @@ describe('runPort', () => {
 		expect(result.followUpIssueUrl).toBe('https://github.com/acme/target-repo/issues/55')
 		expect(result.summary).toContain('Needs human review')
 		expect(executeCalled).toBe(false)
+		expect(commentOutcomes).toEqual(['needs_human'])
 	})
 
 	test('returns draft_pr_opened when execution fails and delivery opens draft', async () => {
+		const commentOutcomes: string[] = []
+
 		const result = await runPort({
 			octokit: createOctokitMock(),
 			agentProvider: createAgentProvider(),
@@ -277,6 +301,11 @@ describe('runPort', () => {
 					outcome: 'draft_pr_opened',
 					targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/333',
 				}),
+				commentOnSourcePr: async input => {
+					commentOutcomes.push(input.outcome)
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-3'
+				},
 			},
 		})
 
@@ -284,6 +313,7 @@ describe('runPort', () => {
 		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/333')
 		expect(result.summary).toContain('Draft PR opened (stalled)')
 		expect(result.summary).toContain('Validation failed after 3 attempts')
+		expect(commentOutcomes).toEqual(['draft_pr_opened'])
 	})
 
 	test('returns failed when a stage throws and still includes duration', async () => {
@@ -304,6 +334,30 @@ describe('runPort', () => {
 		expect(result.decision.kind).toBe('NEEDS_HUMAN')
 		expect(result.summary).toContain('Engine failure: read context exploded')
 		expect(result.durationMs).toBeGreaterThan(0)
+	})
+
+	test('returns failed and continues when source comment posting throws', async () => {
+		const result = await runPort({
+			octokit: createOctokitMock(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => makePluginConfig(),
+				decide: () => {
+					throw new Error('decider exploded')
+				},
+				commentOnSourcePr: async () => {
+					throw new Error('comment post failed')
+				},
+			},
+		})
+
+		expect(result.outcome).toBe('failed')
+		expect(result.decision.kind).toBe('NEEDS_HUMAN')
+		expect(result.summary).toContain('Engine failure: decider exploded')
 	})
 
 	test('auto-fetches port-bot.json when not provided', async () => {

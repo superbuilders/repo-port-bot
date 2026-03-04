@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { deliverResult } from './deliver.ts'
+import { commentOnSourcePr, deliverResult } from './deliver.ts'
 
 import type { Octokit } from '@octokit/rest'
 
@@ -24,6 +24,8 @@ const TARGET_REPO: RepoRef = {
 	defaultBranch: 'main',
 }
 
+const SOURCE_PULL_REQUEST_NUMBER = 42
+
 /**
  * Build a synthetic port context for delivery tests.
  *
@@ -37,7 +39,7 @@ function makeContext(): PortContext {
 		sourceChange: {
 			mergedCommitSha: 'abc1234567',
 			pullRequest: {
-				number: 42,
+				number: SOURCE_PULL_REQUEST_NUMBER,
 				title: 'Sync feature',
 				body: '',
 				url: 'https://github.com/acme/source-repo/pull/42',
@@ -121,10 +123,12 @@ function createOctokitMock(): {
 	pullsCreateCalls: Record<string, unknown>[]
 	issuesCreateCalls: Record<string, unknown>[]
 	addLabelsCalls: Record<string, unknown>[]
+	createCommentCalls: Record<string, unknown>[]
 } {
 	const pullsCreateCalls: Record<string, unknown>[] = []
 	const issuesCreateCalls: Record<string, unknown>[] = []
 	const addLabelsCalls: Record<string, unknown>[] = []
+	const createCommentCalls: Record<string, unknown>[] = []
 
 	const octokit = {
 		rest: {
@@ -156,11 +160,20 @@ function createOctokitMock(): {
 
 					return { data: {} }
 				},
+				createComment: async (params: Record<string, unknown>) => {
+					createCommentCalls.push(params)
+
+					return {
+						data: {
+							html_url: 'https://github.com/acme/source-repo/pull/42#issuecomment-1',
+						},
+					}
+				},
 			},
 		},
 	} as unknown as Octokit
 
-	return { octokit, pullsCreateCalls, issuesCreateCalls, addLabelsCalls }
+	return { octokit, pullsCreateCalls, issuesCreateCalls, addLabelsCalls, createCommentCalls }
 }
 
 describe('deliverResult', () => {
@@ -280,5 +293,55 @@ describe('deliverResult', () => {
 				runCommand: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
 			}),
 		).rejects.toThrow('Execution result is required')
+	})
+})
+
+describe('commentOnSourcePr', () => {
+	test('creates comment on source pull request and returns comment URL', async () => {
+		const { octokit, createCommentCalls } = createOctokitMock()
+		const context = makeContext()
+
+		const commentUrl = await commentOnSourcePr({
+			octokit,
+			sourceRepo: SOURCE_REPO,
+			pullRequestNumber: 42,
+			context,
+			outcome: 'pr_opened',
+			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
+			runId: 'run-1',
+		})
+
+		expect(commentUrl).toBe('https://github.com/acme/source-repo/pull/42#issuecomment-1')
+		expect(createCommentCalls).toHaveLength(1)
+		expect(createCommentCalls[0]?.owner).toBe('acme')
+		expect(createCommentCalls[0]?.repo).toBe('source-repo')
+		expect(createCommentCalls[0]?.issue_number).toBe(SOURCE_PULL_REQUEST_NUMBER)
+		expect(String(createCommentCalls[0]?.body)).toContain(
+			'Port PR opened: https://github.com/acme/target-repo/pull/901',
+		)
+	})
+
+	test('returns undefined when comment creation throws', async () => {
+		const context = makeContext()
+		const octokit = {
+			rest: {
+				issues: {
+					createComment: async () => {
+						throw new Error('rate limited')
+					},
+				},
+			},
+		} as unknown as Octokit
+
+		const commentUrl = await commentOnSourcePr({
+			octokit,
+			sourceRepo: SOURCE_REPO,
+			pullRequestNumber: 42,
+			context,
+			outcome: 'failed',
+			runId: 'run-2',
+		})
+
+		expect(commentUrl).toBeUndefined()
 	})
 })

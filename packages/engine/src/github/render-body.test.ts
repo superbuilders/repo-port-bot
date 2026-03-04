@@ -5,6 +5,7 @@ import {
 	renderNeedsHumanIssueTitle,
 	renderPortPullRequestBody,
 	renderPortPullRequestTitle,
+	renderSourceComment,
 } from './render-body.ts'
 
 import type { ExecutionResult, PortContext, PortDecision, RepoRef } from '../types.ts'
@@ -143,5 +144,53 @@ describe('render-body', () => {
 		expect(body).toContain('Decision reason')
 		expect(body).toContain('`signal-a`')
 		expect(body).toContain('`src/app.ts`')
+	})
+
+	test('renders source comment for ready PR outcome', () => {
+		const body = renderSourceComment({
+			context: makeContext(),
+			outcome: 'pr_opened',
+			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
+			runId: 'run-1',
+		})
+
+		expect(body).toContain('Port PR opened: https://github.com/acme/target-repo/pull/901')
+		expect(body).toContain('Validation passed; ready for review.')
+		expect(body).toContain('Run ID: `run-1`')
+	})
+
+	test('renders source comment for draft and needs-human outcomes', () => {
+		const draftBody = renderSourceComment({
+			context: makeContext(),
+			outcome: 'draft_pr_opened',
+			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/333',
+			runId: 'run-2',
+		})
+		const needsHumanBody = renderSourceComment({
+			context: makeContext(),
+			outcome: 'needs_human',
+			followUpIssueUrl: 'https://github.com/acme/target-repo/issues/55',
+			runId: 'run-3',
+		})
+
+		expect(draftBody).toContain(
+			'Draft port PR opened: https://github.com/acme/target-repo/pull/333',
+		)
+		expect(draftBody).toContain('Validation failed after retries; manual follow-up needed.')
+		expect(needsHumanBody).toContain(
+			'Human follow-up issue opened: https://github.com/acme/target-repo/issues/55',
+		)
+		expect(needsHumanBody).toContain('Port was deferred by decision stage for human review.')
+	})
+
+	test('renders source comment for failed outcome', () => {
+		const body = renderSourceComment({
+			context: makeContext(),
+			outcome: 'failed',
+			runId: 'run-4',
+		})
+
+		expect(body).toContain('Port run failed due to an engine-level error')
+		expect(body).toContain('Run ID: `run-4`')
 	})
 })

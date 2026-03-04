@@ -2,6 +2,7 @@ import type {
 	ExecutionResult,
 	PortContext,
 	PortDecision,
+	PortRunOutcome,
 	ValidationCommandResult,
 } from '../types.ts'
 
@@ -14,6 +15,14 @@ interface RenderPullRequestBodyInput {
 interface RenderNeedsHumanIssueBodyInput {
 	context: PortContext
 	decision: PortDecision
+}
+
+interface RenderSourceCommentInput {
+	context: PortContext
+	outcome: Exclude<PortRunOutcome, 'skipped_not_required'>
+	targetPullRequestUrl?: string
+	followUpIssueUrl?: string
+	runId: string
 }
 
 const SHORT_SHA_LENGTH = 7
@@ -169,4 +178,73 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
 		'## Changed files',
 		changedFiles,
 	].join('\n')
+}
+
+/**
+ * Render a source PR notification comment describing the run outcome.
+ *
+ * @param input - Rendering input.
+ * @param input.context - Port context with source metadata.
+ * @param input.outcome - Terminal run outcome.
+ * @param input.targetPullRequestUrl - Optional created target PR URL.
+ * @param input.followUpIssueUrl - Optional created needs-human issue URL.
+ * @param input.runId - Pipeline run ID for correlation.
+ * @returns Comment markdown body.
+ */
+export function renderSourceComment(input: RenderSourceCommentInput): string {
+	const sourcePullRequest = input.context.sourceChange.pullRequest
+	const sourceReference = sourcePullRequest
+		? `[#${String(sourcePullRequest.number)}](${sourcePullRequest.url})`
+		: `commit \`${input.context.sourceChange.mergedCommitSha}\``
+
+	switch (input.outcome) {
+		case 'pr_opened': {
+			return [
+				'Auto-port update:',
+				input.targetPullRequestUrl
+					? `- Port PR opened: ${input.targetPullRequestUrl}`
+					: '- Port PR opened in target repository.',
+				'- Validation passed; ready for review.',
+				`- Source: ${sourceReference}`,
+				`- Run ID: \`${input.runId}\``,
+			].join('\n')
+		}
+		case 'draft_pr_opened': {
+			return [
+				'Auto-port update:',
+				input.targetPullRequestUrl
+					? `- Draft port PR opened: ${input.targetPullRequestUrl}`
+					: '- Draft port PR opened in target repository.',
+				'- Validation failed after retries; manual follow-up needed.',
+				`- Source: ${sourceReference}`,
+				`- Run ID: \`${input.runId}\``,
+			].join('\n')
+		}
+		case 'needs_human': {
+			return [
+				'Auto-port update:',
+				input.followUpIssueUrl
+					? `- Human follow-up issue opened: ${input.followUpIssueUrl}`
+					: '- Human follow-up issue created in target repository.',
+				'- Port was deferred by decision stage for human review.',
+				`- Source: ${sourceReference}`,
+				`- Run ID: \`${input.runId}\``,
+			].join('\n')
+		}
+		case 'failed': {
+			return [
+				'Auto-port update:',
+				'- Port run failed due to an engine-level error before successful delivery.',
+				`- Source: ${sourceReference}`,
+				`- Run ID: \`${input.runId}\``,
+			].join('\n')
+		}
+		default: {
+			return [
+				'Auto-port update:',
+				`- Source: ${sourceReference}`,
+				`- Run ID: \`${input.runId}\``,
+			].join('\n')
+		}
+	}
 }

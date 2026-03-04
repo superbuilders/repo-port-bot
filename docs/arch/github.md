@@ -98,6 +98,18 @@ Labels the engine expects to exist (or creates on first use):
 | `needs-human`  | Marks issues requiring manual decision                |
 | `no-port`      | User-applied to source PRs to skip porting            |
 
+### Source PR notification
+
+For non-skipped outcomes, the engine posts a best-effort comment on the source PR
+to close the traceability loop from source -> target.
+
+- `pr_opened` -> comment links to ready target PR
+- `draft_pr_opened` -> comment links to draft target PR and notes stalled validation
+- `needs_human` -> comment links to the target follow-up issue
+- `failed` -> comment notes engine-level failure with run ID
+
+This notification is non-blocking: comment failures never change the terminal run outcome.
+
 ## Loop prevention
 
 Three signals prevent TS→Py→TS echo loops. At least two must be checked:
@@ -189,6 +201,5 @@ Not in scope for v1 but the engine should accept a PR number as input rather tha
 ## Open questions
 
 - Should the engine create labels automatically if they don't exist, or require pre-setup?
-- Should the engine comment back on the source PR with a link to the target PR?
 - Do we need rate-limit handling for GitHub API calls?
 - Should PR body rendering be configurable per plugin or is a single format enough?

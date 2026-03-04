@@ -87,6 +87,7 @@ The maintainer experiences porting as "automatic and reviewable":
 
 2. **Traceability**
     - Target PR contains a link to source PR and source PR number in title/body.
+    - For non-skipped outcomes (`pr_opened`, `draft_pr_opened`, `needs_human`, `failed`), source PR receives a bot comment linking to the target PR/issue or run status.
 
 3. **Correctness gate**
     - Target PR is only marked "ready" when configured validation commands pass.

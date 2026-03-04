@@ -2,7 +2,7 @@ import { fetchPortBotJson } from '../config/fetch-port-bot-json.ts'
 import { resolvePluginConfig } from '../config/resolve-plugin-config.ts'
 import { decide } from '../decision/decide.ts'
 import { executePort } from '../execution/execute-port.ts'
-import { deliverResult } from '../github/deliver.ts'
+import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
 import { joinNonEmptyLines, toErrorMessage } from '../utils.ts'
 
@@ -31,6 +31,7 @@ interface RunPortStageOverrides {
 	decide: typeof decide
 	executePort: typeof executePort
 	deliverResult: typeof deliverResult
+	commentOnSourcePr: typeof commentOnSourcePr
 }
 
 interface RunPortOptions {
@@ -160,6 +161,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 	const runId = crypto.randomUUID()
 	const startedAt = new Date(startedAtMs).toISOString()
 	let decision: PortDecision | undefined = undefined
+	let context: PortContext | undefined = undefined
 
 	const stages: RunPortStageOverrides = {
 		readSourceContext: options.stageOverrides?.readSourceContext ?? readSourceContext,
@@ -168,6 +170,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		decide: options.stageOverrides?.decide ?? decide,
 		executePort: options.stageOverrides?.executePort ?? executePort,
 		deliverResult: options.stageOverrides?.deliverResult ?? deliverResult,
+		commentOnSourcePr: options.stageOverrides?.commentOnSourcePr ?? commentOnSourcePr,
 	}
 
 	try {
@@ -192,12 +195,49 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			portBotJson: resolvedPortBotJson,
 		})
 
-		const context: PortContext = {
+		context = {
 			runId,
 			startedAt,
 			sourceRepo: options.sourceRepo,
 			sourceChange,
 			pluginConfig,
+		}
+
+		const portContext = context
+
+		/**
+		 * Post a non-blocking source PR comment for terminal run outcomes.
+		 *
+		 * @param input - Comment payload.
+		 * @param input.outcome - Terminal outcome to report.
+		 * @param input.targetPullRequestUrl - Optional created target PR URL.
+		 * @param input.followUpIssueUrl - Optional created follow-up issue URL.
+		 */
+		async function trySourcePrComment(input: {
+			outcome: Exclude<PortRunResult['outcome'], 'skipped_not_required'>
+			targetPullRequestUrl?: string
+			followUpIssueUrl?: string
+		}): Promise<void> {
+			const sourcePullRequestNumber = portContext.sourceChange.pullRequest?.number
+
+			if (!sourcePullRequestNumber) {
+				return
+			}
+
+			try {
+				await stages.commentOnSourcePr({
+					octokit: options.octokit,
+					sourceRepo: portContext.sourceRepo,
+					pullRequestNumber: sourcePullRequestNumber,
+					context: portContext,
+					outcome: input.outcome,
+					targetPullRequestUrl: input.targetPullRequestUrl,
+					followUpIssueUrl: input.followUpIssueUrl,
+					runId,
+				})
+			} catch (error) {
+				console.warn('Unable to post source PR comment from pipeline stage.', error)
+			}
 		}
 
 		decision = stages.decide(context)
@@ -218,6 +258,11 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 				context,
 				decision,
 				targetWorkingDirectory: options.targetWorkingDirectory,
+			})
+
+			await trySourcePrComment({
+				outcome: 'needs_human',
+				followUpIssueUrl: delivery.followUpIssueUrl,
 			})
 
 			return {
@@ -258,6 +303,11 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 
 		const outcome = delivery.outcome
 
+		await trySourcePrComment({
+			outcome,
+			targetPullRequestUrl: delivery.targetPullRequestUrl,
+		})
+
 		return {
 			runId,
 			outcome,
@@ -275,6 +325,22 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 	} catch (error) {
 		const errorMessage = toErrorMessage(error)
 		const failureDecision = decision ?? buildEngineFailureDecision(errorMessage)
+		const sourcePullRequestNumber = context?.sourceChange.pullRequest?.number
+
+		if (context && sourcePullRequestNumber) {
+			try {
+				await stages.commentOnSourcePr({
+					octokit: options.octokit,
+					sourceRepo: context.sourceRepo,
+					pullRequestNumber: sourcePullRequestNumber,
+					context,
+					outcome: 'failed',
+					runId,
+				})
+			} catch (commentError) {
+				console.warn('Unable to post source PR comment for failed run.', commentError)
+			}
+		}
 
 		return {
 			runId,

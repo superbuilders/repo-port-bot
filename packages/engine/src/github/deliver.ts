@@ -3,11 +3,18 @@ import {
 	renderNeedsHumanIssueTitle,
 	renderPortPullRequestBody,
 	renderPortPullRequestTitle,
+	renderSourceComment,
 } from './render-body.ts'
 
 import type { Octokit } from '@octokit/rest'
 
-import type { ExecutionResult, PortContext, PortDecision } from '../types.ts'
+import type {
+	ExecutionResult,
+	PortContext,
+	PortDecision,
+	PortRunOutcome,
+	RepoRef,
+} from '../types.ts'
 
 type DeliveryOutcome = 'pr_opened' | 'draft_pr_opened' | 'needs_human' | 'skipped'
 
@@ -29,6 +36,17 @@ interface DeliverResultOptions {
 	execution?: ExecutionResult
 	targetWorkingDirectory: string
 	runCommand?: CommandRunner
+}
+
+interface CommentOnSourcePrOptions {
+	octokit: Octokit
+	sourceRepo: RepoRef
+	pullRequestNumber: number
+	context: PortContext
+	outcome: Exclude<PortRunOutcome, 'skipped_not_required'>
+	targetPullRequestUrl?: string
+	followUpIssueUrl?: string
+	runId: string
 }
 
 const PORT_BOT_FOOTER = 'Ported-By: repo-port-bot'
@@ -141,6 +159,37 @@ async function stageAndCommit(
 	}
 
 	await expectCommandSuccess(runner, ['git', 'commit', '-m', commitMessage], workingDirectory)
+}
+
+/**
+ * Add a best-effort source PR comment with target delivery status.
+ *
+ * @param options - Comment options.
+ * @returns Created comment URL when successful.
+ */
+export async function commentOnSourcePr(
+	options: CommentOnSourcePrOptions,
+): Promise<string | undefined> {
+	try {
+		const response = await options.octokit.rest.issues.createComment({
+			owner: options.sourceRepo.owner,
+			repo: options.sourceRepo.name,
+			issue_number: options.pullRequestNumber,
+			body: renderSourceComment({
+				context: options.context,
+				outcome: options.outcome,
+				targetPullRequestUrl: options.targetPullRequestUrl,
+				followUpIssueUrl: options.followUpIssueUrl,
+				runId: options.runId,
+			}),
+		})
+
+		return response.data.html_url
+	} catch (error) {
+		console.warn('Unable to comment on source pull request.', error)
+
+		return undefined
+	}
 }
 
 /**
