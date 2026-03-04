@@ -1,0 +1,24 @@
+{
+	"name": "@repo-port-bot/engine",
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"test": "bun test --no-env-file"
+	},
+	"dependencies": {
+		"@octokit/rest": "^22.0.1",
+		"@repo-port-bot/logger": "workspace:*",
+		"decoders": "^2.8.0",
+		"micromatch": "^4.0.8"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/micromatch": "^4.0.10"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	}
+}

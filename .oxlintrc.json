@@ -1,0 +1,21 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"extends": [".oxlint/base.json"],
+	"ignorePatterns": ["examples/**/source/**", "examples/**/target/**"],
+	"globals": {
+		"AbortController": "readonly",
+		"Bun": "readonly",
+		"Buffer": "readonly",
+		"Response": "readonly",
+		"TextDecoder": "readonly",
+		"URL": "readonly",
+		"WebSocketPair": "readonly",
+		"console": "readonly",
+		"crypto": "readonly",
+		"fetch": "readonly",
+		"performance": "readonly",
+		"process": "readonly",
+		"setTimeout": "readonly",
+		"clearTimeout": "readonly"
+	}
+}

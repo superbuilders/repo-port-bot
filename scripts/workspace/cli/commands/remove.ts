@@ -1,23 +1,23 @@
 #!/usr/bin/env bun
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 
-import * as p from "@clack/prompts";
+import * as p from '@clack/prompts'
 /**
  * Remove a package from the monorepo.
  */
-import { $ } from "bun";
+import { $ } from 'bun'
 
-import type { PackageInfo, PackageJson, RemoveOptions } from "./types.ts";
+import type { PackageInfo, PackageJson, RemoveOptions } from './types.ts'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const EMPTY = 0;
-const EXIT_SUCCESS = 0;
-const JSON_INDENT = 4;
-const IS_INTERACTIVE = Boolean(process.stdout.isTTY);
+const EMPTY = 0
+const EXIT_SUCCESS = 0
+const JSON_INDENT = 4
+const IS_INTERACTIVE = Boolean(process.stdout.isTTY)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Export
@@ -29,123 +29,126 @@ const IS_INTERACTIVE = Boolean(process.stdout.isTTY);
  * @param options - Removal options
  */
 export async function remove(options: RemoveOptions = {}): Promise<void> {
-  const { silent = false, force = false } = options;
+	const { silent = false, force = false } = options
 
-  // Read workspace locations from package.json
-  const rootPkg: PackageJson = await Bun.file("package.json").json();
-  const workspacePatterns = Array.isArray(rootPkg.workspaces)
-    ? rootPkg.workspaces
-    : (rootPkg.workspaces?.packages ?? []);
+	// Read workspace locations from package.json
+	const rootPkg: PackageJson = await Bun.file('package.json').json()
+	const workspacePatterns = Array.isArray(rootPkg.workspaces)
+		? rootPkg.workspaces
+		: (rootPkg.workspaces?.packages ?? [])
 
-  const packageDirs = workspacePatterns
-    .filter((pattern) => pattern.endsWith("/*"))
-    .map((pattern) => pattern.replace("/*", ""))
-    .filter((dir) => !dir.startsWith("apps"));
+	const packageDirs = workspacePatterns
+		.filter(pattern => pattern.endsWith('/*'))
+		.map(pattern => pattern.replace('/*', ''))
+		.filter(dir => !dir.startsWith('apps'))
 
-  // Get available packages
-  const packages: PackageInfo[] = [];
-  const nestedDirs = packageDirs.filter((dir) => dir.includes("/"));
+	// Get available packages
+	const packages: PackageInfo[] = []
+	const nestedDirs = packageDirs.filter(dir => dir.includes('/'))
 
-  for (const dir of packageDirs) {
-    if (existsSync(dir)) {
-      const entries = readdirSync(dir, { withFileTypes: true })
-        .filter((d) => d.isDirectory() && !d.name.startsWith("_"))
-        .filter((d) => !nestedDirs.some((nested) => nested === join(dir, d.name)));
+	for (const dir of packageDirs) {
+		if (existsSync(dir)) {
+			const entries = readdirSync(dir, { withFileTypes: true })
+				.filter(d => d.isDirectory() && !d.name.startsWith('_'))
+				.filter(d => !nestedDirs.some(nested => nested === join(dir, d.name)))
 
-      for (const entry of entries) {
-        packages.push({
-          name: entry.name,
-          dir,
-          path: join(dir, entry.name),
-        });
-      }
-    }
-  }
+			for (const entry of entries) {
+				packages.push({
+					name: entry.name,
+					dir,
+					path: join(dir, entry.name),
+				})
+			}
+		}
+	}
 
-  if (packages.length === EMPTY) {
-    throw new Error("No packages found");
-  }
+	if (packages.length === EMPTY) {
+		throw new Error('No packages found')
+	}
 
-  // Get package to remove
-  let selectedPackage: PackageInfo | undefined = undefined;
+	// Get package to remove
+	let selectedPackage: PackageInfo | undefined = undefined
 
-  if (options.name) {
-    selectedPackage = packages.find((pkg) => pkg.name === options.name);
+	if (options.name) {
+		selectedPackage = packages.find(pkg => pkg.name === options.name)
 
-    if (!selectedPackage) {
-      throw new Error(`Package not found: ${options.name}`);
-    }
-  } else {
-    if (!IS_INTERACTIVE) {
-      throw new Error("Package name is required in non-interactive mode");
-    }
+		if (!selectedPackage) {
+			throw new Error(`Package not found: ${options.name}`)
+		}
+	} else {
+		if (!IS_INTERACTIVE) {
+			throw new Error('Package name is required in non-interactive mode')
+		}
 
-    const result = await p.select({
-      message: "Select package to remove",
-      options: packages.map((pkg) => ({
-        value: pkg,
-        label: `${pkg.path}`,
-      })),
-    });
+		const result = await p.select({
+			message: 'Select package to remove',
+			options: packages.map(pkg => ({
+				value: pkg,
+				label: `${pkg.path}`,
+			})),
+		})
 
-    if (p.isCancel(result)) {
-      p.cancel("Cancelled");
-      process.exit(EXIT_SUCCESS);
-    }
+		if (p.isCancel(result)) {
+			p.cancel('Cancelled')
+			process.exit(EXIT_SUCCESS)
+		}
 
-    selectedPackage = result;
-  }
+		selectedPackage = result
+	}
 
-  const targetDir = selectedPackage.path;
+	const targetDir = selectedPackage.path
 
-  // Confirm
-  if (!force) {
-    const confirmed = await p.confirm({
-      message: `Delete ${targetDir}?`,
-      initialValue: false,
-    });
+	// Confirm
+	if (!force) {
+		const confirmed = await p.confirm({
+			message: `Delete ${targetDir}?`,
+			initialValue: false,
+		})
 
-    if (p.isCancel(confirmed) || !confirmed) {
-      p.cancel("Cancelled");
-      process.exit(EXIT_SUCCESS);
-    }
-  }
+		if (p.isCancel(confirmed) || !confirmed) {
+			p.cancel('Cancelled')
+			process.exit(EXIT_SUCCESS)
+		}
+	}
 
-  // Remove package
-  const s = p.spinner();
+	// Remove package
+	const s = p.spinner()
 
-  s.start("Removing package");
+	s.start('Removing package')
 
-  await $`rm -rf ${targetDir}`.quiet();
+	await $`rm -rf ${targetDir}`.quiet()
 
-  s.stop("Package removed");
+	s.stop('Package removed')
 
-  // Update root tsconfig references
-  const rootTsConfigPath = "tsconfig.json";
+	// Update root tsconfig references
+	const rootTsConfigPath = 'tsconfig.json'
 
-  if (existsSync(rootTsConfigPath)) {
-    try {
-      const content = await Bun.file(rootTsConfigPath).text();
-      const config = JSON.parse(content);
+	if (existsSync(rootTsConfigPath)) {
+		try {
+			const content = await Bun.file(rootTsConfigPath).text()
+			const config = JSON.parse(content)
 
-      if (Array.isArray(config.references)) {
-        const originalLength = config.references.length;
+			if (Array.isArray(config.references)) {
+				const originalLength = config.references.length
 
-        config.references = config.references.filter(
-          (ref: { path: string }) => ref.path !== targetDir,
-        );
+				config.references = config.references.filter(
+					(ref: { path: string }) => ref.path !== targetDir,
+				)
 
-        if (config.references.length < originalLength) {
-          await Bun.write(rootTsConfigPath, `${JSON.stringify(config, null, JSON_INDENT)}\n`);
-          p.log.success("Updated tsconfig.json references");
-        }
-      }
-    } catch {
-      p.log.warn("Could not update tsconfig.json (update manually)");
-    }
-  }
+				if (config.references.length < originalLength) {
+					await Bun.write(
+						rootTsConfigPath,
+						`${JSON.stringify(config, null, JSON_INDENT)}\n`,
+					)
+					p.log.success('Updated tsconfig.json references')
+				}
+			}
+		} catch {
+			p.log.warn('Could not update tsconfig.json (update manually)')
+		}
+	}
 
-  if (!silent) {
-    p.outro(`Removed ${selectedPackage.name}`);
-  }
+	if (!silent) {
+		p.outro(`Removed ${selectedPackage.name}`)
+	}
 }

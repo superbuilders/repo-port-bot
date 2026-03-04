@@ -1,8 +1,8 @@
-import { bold, dim } from "colorette";
+import { bold, dim } from 'colorette'
 
-const MILLIS_PER_SECOND = 1000;
-const ROUND_MILLISECONDS = 0;
-const DURATION_DECIMALS = 2;
+const MILLIS_PER_SECOND = 1000
+const ROUND_MILLISECONDS = 0
+const DURATION_DECIMALS = 2
 
 /**
  * Format elapsed milliseconds as a human-readable duration token.
@@ -11,11 +11,11 @@ const DURATION_DECIMALS = 2;
  * @returns Duration label wrapped in brackets.
  */
 function formatDurationLabel(durationMs: number): string {
-  if (durationMs < MILLIS_PER_SECOND) {
-    return `${Math.round(durationMs).toFixed(ROUND_MILLISECONDS)}ms`;
-  }
+	if (durationMs < MILLIS_PER_SECOND) {
+		return `${Math.round(durationMs).toFixed(ROUND_MILLISECONDS)}ms`
+	}
 
-  return `${(durationMs / MILLIS_PER_SECOND).toFixed(DURATION_DECIMALS)}s`;
+	return `${(durationMs / MILLIS_PER_SECOND).toFixed(DURATION_DECIMALS)}s`
 }
 
 /**
@@ -26,7 +26,7 @@ function formatDurationLabel(durationMs: number): string {
  * @returns Bold label with dimmed duration suffix.
  */
 export function formatStepSuccessText(label: string, durationMs: number): string {
-  return `${bold(label)} ${dim(`[${formatDurationLabel(durationMs)}]`)}`;
+	return `${bold(label)} ${dim(`[${formatDurationLabel(durationMs)}]`)}`
 }
 
 /**
@@ -36,20 +36,26 @@ export function formatStepSuccessText(label: string, durationMs: number): string
  * @param input.ok - Whether the task succeeded.
  * @param input.label - Task display label.
  * @param input.durationMs - Elapsed duration in milliseconds.
+ * @param input.cancelled - Whether the task was cancelled before completing.
  * @param input.includeFailurePrefix - Whether to prefix failures with `Failed:`.
  * @returns Formatted task result text.
  */
 export function formatTaskResultText(input: {
-  ok: boolean;
-  label: string;
-  durationMs: number;
-  includeFailurePrefix?: boolean;
+	ok: boolean
+	label: string
+	durationMs: number
+	cancelled?: boolean
+	includeFailurePrefix?: boolean
 }): string {
-  const formattedLabel = formatStepSuccessText(input.label, input.durationMs);
+	const formattedLabel = formatStepSuccessText(input.label, input.durationMs)
 
-  if (input.includeFailurePrefix === true && !input.ok) {
-    return `Failed: ${formattedLabel}`;
-  }
+	if (input.cancelled === true) {
+		return `Cancelled: ${dim(input.label)} ${dim(`[${formatDurationLabel(input.durationMs)}]`)}`
+	}
 
-  return formattedLabel;
+	if (input.includeFailurePrefix === true && !input.ok) {
+		return `Failed: ${formattedLabel}`
+	}
+
+	return formattedLabel
 }

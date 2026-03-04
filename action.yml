@@ -1,0 +1,80 @@
+name: repo-port-bot
+description: Automatically port merged changes to a paired repository.
+author: superbuilders
+
+inputs:
+    github-token:
+        description: Fallback GitHub token used for source reads and target writes.
+        required: false
+    source-github-token:
+        description: Optional GitHub token for source repository reads.
+        required: false
+    target-github-token:
+        description: Optional GitHub token for target repository writes.
+        required: false
+    llm-api-key:
+        description: Anthropic API key used by the Claude agent provider.
+        required: true
+    target-repo:
+        description: Target repository in owner/name format.
+        required: true
+    target-default-branch:
+        description: Default branch for the target repository checkout and PR base.
+        required: false
+        default: main
+    validation-commands:
+        description: Newline-separated validation commands to run in target repo.
+        required: false
+        default: ''
+    path-mappings:
+        description: JSON object mapping source paths to target paths.
+        required: false
+        default: '{}'
+    naming-conventions:
+        description: Optional naming convention guidance for the agent prompt.
+        required: false
+        default: ''
+    prompt:
+        description: Additional custom prompt instructions.
+        required: false
+        default: ''
+    skip-port-bot-json:
+        description: Skip fetching port-bot.json from source repo at merge SHA.
+        required: false
+        default: 'false'
+    model:
+        description: Claude model to use.
+        required: false
+        default: claude-sonnet-4-6
+    max-attempts:
+        description: Maximum number of execution attempts before stalling.
+        required: false
+        default: '3'
+    max-turns:
+        description: Maximum Claude SDK turns per attempt.
+        required: false
+        default: '50'
+    max-budget-usd:
+        description: Optional budget cap (USD) for a single attempt.
+        required: false
+        default: ''
+    log-level:
+        description: Minimum log level for stdout output (error, warn, info, debug).
+        required: false
+        default: info
+
+outputs:
+    run-id:
+        description: Unique identifier for this port run.
+    outcome:
+        description: Final run outcome from the engine.
+    pr-url:
+        description: URL of created target pull request, if any.
+    issue-url:
+        description: URL of created follow-up issue, if any.
+    summary:
+        description: Human-readable run summary.
+
+runs:
+    using: node20
+    main: packages/action/dist/index.js

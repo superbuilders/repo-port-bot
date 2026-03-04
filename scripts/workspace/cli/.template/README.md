@@ -11,7 +11,7 @@ bun add {{name}}
 ## Usage
 
 ```typescript
-import "{{name}}";
+import '{{name}}'
 
 // Minimal working example (<10 lines)
 ```

@@ -8,5 +8,5 @@
  * @returns A greeting string
  */
 export function hello(): string {
-  return "Hello from {{name}}!";
+	return 'Hello from {{name}}!'
 }

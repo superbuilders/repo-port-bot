@@ -1,0 +1,21 @@
+{
+	"name": "@repo-port-bot/agent-claude",
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"test": "bun test --no-env-file"
+	},
+	"dependencies": {
+		"@anthropic-ai/claude-agent-sdk": "^0.2.66",
+		"@repo-port-bot/engine": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/bun": "latest"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	}
+}

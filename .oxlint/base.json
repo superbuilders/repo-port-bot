@@ -1,33 +1,33 @@
 {
-  "extends": ["./spacing.json", "./jsdoc.json", "./overrides.json"],
-  "plugins": null,
-  "categories": {
-    "nursery": "error",
-    "correctness": "error",
-    "style": "error"
-  },
-  "jsPlugins": [
-    "@stylistic/eslint-plugin",
-    { "name": "jsdoc-js", "specifier": "eslint-plugin-jsdoc" },
-    { "name": "custom", "specifier": "./rules/type-locations.mjs" }
-  ],
-  "rules": {
-    "no-console": "off",
-    "id-length": "off",
-    "func-style": ["error", "declaration"],
-    "max-statements": ["error", 50],
-    "prefer-destructuring": "off",
-    "no-ternary": "off",
-    "sort-imports": "off",
-    "capitalized-comments": "off",
-    "unicorn/no-null": "off",
-    "max-params": ["error", 5],
-    "no-duplicate-imports": "off",
-    "no-template-curly-in-string": "off",
-    "custom/type-locations": "error",
-    "sort-keys": "off",
-    "no-magic-numbers": ["error", { "ignore": [-1, 0, 1, 2, 3] }],
-    "prefer-ternary": "off",
-    "number-literal-case": "off"
-  }
+	"extends": ["./spacing.json", "./jsdoc.json", "./overrides.json"],
+	"plugins": null,
+	"categories": {
+		"nursery": "error",
+		"correctness": "error",
+		"style": "error"
+	},
+	"jsPlugins": [
+		"@stylistic/eslint-plugin",
+		{ "name": "jsdoc-js", "specifier": "eslint-plugin-jsdoc" },
+		{ "name": "custom", "specifier": "./rules/type-locations.mjs" }
+	],
+	"rules": {
+		"no-console": "off",
+		"id-length": "off",
+		"func-style": ["error", "declaration"],
+		"max-statements": ["error", 50],
+		"prefer-destructuring": "off",
+		"no-ternary": "off",
+		"sort-imports": "off",
+		"capitalized-comments": "off",
+		"unicorn/no-null": "off",
+		"max-params": ["error", 5],
+		"no-duplicate-imports": "off",
+		"no-template-curly-in-string": "off",
+		"custom/type-locations": "error",
+		"sort-keys": "off",
+		"no-magic-numbers": ["error", { "ignore": [-1, 0, 1, 2, 3] }],
+		"prefer-ternary": "off",
+		"number-literal-case": "off"
+	}
 }

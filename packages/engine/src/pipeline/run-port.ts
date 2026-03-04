@@ -1,0 +1,249 @@
+import { createConsoleLogger } from '@repo-port-bot/logger'
+
+import { fetchPortBotJson } from '../config/fetch-port-bot-json.ts'
+import { resolvePluginConfig } from '../config/resolve-plugin-config.ts'
+import { buildEngineFailureDecision, decide } from '../decision/decide.ts'
+import { executePort } from '../execution/execute-port.ts'
+import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
+import { readSourceContext } from '../github/read-source-context.ts'
+import { renderRunSummary } from '../github/render-body.ts'
+import { getDurationMs, toErrorMessage } from '../utils.ts'
+import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
+import { runNeedsHumanFlow } from './needs-human.ts'
+import { runPortRequiredFlow } from './port-required.ts'
+
+import type { Logger } from '@repo-port-bot/logger'
+
+import type { PortBotJsonConfig } from '../config/types.ts'
+import type {
+	AgentProvider,
+	GitHubReader,
+	GitHubWriter,
+	PartialPluginConfig,
+	PluginConfig,
+	PortContext,
+	PortRunResult,
+	RepoRef,
+	SourceChange,
+} from '../types.ts'
+
+interface RunPortStageOverrides {
+	readSourceContext: typeof readSourceContext
+	fetchPortBotJson: typeof fetchPortBotJson
+	resolvePluginConfig: typeof resolvePluginConfig
+	decide: typeof decide
+	executePort: typeof executePort
+	deliverResult: typeof deliverResult
+	commentOnSourcePr: typeof commentOnSourcePr
+}
+
+interface RunPortOptions {
+	reader: GitHubReader
+	writer: GitHubWriter
+	agentProvider: AgentProvider
+	sourceRepo: RepoRef
+	commitSha: string
+	builtInConfig?: PartialPluginConfig
+	portBotJson?: PortBotJsonConfig | string
+	skipPortBotJson?: boolean
+	targetWorkingDirectory: string
+	sourceWorkingDirectory?: string
+	diffFilePath?: string
+	maxAttempts?: number
+	logger?: Logger
+	/**
+	 * Internal testing hook for replacing stage implementations.
+	 *
+	 * @internal
+	 */
+	stageOverrides?: Partial<RunPortStageOverrides>
+}
+
+/**
+ * Run the full pipeline orchestration for one source merge commit.
+ *
+ * @param options - Pipeline options.
+ * @returns Terminal run result with duration and delivery metadata.
+ */
+export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
+	const startedAtMs = Date.now()
+	const runId = crypto.randomUUID()
+	const startedAt = new Date(startedAtMs).toISOString()
+	const logger = options.logger ?? createConsoleLogger('info')
+
+	let decision: PortRunResult['decision'] | undefined = undefined
+	let context: PortContext | undefined = undefined
+	const stageTimings: NonNullable<PortRunResult['stageTimings']> = {}
+
+	const stages: RunPortStageOverrides = {
+		readSourceContext: options.stageOverrides?.readSourceContext ?? readSourceContext,
+		fetchPortBotJson: options.stageOverrides?.fetchPortBotJson ?? fetchPortBotJson,
+		resolvePluginConfig: options.stageOverrides?.resolvePluginConfig ?? resolvePluginConfig,
+		decide: options.stageOverrides?.decide ?? decide,
+		executePort: options.stageOverrides?.executePort ?? executePort,
+		deliverResult: options.stageOverrides?.deliverResult ?? deliverResult,
+		commentOnSourcePr: options.stageOverrides?.commentOnSourcePr ?? commentOnSourcePr,
+	}
+
+	try {
+		const sourceChange: SourceChange = await (async () => {
+			logger.group(
+				`Context: ${options.sourceRepo.owner}/${options.sourceRepo.name} ${options.commitSha}`,
+			)
+
+			try {
+				const stageSourceChange = await stages.readSourceContext({
+					reader: options.reader,
+					owner: options.sourceRepo.owner,
+					repo: options.sourceRepo.name,
+					commitSha: options.commitSha,
+				})
+
+				logStage(logger, runId, 'context', {
+					source: `${options.sourceRepo.owner}/${options.sourceRepo.name}`,
+					pr: stageSourceChange.pullRequest?.number,
+					files: stageSourceChange.files.length,
+					contextMs: (stageTimings.contextMs = getDurationMs(startedAtMs)),
+				})
+
+				return stageSourceChange
+			} finally {
+				logger.groupEnd()
+			}
+		})()
+
+		const pluginConfig: PluginConfig = await (async () => {
+			logger.group('Config: resolve plugin config')
+
+			try {
+				const resolvedPortBotJson =
+					options.portBotJson === undefined && options.skipPortBotJson !== true
+						? await stages.fetchPortBotJson({
+								reader: options.reader,
+								owner: options.sourceRepo.owner,
+								repo: options.sourceRepo.name,
+								ref: options.commitSha,
+								logger,
+							})
+						: options.portBotJson
+
+				const stagePluginConfig = stages.resolvePluginConfig({
+					builtInConfig: options.builtInConfig,
+					portBotJson: resolvedPortBotJson,
+				})
+
+				logStage(logger, runId, 'config', {
+					target: `${stagePluginConfig.targetRepo.owner}/${stagePluginConfig.targetRepo.name}`,
+					configMs: (stageTimings.configMs = getDurationMs(startedAtMs)),
+				})
+
+				return stagePluginConfig
+			} finally {
+				logger.groupEnd()
+			}
+		})()
+
+		context = {
+			runId,
+			startedAt,
+			sourceRepo: options.sourceRepo,
+			sourceChange,
+			pluginConfig,
+		}
+
+		logger.group('Decision: classify source change')
+
+		try {
+			decision = stages.decide(context)
+			logStage(logger, runId, 'decision', {
+				kind: decision.kind,
+				decisionMs: (stageTimings.decisionMs = getDurationMs(startedAtMs)),
+			})
+		} finally {
+			logger.groupEnd()
+		}
+
+		if (decision.kind === 'PORT_NOT_REQUIRED') {
+			logOutcome(logger, runId, 'skipped_not_required', getDurationMs(startedAtMs))
+
+			return {
+				runId,
+				outcome: 'skipped_not_required',
+				decision,
+				summary: renderRunSummary({ outcome: 'skipped_not_required', decision }),
+				durationMs: getDurationMs(startedAtMs),
+				stageTimings,
+			}
+		}
+
+		if (decision.kind === 'NEEDS_HUMAN') {
+			return runNeedsHumanFlow({
+				writer: options.writer,
+				context,
+				decision,
+				targetWorkingDirectory: options.targetWorkingDirectory,
+				deliverStage: stages.deliverResult,
+				commentStage: stages.commentOnSourcePr,
+				logger,
+				runId,
+				startedAtMs,
+				stageTimings,
+			})
+		}
+
+		return runPortRequiredFlow({
+			writer: options.writer,
+			agentProvider: options.agentProvider,
+			context,
+			decision,
+			targetWorkingDirectory: options.targetWorkingDirectory,
+			sourceWorkingDirectory: options.sourceWorkingDirectory,
+			diffFilePath: options.diffFilePath,
+			maxAttempts: options.maxAttempts,
+			executeStage: stages.executePort,
+			deliverStage: stages.deliverResult,
+			commentStage: stages.commentOnSourcePr,
+			logger,
+			runId,
+			startedAtMs,
+			stageTimings,
+		})
+	} catch (error) {
+		const errorMessage = toErrorMessage(error)
+		const failureDecision = decision ?? buildEngineFailureDecision(errorMessage)
+		const sourcePullRequestNumber = context?.sourceChange.pullRequest?.number
+
+		if (context && sourcePullRequestNumber) {
+			try {
+				await stages.commentOnSourcePr({
+					writer: options.writer,
+					pullRequestNumber: sourcePullRequestNumber,
+					context,
+					outcome: 'failed',
+					runId,
+					logger,
+				})
+			} catch (commentError) {
+				logger.warn(
+					'[port-bot] Unable to post source PR comment for failed run.',
+					commentError,
+				)
+			}
+		}
+
+		logFailedOutcome(logger, runId, getDurationMs(startedAtMs), errorMessage)
+
+		return {
+			runId,
+			outcome: 'failed',
+			decision: failureDecision,
+			summary: renderRunSummary({
+				outcome: 'failed',
+				decision: failureDecision,
+				errorMessage,
+			}),
+			durationMs: getDurationMs(startedAtMs),
+			stageTimings,
+		}
+	}
+}
