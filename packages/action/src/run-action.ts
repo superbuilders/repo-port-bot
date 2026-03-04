@@ -53,6 +53,7 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 		commitSha: inputs.commitSha,
 		targetWorkingDirectory,
 		maxAttempts: inputs.maxAttempts,
+		skipPortBotJson: inputs.skipPortBotJson,
 		builtInConfig: {
 			targetRepo: {
 				owner: inputs.targetRepo.owner,

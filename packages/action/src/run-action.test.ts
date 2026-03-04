@@ -46,6 +46,7 @@ describe('runAction', () => {
 				pathMappings: { 'src/': 'src/' },
 				namingConventions: undefined,
 				prompt: undefined,
+				skipPortBotJson: true,
 				effectiveSourceToken: 'source-token',
 				effectiveTargetToken: 'target-token',
 			}),
@@ -121,6 +122,7 @@ describe('runAction', () => {
 			commitSha: string
 			targetWorkingDirectory: string
 			maxAttempts: number
+			skipPortBotJson: boolean
 			builtInConfig: {
 				targetRepo: RepoRef
 				validationCommands: string[]
@@ -133,6 +135,7 @@ describe('runAction', () => {
 		expect(call.commitSha).toBe('abc123')
 		expect(call.targetWorkingDirectory).toBe('/tmp/target-repo')
 		expect(call.maxAttempts).toBe(3)
+		expect(call.skipPortBotJson).toBe(true)
 		expect(call.builtInConfig.targetRepo).toEqual({
 			owner: 'acme',
 			name: 'target-repo',

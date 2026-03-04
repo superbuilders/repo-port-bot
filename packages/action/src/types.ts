@@ -28,6 +28,7 @@ export interface ParsedActionInputs {
 	pathMappings: Record<string, string>
 	namingConventions?: string
 	prompt?: string
+	skipPortBotJson: boolean
 	effectiveSourceToken: string
 	effectiveTargetToken: string
 }

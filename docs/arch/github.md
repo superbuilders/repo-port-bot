@@ -23,10 +23,14 @@ Source: GitHub REST API (`GET /repos/{owner}/{repo}/pulls/{pull_number}/files`) 
 
 ### port-bot.json (optional)
 
-- Fetched from source repo root at the merged commit SHA
-- Parsed and merged with built-in plugin config
+- Fetched from source repo root at the merged commit SHA via GitHub Contents API
+- 404 is not an error — the file is optional; other fetch failures warn but don't fail the run
+- Parsed via `port-bot-json.decoder.ts` (runtime validation with `decoders.cc`)
+- Merged with built-in config (action inputs take precedence, `port-bot.json` fills gaps)
+- `runPort()` auto-fetches when the caller doesn't provide `portBotJson` externally
+- Action input `skip-port-bot-json: true` disables the fetch for faster runs
 
-Source: GitHub Contents API or read from the checked-out source repo on disk.
+Source: GitHub Contents API (`GET /repos/{owner}/{repo}/contents/port-bot.json?ref={sha}`).
 
 ## Writes (target repo)
 

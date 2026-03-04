@@ -115,6 +115,27 @@ function parseValidationCommands(rawValue: string): string[] {
 }
 
 /**
+ * Parse a boolean input encoded as string.
+ *
+ * @param name - Input name.
+ * @param value - Raw input value.
+ * @returns Parsed boolean.
+ */
+function parseBoolean(name: string, value: string): boolean {
+	const normalized = value.trim().toLowerCase()
+
+	if (normalized === 'true') {
+		return true
+	}
+
+	if (normalized === 'false' || normalized.length === 0) {
+		return false
+	}
+
+	throw new Error(`Input "${name}" must be "true" or "false".`)
+}
+
+/**
  * Parse and validate all action inputs + workflow context.
  *
  * @param dependencies - Injectable input/context dependencies for testing.
@@ -163,6 +184,7 @@ export function parseActionInputs(
 	const pathMappings = parsePathMappings(getInput('path-mappings'))
 	const namingConventions = getInput('naming-conventions').trim() || undefined
 	const prompt = getInput('prompt').trim() || undefined
+	const skipPortBotJson = parseBoolean('skip-port-bot-json', getInput('skip-port-bot-json'))
 
 	return {
 		sourceRepo: {
@@ -182,6 +204,7 @@ export function parseActionInputs(
 		pathMappings,
 		namingConventions,
 		prompt,
+		skipPortBotJson,
 		effectiveSourceToken,
 		effectiveTargetToken,
 	}

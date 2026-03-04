@@ -38,6 +38,10 @@ inputs:
         description: Additional custom prompt instructions.
         required: false
         default: ''
+    skip-port-bot-json:
+        description: Skip fetching port-bot.json from source repo at merge SHA.
+        required: false
+        default: 'false'
     model:
         description: Claude model to use.
         required: false

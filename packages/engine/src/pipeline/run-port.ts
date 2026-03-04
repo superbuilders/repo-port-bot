@@ -1,3 +1,4 @@
+import { fetchPortBotJson } from '../config/fetch-port-bot-json.ts'
 import { resolvePluginConfig } from '../config/resolve-plugin-config.ts'
 import { decide } from '../decision/decide.ts'
 import { executePort } from '../execution/execute-port.ts'
@@ -25,6 +26,7 @@ type PartialPluginConfig = Partial<PluginConfig> & {
 
 interface RunPortStageOverrides {
 	readSourceContext: typeof readSourceContext
+	fetchPortBotJson: typeof fetchPortBotJson
 	resolvePluginConfig: typeof resolvePluginConfig
 	decide: typeof decide
 	executePort: typeof executePort
@@ -38,6 +40,7 @@ interface RunPortOptions {
 	commitSha: string
 	builtInConfig?: PartialPluginConfig
 	portBotJson?: PortBotJsonConfig | string
+	skipPortBotJson?: boolean
 	targetWorkingDirectory: string
 	maxAttempts?: number
 	/**
@@ -158,6 +161,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 
 	const stages: RunPortStageOverrides = {
 		readSourceContext: options.stageOverrides?.readSourceContext ?? readSourceContext,
+		fetchPortBotJson: options.stageOverrides?.fetchPortBotJson ?? fetchPortBotJson,
 		resolvePluginConfig: options.stageOverrides?.resolvePluginConfig ?? resolvePluginConfig,
 		decide: options.stageOverrides?.decide ?? decide,
 		executePort: options.stageOverrides?.executePort ?? executePort,
@@ -171,10 +175,19 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			repo: options.sourceRepo.name,
 			commitSha: options.commitSha,
 		})
+		const resolvedPortBotJson =
+			options.portBotJson === undefined && options.skipPortBotJson !== true
+				? await stages.fetchPortBotJson({
+						octokit: options.octokit,
+						owner: options.sourceRepo.owner,
+						repo: options.sourceRepo.name,
+						ref: options.commitSha,
+					})
+				: options.portBotJson
 
 		const pluginConfig: PluginConfig = stages.resolvePluginConfig({
 			builtInConfig: options.builtInConfig,
-			portBotJson: options.portBotJson,
+			portBotJson: resolvedPortBotJson,
 		})
 
 		const context: PortContext = {

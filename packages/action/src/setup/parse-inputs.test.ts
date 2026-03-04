@@ -54,6 +54,7 @@ describe('parseActionInputs', () => {
 				'max-attempts': '3',
 				'max-turns': '50',
 				'max-budget-usd': '2.5',
+				'skip-port-bot-json': 'false',
 			}),
 			context: createContext() as never,
 		})
@@ -63,6 +64,7 @@ describe('parseActionInputs', () => {
 		expect(parsed.validationCommands).toEqual(['bun run check', 'bun run test'])
 		expect(parsed.pathMappings).toEqual({ 'src/': 'src/' })
 		expect(parsed.maxBudgetUsd).toBe(CUSTOM_MAX_BUDGET_USD)
+		expect(parsed.skipPortBotJson).toBe(false)
 	})
 
 	test('uses split source and target tokens when provided', () => {
@@ -82,6 +84,7 @@ describe('parseActionInputs', () => {
 				'max-attempts': '4',
 				'max-turns': '75',
 				'max-budget-usd': '',
+				'skip-port-bot-json': 'true',
 			}),
 			context: createContext() as never,
 		})
@@ -91,6 +94,7 @@ describe('parseActionInputs', () => {
 		expect(parsed.maxAttempts).toBe(CUSTOM_MAX_ATTEMPTS)
 		expect(parsed.maxTurns).toBe(CUSTOM_MAX_TURNS)
 		expect(parsed.maxBudgetUsd).toBeUndefined()
+		expect(parsed.skipPortBotJson).toBe(true)
 	})
 
 	test('throws when no effective target token can be resolved', () => {
@@ -111,9 +115,35 @@ describe('parseActionInputs', () => {
 					'max-attempts': '3',
 					'max-turns': '50',
 					'max-budget-usd': '',
+					'skip-port-bot-json': 'false',
 				}),
 				context: createContext() as never,
 			}),
 		).toThrow('Missing target GitHub token')
+	})
+
+	test('throws when skip-port-bot-json is not a boolean string', () => {
+		expect(() =>
+			parseActionInputs({
+				getInput: createGetInput({
+					'github-token': 'shared-token',
+					'source-github-token': '',
+					'target-github-token': '',
+					'llm-api-key': 'llm-key',
+					'target-repo': 'acme/target-repo',
+					'target-default-branch': 'main',
+					'validation-commands': '',
+					'path-mappings': '{}',
+					'naming-conventions': '',
+					prompt: '',
+					model: 'claude-sonnet-4-6',
+					'max-attempts': '3',
+					'max-turns': '50',
+					'max-budget-usd': '',
+					'skip-port-bot-json': 'yes',
+				}),
+				context: createContext() as never,
+			}),
+		).toThrow('Input "skip-port-bot-json" must be "true" or "false".')
 	})
 })

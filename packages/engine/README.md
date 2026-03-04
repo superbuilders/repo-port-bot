@@ -76,8 +76,11 @@ The execution orchestrator treats validation failures like a developer would: re
 
 ## Config resolution
 
-1. Accept optional `port-bot.json` (parsed via `port-bot-json.decoder.ts`)
-2. Accept optional built-in config from the caller (e.g. action inputs)
-3. Merge (built-in takes precedence, `port-bot.json` fills gaps)
-4. Validate merged config via `resolve-plugin-config.ts`
-5. Return resolved `PluginConfig` as part of `PortContext`
+1. If `portBotJson` is not provided by the caller, `runPort()` auto-fetches
+   `port-bot.json` from the source repo root at the merge commit SHA via
+   GitHub Contents API (404 → skip, other errors → warn and continue)
+2. Decode via `port-bot-json.decoder.ts` (runtime validation with `decoders.cc`)
+3. Accept optional built-in config from the caller (e.g. action inputs)
+4. Merge (built-in takes precedence, `port-bot.json` fills gaps)
+5. Validate merged config via `resolve-plugin-config.ts`
+6. Return resolved `PluginConfig` as part of `PortContext`

@@ -32,7 +32,15 @@ const TARGET_REPO: RepoRef = {
  * @returns Octokit mock value.
  */
 function createOctokitMock(): Octokit {
-	return {} as Octokit
+	return {
+		rest: {
+			repos: {
+				async getContent() {
+					throw { status: 404 }
+				},
+			},
+		},
+	} as unknown as Octokit
 }
 
 /**
@@ -279,5 +287,68 @@ describe('runPort', () => {
 		expect(result.decision.kind).toBe('NEEDS_HUMAN')
 		expect(result.summary).toContain('Engine failure: read context exploded')
 		expect(result.durationMs).toBeGreaterThan(0)
+	})
+
+	test('auto-fetches port-bot.json when not provided', async () => {
+		let fetchCalled = false
+		let resolvedPortBotJson: unknown = undefined
+
+		await runPort({
+			octokit: createOctokitMock(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				fetchPortBotJson: async () => {
+					fetchCalled = true
+
+					return {
+						target: 'acme/target-repo',
+					}
+				},
+				resolvePluginConfig: options => {
+					resolvedPortBotJson = options.portBotJson
+
+					return makePluginConfig()
+				},
+				decide: () => makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+			},
+		})
+
+		expect(fetchCalled).toBe(true)
+		expect(resolvedPortBotJson).toEqual({ target: 'acme/target-repo' })
+	})
+
+	test('skips auto-fetch when skipPortBotJson is true', async () => {
+		let fetchCalled = false
+		let resolvedPortBotJson: unknown = undefined
+
+		await runPort({
+			octokit: createOctokitMock(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			skipPortBotJson: true,
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				fetchPortBotJson: async () => {
+					fetchCalled = true
+
+					return {}
+				},
+				resolvePluginConfig: options => {
+					resolvedPortBotJson = options.portBotJson
+
+					return makePluginConfig()
+				},
+				decide: () => makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+			},
+		})
+
+		expect(fetchCalled).toBe(false)
+		expect(resolvedPortBotJson).toBeUndefined()
 	})
 })
