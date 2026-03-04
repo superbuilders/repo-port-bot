@@ -6,7 +6,7 @@
  *   bun examples/skipped/run.ts
  *
  * No API key needed — the pipeline skips immediately. Demonstrates the
- * heuristic skip path with no delivery or notification side effects.
+ * heuristic skip path with a source PR skip notification.
  */
 import { cpSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -61,11 +61,11 @@ function createLocalReader(change: SourceChange): GitHubReader {
 }
 
 /**
- * No-op GitHubWriter — skipped scenario never writes.
+ * GitHubWriter that logs the skip notification comment.
  *
- * @returns No-op writer.
+ * @returns Dry-run writer.
  */
-function createNoOpWriter(): GitHubWriter {
+function createDryRunWriter(): GitHubWriter {
 	return {
 		async createPullRequest() {
 			return { number: 0, url: '' }
@@ -74,8 +74,11 @@ function createNoOpWriter(): GitHubWriter {
 			return { number: 0, url: '' }
 		},
 		async addLabels() {},
-		async createComment() {
-			return undefined
+		async createComment(params) {
+			console.log('\n--- [dry-run] Would comment on source PR ---')
+			console.log(params.body)
+
+			return 'https://example.com/comment/1'
 		},
 	}
 }
@@ -99,8 +102,11 @@ console.log('========================================\n')
 
 const result = await runPort({
 	reader: createLocalReader(docsOnlyChange),
-	writer: createNoOpWriter(),
+	writer: createDryRunWriter(),
 	agentProvider: {
+		async decidePort() {
+			throw new Error('Should not be called — heuristic matches first.')
+		},
 		async executePort() {
 			throw new Error('Should not be called in PORT_NOT_REQUIRED path.')
 		},

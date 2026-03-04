@@ -174,7 +174,7 @@ const result = await runPort({
 	portBotJson: { target: 'example/target-repo', validation: ['true'] },
 	logger: createConsoleLogger('debug'),
 	stageOverrides: {
-		decide: () => ({
+		decide: async () => ({
 			kind: 'PORT_REQUIRED',
 			reason: 'Forced PORT_REQUIRED for local example.',
 		}),
