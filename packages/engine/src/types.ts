@@ -287,6 +287,59 @@ export interface AgentMessage {
 }
 
 /**
+ * Input context for classifier-style "is a port required?" decisions.
+ *
+ * This mirrors `AgentInput` but intentionally excludes retry history because
+ * classification runs before execution attempts.
+ */
+export interface DecidePortInput {
+	/**
+	 * Changed files with patch content from the source PR.
+	 */
+	files: ChangedFile[]
+
+	/**
+	 * Absolute path to the target repo working directory on disk.
+	 */
+	targetWorkingDirectory: string
+
+	/**
+	 * Optional absolute path to a local source repo checkout at the merge commit.
+	 */
+	sourceWorkingDirectory?: string
+
+	/**
+	 * Optional absolute path to a full git diff patch file from the source repo.
+	 */
+	diffFilePath?: string
+
+	/**
+	 * Resolved plugin config (path mappings, conventions, prompt).
+	 */
+	pluginConfig: PluginConfig
+
+	/**
+	 * Optional callback for streaming provider messages during classification.
+	 */
+	onMessage?: (message: AgentMessage) => void
+}
+
+/**
+ * Output contract for provider-backed "port required?" classification.
+ */
+export interface DecidePortOutput {
+	/**
+	 * True when the source change should proceed to execution.
+	 */
+	required: boolean
+
+	/**
+	 * Human-readable decision rationale suitable for logs/issues.
+	 */
+	reason: string
+}
+
+/**
  * Everything the agent provider needs to perform one edit attempt.
  *
  * The orchestrator constructs this before each call to the provider. On
@@ -369,6 +422,14 @@ export interface AgentOutput {
  * @see agent-loop.md "Provider interface" section
  */
 export interface AgentProvider {
+	/**
+	 * Classify whether a source change requires a port attempt.
+	 *
+	 * @param input - Classification context from the decision stage.
+	 * @returns Required/skip decision and rationale.
+	 */
+	decidePort(input: DecidePortInput): Promise<DecidePortOutput>
+
 	/**
 	 * Execute one port attempt given the provided context.
 	 *

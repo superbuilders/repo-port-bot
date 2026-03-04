@@ -66,6 +66,106 @@ function makeAssistantMessage(content: unknown[]): SDKMessage {
 }
 
 describe('ClaudeAgentProvider', () => {
+	test('decidePort uses structured output format and read-only tools', async () => {
+		const queryCalls: { options: unknown; prompt: unknown }[] = []
+		const provider = new ClaudeAgentProvider({
+			queryFn: ({ options, prompt }) =>
+				(async function* queryFn(): AsyncGenerator<SDKMessage, void> {
+					queryCalls.push({ options, prompt })
+					yield makeAssistantMessage([{ type: 'text', text: 'Analyzing the change...' }])
+					yield {
+						type: 'result',
+						subtype: 'success',
+						duration_ms: 10,
+						duration_api_ms: 8,
+						is_error: false,
+						num_turns: 1,
+						result: '',
+						stop_reason: null,
+						total_cost_usd: 0.001,
+						usage: {
+							input_tokens: 1,
+							output_tokens: 1,
+							cache_creation_input_tokens: 0,
+							cache_read_input_tokens: 0,
+							service_tier: 'standard',
+						},
+						modelUsage: {},
+						permission_denials: [],
+						structured_output: {
+							required: false,
+							reason: 'No matching target module to port.',
+						},
+						uuid: 'uuid-result',
+						session_id: 'session-1',
+					} as unknown as SDKMessage
+				})(),
+		})
+
+		const output = await provider.decidePort({
+			files: makeInput().files,
+			targetWorkingDirectory: '/tmp/target',
+			pluginConfig: makePluginConfig(),
+		})
+
+		expect(output.required).toBe(false)
+		expect(output.reason).toBe('No matching target module to port.')
+		expect(queryCalls).toHaveLength(1)
+		expect(queryCalls[0]!.options).toMatchObject({
+			allowedTools: ['Read', 'Glob', 'Grep'],
+			tools: ['Read', 'Glob', 'Grep'],
+			outputFormat: {
+				type: 'json_schema',
+				schema: {
+					type: 'object',
+					properties: {
+						required: { type: 'boolean' },
+						reason: { type: 'string' },
+					},
+					required: ['required', 'reason'],
+				},
+			},
+		})
+	})
+
+	test('decidePort throws when SDK cannot produce valid structured output', async () => {
+		const provider = new ClaudeAgentProvider({
+			queryFn: () =>
+				(async function* queryFn(): AsyncGenerator<SDKMessage, void> {
+					yield {
+						type: 'result',
+						subtype: 'error_max_structured_output_retries',
+						duration_ms: 10,
+						duration_api_ms: 8,
+						is_error: true,
+						num_turns: 1,
+						stop_reason: null,
+						total_cost_usd: 0.001,
+						usage: {
+							input_tokens: 1,
+							output_tokens: 1,
+							cache_creation_input_tokens: 0,
+							cache_read_input_tokens: 0,
+							service_tier: 'standard',
+						},
+						modelUsage: {},
+						permission_denials: [],
+						errors: ['Could not produce valid output.'],
+						uuid: 'uuid-result',
+						session_id: 'session-1',
+					} as unknown as SDKMessage
+				})(),
+		})
+
+		await expect(
+			provider.decidePort({
+				files: makeInput().files,
+				targetWorkingDirectory: '/tmp/target',
+				pluginConfig: makePluginConfig(),
+			}),
+		).rejects.toThrow('decidePort failed with subtype')
+	})
+
 	test('returns complete output with touched files and tool call log on success', async () => {
 		const queryCalls: { options: unknown; prompt: unknown }[] = []
 		const streamedMessages: unknown[] = []

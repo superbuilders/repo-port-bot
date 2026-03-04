@@ -1,5 +1,6 @@
 import type {
 	AgentInput,
+	DecidePortInput,
 	PluginConfig,
 	ExecutionAttempt,
 	ValidationCommandResult,
@@ -70,6 +71,39 @@ export function buildSystemPrompt(input: {
 }
 
 /**
+ * Build a classifier system prompt used to decide whether porting is required.
+ *
+ * @param input - Prompt context.
+ * @param input.pluginConfig - Resolved plugin config.
+ * @param input.sourceWorkingDirectory - Optional source repository path.
+ * @param input.diffFilePath - Optional source diff file path.
+ * @returns System prompt text.
+ */
+export function buildDecideSystemPrompt(input: {
+	pluginConfig: PluginConfig
+	sourceWorkingDirectory?: string
+	diffFilePath?: string
+}): string {
+	const basePrompt = buildSystemPrompt(input)
+
+	return (
+		joinNonEmptyLines(
+			[
+				basePrompt,
+				[
+					'You are in classification mode.',
+					'- Decide whether the source change requires creating a target port.',
+					'- Return required=true only when meaningful target-repo code/content changes are needed.',
+					'- Return required=false when the change should be skipped.',
+					'- Keep the reason concise, concrete, and action-oriented.',
+				].join('\n'),
+			],
+			PROMPT_DIVIDER,
+		) ?? ''
+	)
+}
+
+/**
  * Build the user prompt for one execution attempt.
  *
  * @param input - Agent attempt input.
@@ -98,12 +132,38 @@ export function buildUserPrompt(input: AgentInput): string {
 }
 
 /**
+ * Build the user prompt for "port required?" classification.
+ *
+ * @param input - Decision input.
+ * @returns User prompt text.
+ */
+export function buildDecideUserPrompt(input: DecidePortInput): string {
+	const changedFilesSection = renderChangedFilesSection(input)
+
+	return (
+		joinNonEmptyLines(
+			[
+				'Task: Decide whether this source change should be ported to the target repository.',
+				`Target repository path: \`${input.targetWorkingDirectory}\``,
+				changedFilesSection,
+			],
+			PROMPT_DIVIDER,
+		) ?? 'Decide whether the source change should be ported.'
+	)
+}
+
+/**
  * Render changed files with stats and patch text.
  *
  * @param input - Agent input.
  * @returns Formatted changed files section.
  */
-function renderChangedFilesSection(input: AgentInput): string {
+function renderChangedFilesSection(
+	input: Pick<
+		AgentInput,
+		'files' | 'sourceWorkingDirectory' | 'diffFilePath' | 'targetWorkingDirectory'
+	>,
+): string {
 	const lines = ['Changed files:']
 	const hasDiskSourceContext = Boolean(input.sourceWorkingDirectory || input.diffFilePath)
 

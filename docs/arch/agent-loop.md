@@ -101,10 +101,11 @@ An `ExecutionResult` containing:
 
 ## Provider interface
 
-The engine does not call an agent framework directly. Instead, the execution layer depends on an `AgentProvider` interface — a contract that any agentic backend can implement.
+The engine does not call an agent framework directly. Instead, it depends on an `AgentProvider` interface — a contract that any agentic backend can implement.
 
 ```typescript
 interface AgentProvider {
+	decidePort(input: DecidePortInput): Promise<DecidePortOutput>
 	executePort(input: AgentInput): Promise<AgentOutput>
 }
 ```
@@ -115,7 +116,27 @@ interface AgentProvider {
 - **Testable**: mock the provider in tests to verify retry logic, summary rendering, PR creation, etc. without hitting a real LLM.
 - **Clean boundary**: the engine owns the "what" (retry policy, validation, workspace, delivery). The provider owns the "how" (prompt format, tool wiring, model interaction).
 
-### Contract shape
+### `decidePort` — classification
+
+Called by the decision stage when no fast heuristic matches. Determines whether the source change requires a port.
+
+**`DecidePortInput`** — classification context:
+
+- Changed files with patch content
+- Target repo working directory path (agent can inspect target code)
+- Optional source repo checkout and diff file paths
+- Resolved plugin config
+
+**`DecidePortOutput`** — structured classifier result:
+
+- `required: boolean` — proceed to execution or skip
+- `reason: string` — human-readable rationale for logs and issues
+
+The decision stage runs fast heuristics first (docs-only, config-only, label checks). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
+
+### `executePort` — editing
+
+Called by the execution stage for each attempt.
 
 **`AgentInput`** — everything the provider needs to do one attempt:
 
@@ -136,6 +157,15 @@ The orchestrator (`execute-port.ts`) calls the provider, runs validation itself,
 ### v1 provider: `@repo-port-bot/agent-claude`
 
 Uses `@anthropic-ai/claude-agent-sdk` via the `ClaudeAgentProvider` class.
+
+#### `decidePort` (classification)
+
+- **Tools**: `Read`, `Glob`, `Grep` — read-only, no edits allowed.
+- **Structured output**: uses the SDK's native `outputFormat` option with a JSON schema (`{ required: boolean, reason: string }`). The SDK guarantees validated JSON on `resultMessage.structured_output` — no prompt-based JSON enforcement or manual parsing needed.
+- **Budget**: capped at 8 turns and $0.50 per classification call (whichever is lower than the provider-level settings).
+- **Permissions**: `bypassPermissions` mode for non-interactive CI usage.
+
+#### `executePort` (editing)
 
 - **Conversation model**: fresh per attempt (new `query()` call each retry).
 - **Tools**: `Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash` — built-in SDK tools.
@@ -216,10 +246,21 @@ Record decisions here as they're made.
 
 ### 2026-03-03 — Source repo access
 
-- **Date**: 2026-03-03
 - **Question**: Should the agent get source context only via API patches in the prompt, or have disk access to the source repo?
 - **Decision**: Clone source repo at the merge commit SHA. Compute `git diff HEAD~1` and save to `port-diff.patch`. Agent gets both the diff file and the full source clone for exploratory reads.
 - **Rationale**: Eliminates GitHub API patch truncation, lets the agent explore context beyond the diff (imports, tests, adjacent files), and reduces prompt bloat by letting the agent pull what it needs on demand. When source paths are provided, prompts reference the on-disk diff/source paths instead of inlining per-file patches. Inline patch rendering remains only as a fallback for callers that do not provide source paths.
+
+### 2026-03-03 — Agent-backed decision classifier
+
+- **Question**: What happens when no fast heuristic matches in the decision stage?
+- **Decision**: Add `decidePort(input: DecidePortInput): Promise<DecidePortOutput>` to `AgentProvider`. The decision stage calls it as a fallback when heuristics are inconclusive.
+- **Rationale**: Pure heuristics (docs-only, config-only, label checks) handle clear-cut cases but cannot reason about whether target code needs updating. An LLM-backed classifier with read-only tools and target repo access can inspect both sides and make an informed call. Two-phase agent interaction (`decidePort` then `executePort`) avoids wasting execution budget on changes that don't need porting.
+
+### 2026-03-03 — Structured outputs for decidePort
+
+- **Question**: How should the classifier return its decision — free-form text with prompt-based JSON enforcement, or SDK-level structured output?
+- **Decision**: Use the Claude Agent SDK's `outputFormat` option with a JSON schema. The SDK guarantees validated `structured_output` on the result message.
+- **Rationale**: Eliminates manual JSON parsing, code fence stripping, and retry-on-malformed-output logic. The SDK handles validation retries internally. Output is always well-typed and directly usable.
 
 ### Decision template
 

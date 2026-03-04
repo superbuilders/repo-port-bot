@@ -154,7 +154,12 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		logger.group('Decision: classify source change')
 
 		try {
-			decision = stages.decide(context)
+			decision = await stages.decide(context, {
+				agentProvider: options.agentProvider,
+				targetWorkingDirectory: options.targetWorkingDirectory,
+				sourceWorkingDirectory: options.sourceWorkingDirectory,
+				diffFilePath: options.diffFilePath,
+			})
 			logStage(logger, runId, 'decision', {
 				kind: decision.kind,
 				decisionMs: (stageTimings.decisionMs = getDurationMs(startedAtMs)),

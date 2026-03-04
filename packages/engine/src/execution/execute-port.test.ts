@@ -78,6 +78,9 @@ describe('executePort', () => {
 		const directory = await createTempDirectory()
 		let receivedInput: AgentInput | undefined = undefined
 		const provider: AgentProvider = {
+			async decidePort() {
+				return { required: true, reason: 'required' }
+			},
 			async executePort(
 				input: AgentInput,
 			): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
@@ -116,6 +119,9 @@ describe('executePort', () => {
 		const previousAttemptLengths: number[] = []
 		let callCount = 0
 		const provider: AgentProvider = {
+			async decidePort() {
+				return { required: true, reason: 'required' }
+			},
 			async executePort(
 				input: AgentInput,
 			): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
@@ -159,6 +165,9 @@ describe('executePort', () => {
 	test('returns failure when validation keeps failing until retry exhaustion', async () => {
 		const directory = await createTempDirectory()
 		const provider: AgentProvider = {
+			async decidePort() {
+				return { required: true, reason: 'required' }
+			},
 			async executePort(): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
 				return {
 					touchedFiles: ['src/failing.ts'],
@@ -185,6 +194,9 @@ describe('executePort', () => {
 	test('returns failure when provider throws', async () => {
 		const directory = await createTempDirectory()
 		const provider: AgentProvider = {
+			async decidePort() {
+				return { required: true, reason: 'required' }
+			},
 			async executePort(): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
 				throw new Error('provider crashed')
 			},
@@ -216,6 +228,9 @@ describe('executePort', () => {
 			groupEnd: () => {},
 		}
 		const provider: AgentProvider = {
+			async decidePort() {
+				return { required: true, reason: 'required' }
+			},
 			async executePort(): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
 				return {
 					touchedFiles: ['src/failing.ts'],
@@ -251,6 +266,9 @@ describe('executePort', () => {
 			groupEnd: () => {},
 		}
 		const provider: AgentProvider = {
+			async decidePort() {
+				return { required: true, reason: 'required' }
+			},
 			async executePort(
 				input: AgentInput,
 			): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {

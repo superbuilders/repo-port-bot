@@ -1,14 +1,21 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
-import { buildSystemPrompt, buildUserPrompt } from './build-prompt.ts'
+import {
+	buildDecideSystemPrompt,
+	buildDecideUserPrompt,
+	buildSystemPrompt,
+	buildUserPrompt,
+} from './build-prompt.ts'
 
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import type {
 	AgentInput,
 	AgentOutput,
-	AgentProvider,
 	AgentMessage,
+	AgentProvider,
+	DecidePortInput,
+	DecidePortOutput,
 	ToolCallEntry,
 } from '@repo-port-bot/engine'
 
@@ -19,6 +26,20 @@ const DEFAULT_MAX_TURNS = 50
 const EDIT_TOOL = 'Edit'
 const WRITE_TOOL = 'Write'
 const FILE_PATH_KEY = 'file_path'
+const DECIDE_MAX_TURNS = 8
+const DECIDE_MAX_BUDGET_USD = 0.5
+
+const DECIDE_PORT_OUTPUT_FORMAT = {
+	type: 'json_schema' as const,
+	schema: {
+		type: 'object',
+		properties: {
+			required: { type: 'boolean' },
+			reason: { type: 'string' },
+		},
+		required: ['required', 'reason'],
+	},
+}
 
 /**
  * Agent provider implementation backed by the Claude Agent SDK.
@@ -35,6 +56,56 @@ export class ClaudeAgentProvider implements AgentProvider {
 	public constructor(options: ClaudeProviderOptions = {}) {
 		this.options = options
 		this.queryFn = options.queryFn ?? (query as QueryFn)
+	}
+
+	/**
+	 * Decide whether the source change requires a port.
+	 *
+	 * @param input - Decision input from the engine decision stage.
+	 * @returns Structured classifier response.
+	 */
+	public async decidePort(input: DecidePortInput): Promise<DecidePortOutput> {
+		const onMessage = input.onMessage
+		const systemPrompt = buildDecideSystemPrompt({
+			pluginConfig: input.pluginConfig,
+			sourceWorkingDirectory: input.sourceWorkingDirectory,
+			diffFilePath: input.diffFilePath,
+		})
+		const userPrompt = buildDecideUserPrompt(input)
+		let resultMessage: SDKResultMessage | undefined = undefined
+
+		const queryOptions: Options = {
+			cwd: input.targetWorkingDirectory,
+			systemPrompt,
+			model: this.options.model ?? DEFAULT_MODEL,
+			maxTurns: Math.min(this.options.maxTurns ?? DEFAULT_MAX_TURNS, DECIDE_MAX_TURNS),
+			maxBudgetUsd: Math.min(
+				this.options.maxBudgetUsd ?? DECIDE_MAX_BUDGET_USD,
+				DECIDE_MAX_BUDGET_USD,
+			),
+			allowedTools: ['Read', 'Glob', 'Grep'],
+			tools: ['Read', 'Glob', 'Grep'],
+			outputFormat: DECIDE_PORT_OUTPUT_FORMAT,
+			permissionMode: 'bypassPermissions',
+			allowDangerouslySkipPermissions: true,
+			env: this.options.apiKey
+				? { ...process.env, ANTHROPIC_API_KEY: this.options.apiKey }
+				: undefined,
+		}
+
+		for await (const message of this.queryFn({ prompt: userPrompt, options: queryOptions })) {
+			if (message.type === 'assistant') {
+				emitAssistantMessages(message, onMessage)
+			} else if (message.type === 'result') {
+				resultMessage = message
+			}
+		}
+
+		if (!resultMessage) {
+			throw new Error('Claude provider finished without a result message.')
+		}
+
+		return readStructuredDecideOutput(resultMessage)
 	}
 
 	/**
@@ -297,4 +368,31 @@ function toRecord(value: unknown): Record<string, unknown> | undefined {
 	}
 
 	return value as Record<string, unknown>
+}
+
+/**
+ * Extract validated structured output from a decidePort result message.
+ *
+ * @param message - SDK result message with potential structured_output.
+ * @returns Validated decide port output.
+ */
+function readStructuredDecideOutput(message: SDKResultMessage): DecidePortOutput {
+	if (message.subtype !== 'success') {
+		throw new Error(`Claude decidePort failed with subtype: ${message.subtype}`)
+	}
+
+	const output = (message as unknown as { structured_output?: unknown }).structured_output
+
+	if (!output || typeof output !== 'object') {
+		throw new Error('Claude decidePort result missing structured_output.')
+	}
+
+	const required = (output as Record<string, unknown>).required
+	const reason = (output as Record<string, unknown>).reason
+
+	if (typeof required !== 'boolean' || typeof reason !== 'string') {
+		throw new Error('Claude decidePort structured_output has invalid shape.')
+	}
+
+	return { required, reason }
 }
