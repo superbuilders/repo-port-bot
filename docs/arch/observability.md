@@ -18,15 +18,16 @@ There is no built-in log aggregation, metrics store, or cross-run query surface.
 
 Grounded in the [anchor story](../user-stories/anchor.md), the key questions after any run are:
 
-| Question                                       | Anchor reference                               |
-| ---------------------------------------------- | ---------------------------------------------- |
-| Did the port happen, and what was the outcome? | "What we measure each run" — outcome and URLs  |
-| Why did the engine decide to port (or skip)?   | Decision kind and rationale                    |
-| How many attempts did it take?                 | Attempts used before success/failure           |
-| Which validations passed or failed?            | Validation pass/fail per command               |
-| What files were touched?                       | Files touched count                            |
-| How long did the whole thing take?             | SLO: merge → PR open under 10 min              |
-| What did the agent actually do?                | Tool call log (for debugging unexpected edits) |
+| Question                                       | Anchor reference                              |
+| ---------------------------------------------- | --------------------------------------------- |
+| Did the port happen, and what was the outcome? | "What we measure each run" — outcome and URLs |
+| Why did the engine decide to port (or skip)?   | Decision kind and rationale                   |
+| How many attempts did it take?                 | Attempts used before success/failure          |
+| Which validations passed or failed?            | Validation pass/fail per command              |
+| What files were touched?                       | Files touched count                           |
+| How long did the whole thing take?             | SLO: merge → PR open under 10 min             |
+| What did the agent actually do?                | Tool call log + real-time streaming           |
+| What is the agent doing right now?             | Streamed tool_start / thinking events         |
 
 ## Log levels
 
@@ -63,16 +64,32 @@ This keeps the default output scannable for a maintainer checking "did the port 
 At `info` level, `runPort` emits one log line per stage transition so the Actions log tells a clear story:
 
 ```
-[port-bot] run=<runId> stage=context source=acme/source-repo pr=#42 files=5
-[port-bot] run=<runId> stage=config source=port-bot.json+built-in target=acme/target-repo
-[port-bot] run=<runId> stage=decision kind=PORT_REQUIRED reason="Code + test changes" signals=[] 12ms
-[port-bot] run=<runId> stage=execute attempt=1/3 touched=3 validation=pass 4.2s
-[port-bot] run=<runId> stage=deliver outcome=pr_opened url=https://github.com/acme/target-repo/pull/99 3.1s
-[port-bot] run=<runId> stage=notify commented=https://github.com/acme/source-repo/pull/42#issuecomment-1
-[port-bot] run=<runId> outcome=pr_opened duration=7.8s
+[port-bot] run=<runId> stage=context source=acme/source-repo pr=42 files=5 contextMs=12
+[port-bot] run=<runId> stage=config target=acme/target-repo configMs=3
+[port-bot] run=<runId> stage=decision kind=PORT_REQUIRED decisionMs=45
+[port-bot] run=<runId> stage=execute tool=Read file=src/example.ts
+[port-bot] run=<runId> stage=execute tool=Edit file=src/ported.ts
+[port-bot] run=<runId> stage=execute attempt=1/3 touched=3 validation=pass durationMs=4200
+[port-bot] run=<runId> stage=execute attempts=1 success=pass executeMs=4200
+[port-bot] run=<runId> stage=deliver outcome=pr_opened deliverMs=3100
+[port-bot] run=<runId> stage=notify outcome=pr_opened notifyMs=850
+[port-bot] run=<runId> stage=outcome outcome=pr_opened durationMs=7800
 ```
 
-At `debug` level, each stage additionally logs structured detail: full file lists, resolved config, decision signals, validation stdout/stderr per command, and delivery git operations.
+At `debug` level, each stage additionally logs structured detail: full file lists, resolved config, decision signals, validation stdout/stderr per command, delivery git operations, agent thinking blocks, and per-tool-call durations.
+
+### Agent streaming
+
+During execution, the `ClaudeAgentProvider` emits structured `AgentMessage` events via an `onMessage` callback on `AgentInput`. The execution orchestrator routes these to the logger:
+
+| AgentMessage kind | Log level | What it shows                                     |
+| ----------------- | --------- | ------------------------------------------------- |
+| `tool_start`      | **info**  | One line per tool call with file path — progress  |
+| `thinking`        | **debug** | Claude's reasoning — verbose, for troubleshooting |
+| `tool_end`        | **debug** | Tool duration — captured in toolCallLog anyway    |
+| `text`            | **debug** | Agent summary text — already in AgentOutput       |
+
+This means at `info` level an operator sees real-time progress (which files Claude is reading/editing) without noise. At `debug` level they also see Claude's internal reasoning and tool timing.
 
 ### Collapsible groups
 
@@ -80,7 +97,7 @@ Long output (validation stderr, file lists, config dumps) is wrapped in `core.gr
 
 ## Job summary
 
-The action already writes a summary via `core.summary`. This should include:
+The action writes a summary via `core.summary` including:
 
 - Run ID, outcome, duration
 - Source PR link and target PR/issue link
@@ -92,9 +109,9 @@ This gives the maintainer a glanceable dashboard directly in the Actions UI with
 
 ## Tool call artifact
 
-The agent's `ToolCallEntry[]` is the most valuable debugging artifact but also the noisiest (50–200 entries per attempt across multiple retries). It should not go to stdout.
+The agent's `ToolCallEntry[]` is the most valuable debugging artifact but also the noisiest (50–200 entries per attempt across multiple retries). It should not go to stdout at `info` level.
 
-Instead, write it to a JSON file and upload as a GitHub Actions artifact:
+Instead, it is written to a JSON file and uploaded as a GitHub Actions artifact:
 
 ```
 port-bot-run-<runId>/
@@ -104,22 +121,19 @@ port-bot-run-<runId>/
 
 Uploaded via `actions/upload-artifact` with a short retention (7–14 days). When a port goes wrong the operator downloads the artifact, searches for the failing tool call, and sees exactly what the agent did.
 
-At `debug` level, a one-line summary of each tool call (name + duration) is additionally logged to stdout for real-time tailing.
-
 ## Timing
 
-`PortRunResult.durationMs` captures total wall-clock time. Per-stage timing should also be captured so operators can identify bottlenecks:
+`PortRunResult.durationMs` captures total wall-clock time. Per-stage timing is stored in `PortRunResult.stageTimings` and logged at each stage transition:
 
-| Measurement             | Where                               |
-| ----------------------- | ----------------------------------- |
-| Total run duration      | `PortRunResult.durationMs` (exists) |
-| Context gathering       | Logged at stage transition          |
-| Decision                | Logged at stage transition          |
-| Execution (per attempt) | Logged at stage transition          |
-| Delivery                | Logged at stage transition          |
-| Source PR comment       | Logged at stage transition          |
-
-These are logged, not stored in protocol types. If cross-run analysis becomes valuable later, they can be promoted to `PortRunResult`.
+| Measurement             | Where                                      |
+| ----------------------- | ------------------------------------------ |
+| Total run duration      | `PortRunResult.durationMs`                 |
+| Context gathering       | `stageTimings.contextMs` + stage log line  |
+| Config resolution       | `stageTimings.configMs` + stage log line   |
+| Decision                | `stageTimings.decisionMs` + stage log line |
+| Execution (per attempt) | `stageTimings.executeMs` + stage log line  |
+| Delivery                | `stageTimings.deliverMs` + stage log line  |
+| Source PR comment       | `stageTimings.notifyMs` + stage log line   |
 
 ## Cross-run visibility
 
@@ -144,12 +158,3 @@ These are deferred until there's enough run volume to justify the setup.
 - **Stage failures** are caught by `runPort`'s error boundary and produce a `failed` outcome with an error summary. The failure is logged at `error` level and surfaced in the job summary and source PR comment.
 - **Best-effort operations** (source PR comment, artifact upload) catch their own errors, log at `warn` level, and never affect the run outcome.
 - **Sensitive data** (tokens, API keys) must never appear in logs. The engine logs repo names, PR numbers, file paths, and outcomes — never credentials or full API response bodies.
-
-## Implementation order
-
-1. Add `log-level` action input with `info` default.
-2. Add a thin logger interface that the engine accepts (maps to `core.*` in Actions, `console.*` locally).
-3. Instrument `runPort` stage transitions at `info` level.
-4. Add `debug` logging in each stage for verbose detail.
-5. Write tool call artifact + run result JSON after pipeline completes.
-6. Enhance job summary with timing breakdown.
