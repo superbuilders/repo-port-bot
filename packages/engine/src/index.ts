@@ -1,3 +1,5 @@
+export { readSourceContext } from './github/read-source-context.ts'
+
 export type {
 	AgentInput,
 	AgentOutput,
