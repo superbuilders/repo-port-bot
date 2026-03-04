@@ -1,4 +1,5 @@
 export { readSourceContext } from './github/read-source-context.ts'
+export { resolvePluginConfig } from './config/resolve-plugin-config.ts'
 
 export type {
 	AgentInput,
