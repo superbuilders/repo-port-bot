@@ -286,6 +286,7 @@ describe('commentOnSourcePr', () => {
 			writer,
 			pullRequestNumber: 42,
 			context,
+			decision: makeDecision('PORT_REQUIRED'),
 			outcome: 'pr_opened',
 			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
 			runId: 'run-1',
@@ -299,7 +300,7 @@ describe('commentOnSourcePr', () => {
 			SOURCE_PULL_REQUEST_NUMBER,
 		)
 		expect(String((createCommentCalls[0] as { body: string }).body)).toContain(
-			'Port PR opened: https://github.com/acme/target-repo/pull/901',
+			'Ported to https://github.com/acme/target-repo/pull/901',
 		)
 	})
 
@@ -322,6 +323,7 @@ describe('commentOnSourcePr', () => {
 			writer,
 			pullRequestNumber: 42,
 			context,
+			decision: makeDecision('NEEDS_HUMAN'),
 			outcome: 'failed',
 			runId: 'run-2',
 		})

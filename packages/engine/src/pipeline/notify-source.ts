@@ -3,13 +3,14 @@ import { getDurationMs } from '../utils.ts'
 import type { Logger } from '@repo-port-bot/logger'
 
 import type { commentOnSourcePr } from '../github/deliver.ts'
-import type { GitHubWriter, PortContext, PortRunResult } from '../types.ts'
+import type { GitHubWriter, PortContext, PortDecision, PortRunResult } from '../types.ts'
 
 interface PostSourcePrCommentInput {
 	commentStage: typeof commentOnSourcePr
 	context: PortContext
+	decision: PortDecision
 	writer: GitHubWriter
-	outcome: Exclude<PortRunResult['outcome'], 'skipped_not_required'>
+	outcome: PortRunResult['outcome']
 	runId: string
 	logger: Logger
 	targetPullRequestUrl?: string
@@ -38,6 +39,7 @@ export async function postSourcePrCommentBestEffort(
 			writer: input.writer,
 			pullRequestNumber: sourcePullRequestNumber,
 			context: input.context,
+			decision: input.decision,
 			outcome: input.outcome,
 			targetPullRequestUrl: input.targetPullRequestUrl,
 			followUpIssueUrl: input.followUpIssueUrl,

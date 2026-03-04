@@ -162,6 +162,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			})
 			logStage(logger, runId, 'decision', {
 				kind: decision.kind,
+				reason: decision.reason,
 				decisionMs: (stageTimings.decisionMs = getDurationMs(startedAtMs)),
 			})
 		} finally {
@@ -169,6 +170,27 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		}
 
 		if (decision.kind === 'PORT_NOT_REQUIRED') {
+			const sourcePrNumber = context.sourceChange.pullRequest?.number
+
+			if (sourcePrNumber) {
+				try {
+					await stages.commentOnSourcePr({
+						writer: options.writer,
+						pullRequestNumber: sourcePrNumber,
+						context,
+						decision,
+						outcome: 'skipped_not_required',
+						runId,
+						logger,
+					})
+				} catch (commentError) {
+					logger.warn(
+						'[port-bot] Unable to post source PR comment for skipped run.',
+						commentError,
+					)
+				}
+			}
+
 			logOutcome(logger, runId, 'skipped_not_required', getDurationMs(startedAtMs))
 
 			return {
@@ -224,6 +246,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 					writer: options.writer,
 					pullRequestNumber: sourcePullRequestNumber,
 					context,
+					decision: failureDecision,
 					outcome: 'failed',
 					runId,
 					logger,

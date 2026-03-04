@@ -21,7 +21,8 @@ interface RenderNeedsHumanIssueBodyInput {
 
 interface RenderSourceCommentInput {
 	context: PortContext
-	outcome: Exclude<PortRunOutcome, 'skipped_not_required'>
+	decision: PortDecision
+	outcome: PortRunOutcome
 	targetPullRequestUrl?: string
 	followUpIssueUrl?: string
 	runId: string
@@ -200,6 +201,7 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
  *
  * @param input - Rendering input.
  * @param input.context - Port context with source metadata.
+ * @param input.decision - Decision that led to this outcome.
  * @param input.outcome - Terminal run outcome.
  * @param input.targetPullRequestUrl - Optional created target PR URL.
  * @param input.followUpIssueUrl - Optional created needs-human issue URL.
@@ -207,58 +209,61 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
  * @returns Comment markdown body.
  */
 export function renderSourceComment(input: RenderSourceCommentInput): string {
-	const sourcePullRequest = input.context.sourceChange.pullRequest
-	const sourceReference = sourcePullRequest
-		? `[#${String(sourcePullRequest.number)}](${sourcePullRequest.url})`
-		: `commit \`${input.context.sourceChange.mergedCommitSha}\``
+	const targetRepo = `${input.context.pluginConfig.targetRepo.owner}/${input.context.pluginConfig.targetRepo.name}`
 
 	switch (input.outcome) {
-		case 'pr_opened': {
+		case 'skipped_not_required': {
 			return [
-				'Auto-port update:',
-				input.targetPullRequestUrl
-					? `- Port PR opened: ${input.targetPullRequestUrl}`
-					: '- Port PR opened in target repository.',
-				'- Validation passed; ready for review.',
-				`- Source: ${sourceReference}`,
-				`- Run ID: \`${input.runId}\``,
+				`Port bot skipped this for \`${targetRepo}\`.`,
+				'',
+				`**Why:** ${input.decision.reason}`,
+			].join('\n')
+		}
+		case 'pr_opened': {
+			const prLink = input.targetPullRequestUrl ?? `a PR in \`${targetRepo}\``
+
+			return [
+				`Ported to ${prLink}. Validation passed; ready for review.`,
+				'',
+				`**Why:** ${input.decision.reason}`,
 			].join('\n')
 		}
 		case 'draft_pr_opened': {
+			const prLink = input.targetPullRequestUrl
+				? `a draft PR: ${input.targetPullRequestUrl}`
+				: `a draft PR in \`${targetRepo}\``
+
 			return [
-				'Auto-port update:',
-				input.targetPullRequestUrl
-					? `- Draft port PR opened: ${input.targetPullRequestUrl}`
-					: '- Draft port PR opened in target repository.',
-				'- Validation failed after retries; manual follow-up needed.',
-				`- Source: ${sourceReference}`,
-				`- Run ID: \`${input.runId}\``,
+				`Port attempted but validation failed after retries. Opened ${prLink}.`,
+				'',
+				`**Why:** ${input.decision.reason}`,
 			].join('\n')
 		}
 		case 'needs_human': {
+			const issueLink = input.followUpIssueUrl
+				? `an issue: ${input.followUpIssueUrl}`
+				: `an issue in \`${targetRepo}\``
+
 			return [
-				'Auto-port update:',
-				input.followUpIssueUrl
-					? `- Human follow-up issue opened: ${input.followUpIssueUrl}`
-					: '- Human follow-up issue created in target repository.',
-				'- Port was deferred by decision stage for human review.',
-				`- Source: ${sourceReference}`,
-				`- Run ID: \`${input.runId}\``,
+				`Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
+				'',
+				`**Why:** ${input.decision.reason}`,
 			].join('\n')
 		}
 		case 'failed': {
 			return [
-				'Auto-port update:',
-				'- Port run failed due to an engine-level error before successful delivery.',
-				`- Source: ${sourceReference}`,
-				`- Run ID: \`${input.runId}\``,
+				`Port to \`${targetRepo}\` failed due to an engine error.`,
+				'',
+				`**Why:** ${input.decision.reason}`,
+				'',
+				`Run ID: \`${input.runId}\``,
 			].join('\n')
 		}
 		default: {
 			return [
-				'Auto-port update:',
-				`- Source: ${sourceReference}`,
-				`- Run ID: \`${input.runId}\``,
+				`Port bot ran for \`${targetRepo}\`.`,
+				'',
+				`**Why:** ${input.decision.reason}`,
 			].join('\n')
 		}
 	}

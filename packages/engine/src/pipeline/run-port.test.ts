@@ -241,10 +241,10 @@ describe('runPort', () => {
 		expect(executeInput!.diffFilePath).toBe(diffFilePath)
 	})
 
-	test('returns skipped_not_required and does not execute or deliver', async () => {
+	test('returns skipped_not_required, posts comment, and does not execute or deliver', async () => {
 		let executeCalled = false
 		let deliverCalled = false
-		let commentCalled = false
+		const commentOutcomes: string[] = []
 
 		const result = await runPort({
 			reader: createReaderFake(),
@@ -268,8 +268,8 @@ describe('runPort', () => {
 
 					return { outcome: 'skipped' }
 				},
-				commentOnSourcePr: async () => {
-					commentCalled = true
+				commentOnSourcePr: async input => {
+					commentOutcomes.push(input.outcome)
 
 					return 'https://github.com/acme/source-repo/pull/42#issuecomment-1'
 				},
@@ -280,7 +280,7 @@ describe('runPort', () => {
 		expect(result.summary).toContain('Skipped:')
 		expect(executeCalled).toBe(false)
 		expect(deliverCalled).toBe(false)
-		expect(commentCalled).toBe(false)
+		expect(commentOutcomes).toEqual(['skipped_not_required'])
 	})
 
 	test('routes NEEDS_HUMAN to issue delivery and returns needs_human', async () => {
