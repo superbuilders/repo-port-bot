@@ -74,8 +74,13 @@ function makeContext(validationCommands: string[]): PortContext {
 describe('executePort', () => {
 	test('returns success on first attempt when validation passes', async () => {
 		const directory = await createTempDirectory()
+		let receivedInput: AgentInput | undefined = undefined
 		const provider: AgentProvider = {
-			async executePort(): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
+			async executePort(
+				input: AgentInput,
+			): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
+				receivedInput = input
+
 				return {
 					touchedFiles: ['src/ported.ts'],
 					complete: true,
@@ -89,6 +94,8 @@ describe('executePort', () => {
 			agentProvider: provider,
 			context: makeContext(['echo ok']),
 			targetWorkingDirectory: directory,
+			sourceWorkingDirectory: '/tmp/source-repo',
+			diffFilePath: '/tmp/source-repo/port-diff.patch',
 			maxAttempts: 3,
 		})
 
@@ -97,6 +104,9 @@ describe('executePort', () => {
 		expect(result.history).toHaveLength(1)
 		expect(result.history[0]?.validation[0]?.ok).toBe(true)
 		expect(result.touchedFiles).toEqual(['src/ported.ts'])
+		expect(receivedInput).toBeDefined()
+		expect(receivedInput!.sourceWorkingDirectory).toBe('/tmp/source-repo')
+		expect(receivedInput!.diffFilePath).toBe('/tmp/source-repo/port-diff.patch')
 	})
 
 	test('retries with previous attempt feedback, then succeeds', async () => {

@@ -267,6 +267,16 @@ export interface AgentInput {
 	targetWorkingDirectory: string
 
 	/**
+	 * Optional absolute path to a local source repo checkout at the merge commit.
+	 */
+	sourceWorkingDirectory?: string
+
+	/**
+	 * Optional absolute path to a full git diff patch file from the source repo.
+	 */
+	diffFilePath?: string
+
+	/**
 	 * Resolved plugin config (path mappings, conventions, prompt).
 	 */
 	pluginConfig: PluginConfig

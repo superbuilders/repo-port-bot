@@ -4,7 +4,13 @@ All GitHub API interactions and git operations the engine performs. Covers readi
 
 ## Reads (source repo)
 
-These happen early in the pipeline to build `PortContext`.
+These happen early in the pipeline to build `PortContext` and prepare agent inputs.
+
+### Source clone
+
+The source repo is shallow-cloned at the merge commit SHA into a temp directory.
+This gives the agent direct disk access to source files for exploratory reads (imports,
+tests, adjacent context) and provides a reliable way to compute the full diff locally.
 
 ### PR metadata
 
@@ -17,9 +23,13 @@ Source: GitHub REST API (`GET /repos/{owner}/{repo}/pulls/{pull_number}`)
 ### Diff and changed files
 
 - File paths, statuses (added/modified/deleted/renamed), additions/deletions counts
-- Full diff content for prompt construction
+- Full diff computed locally via `git diff HEAD~1` in the source clone, saved to `port-diff.patch`
 
-Source: GitHub REST API (`GET /repos/{owner}/{repo}/pulls/{pull_number}/files`) or git diff against the merge commit.
+The per-file `patch` field from the GitHub list-files API is still used by decision-stage
+heuristics (docs-only, config-only) but the agent prompt uses the locally-computed diff
+file instead — no truncation, no missing patches.
+
+Source: GitHub REST API for file list + stats; `git diff` from source clone for diff content.
 
 ### port-bot.json (optional)
 
@@ -156,7 +166,8 @@ Lives at repo root `action.yml` as a JavaScript action.
 Responsible for:
 
 - Parsing action inputs and token mode
-- Cloning target repo using PAT-authenticated remote URL
+- Cloning source repo at merge SHA (read-only reference + diff computation)
+- Cloning target repo at default branch (agent working directory)
 - Running the engine entrypoint from `packages/action/dist/index.js`
 - Publishing action outputs for downstream workflow steps
 

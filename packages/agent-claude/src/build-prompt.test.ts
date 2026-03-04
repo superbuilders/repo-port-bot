@@ -50,25 +50,25 @@ function makeInput(overrides?: Partial<AgentInput>): AgentInput {
 
 describe('buildSystemPrompt', () => {
 	test('includes path mappings when provided', () => {
-		const prompt = buildSystemPrompt(
-			makePluginConfig({
+		const prompt = buildSystemPrompt({
+			pluginConfig: makePluginConfig({
 				pathMappings: {
 					'src/lib/': 'lib/',
 				},
 			}),
-		)
+		})
 
 		expect(prompt).toContain('Source-to-target path mappings')
 		expect(prompt).toContain('`src/lib/` -> `lib/`')
 	})
 
 	test('includes naming conventions and custom prompt when provided', () => {
-		const prompt = buildSystemPrompt(
-			makePluginConfig({
+		const prompt = buildSystemPrompt({
+			pluginConfig: makePluginConfig({
 				namingConventions: 'snake_case for python modules',
 				prompt: 'Prefer target repository helper abstractions.',
 			}),
-		)
+		})
 
 		expect(prompt).toContain('Naming conventions')
 		expect(prompt).toContain('snake_case for python modules')
@@ -77,16 +77,46 @@ describe('buildSystemPrompt', () => {
 	})
 
 	test('omits optional sections when absent', () => {
-		const prompt = buildSystemPrompt(makePluginConfig())
+		const prompt = buildSystemPrompt({ pluginConfig: makePluginConfig() })
 
 		expect(prompt).not.toContain('Source-to-target path mappings')
 		expect(prompt).not.toContain('Naming conventions')
 		expect(prompt).not.toContain('Additional instructions')
 	})
+
+	test('includes source checkout and diff file rules when provided', () => {
+		const prompt = buildSystemPrompt({
+			pluginConfig: makePluginConfig(),
+			sourceWorkingDirectory: '/tmp/source',
+			diffFilePath: '/tmp/source/port-diff.patch',
+		})
+
+		expect(prompt).toContain('Source repository checkout')
+		expect(prompt).toContain('/tmp/source')
+		expect(prompt).toContain('Source diff file')
+		expect(prompt).toContain('/tmp/source/port-diff.patch')
+	})
 })
 
 describe('buildUserPrompt', () => {
-	test('includes changed files and patches on first attempt', () => {
+	test('includes changed files and source references when disk context is provided', () => {
+		const prompt = buildUserPrompt(
+			makeInput({
+				sourceWorkingDirectory: '/tmp/source',
+				diffFilePath: '/tmp/source/port-diff.patch',
+			}),
+		)
+
+		expect(prompt).toContain('Changed files:')
+		expect(prompt).toContain('`src/feature.ts`')
+		expect(prompt).toContain('Source repository path: `/tmp/source`')
+		expect(prompt).toContain('Full diff file: `/tmp/source/port-diff.patch`')
+		expect(prompt).toContain('Apply equivalent changes in the target repository.')
+		expect(prompt).not.toContain('```diff')
+		expect(prompt).not.toContain('Previous attempt feedback')
+	})
+
+	test('falls back to inline patches when source paths are absent', () => {
 		const prompt = buildUserPrompt(makeInput())
 
 		expect(prompt).toContain('Changed files:')

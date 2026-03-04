@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest'
 import { ClaudeAgentProvider } from '@repo-port-bot/agent-claude'
 import { deliverResult, readSourceContext, runPort } from '@repo-port-bot/engine'
 
+import { cloneSourceRepo } from './setup/clone-source-repo.ts'
 import { cloneTargetRepo } from './setup/clone-target-repo.ts'
 import { parseActionInputs } from './setup/parse-inputs.ts'
 
@@ -16,6 +17,7 @@ import type { RunActionDependencies } from './types.ts'
 export async function runAction(dependencies: Partial<RunActionDependencies> = {}) {
 	const resolvedDependencies: RunActionDependencies = {
 		parseInputs: dependencies.parseInputs ?? parseActionInputs,
+		cloneSourceRepo: dependencies.cloneSourceRepo ?? cloneSourceRepo,
 		cloneTargetRepo: dependencies.cloneTargetRepo ?? cloneTargetRepo,
 		createOctokit: dependencies.createOctokit ?? (token => new Octokit({ auth: token })),
 		createAgentProvider:
@@ -40,6 +42,11 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 		maxTurns: inputs.maxTurns,
 		maxBudgetUsd: inputs.maxBudgetUsd,
 	})
+	const sourceClone = await resolvedDependencies.cloneSourceRepo({
+		repo: inputs.sourceRepo,
+		commitSha: inputs.commitSha,
+		token: inputs.effectiveSourceToken,
+	})
 	const targetWorkingDirectory = await resolvedDependencies.cloneTargetRepo({
 		repo: inputs.targetRepo,
 		defaultBranch: inputs.targetDefaultBranch,
@@ -52,6 +59,8 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 		sourceRepo: inputs.sourceRepo,
 		commitSha: inputs.commitSha,
 		targetWorkingDirectory,
+		sourceWorkingDirectory: sourceClone.sourceWorkingDirectory,
+		diffFilePath: sourceClone.diffFilePath,
 		maxAttempts: inputs.maxAttempts,
 		skipPortBotJson: inputs.skipPortBotJson,
 		builtInConfig: {

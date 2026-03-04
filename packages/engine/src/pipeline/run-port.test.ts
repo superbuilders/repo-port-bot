@@ -133,6 +133,14 @@ describe('runPort', () => {
 		const callOrder: string[] = []
 		const sourceChange = makeSourceChange()
 		const pluginConfig = makePluginConfig()
+		const sourceWorkingDirectory = '/tmp/source-repo'
+		const diffFilePath = '/tmp/source-repo/port-diff.patch'
+		let executeInput:
+			| {
+					sourceWorkingDirectory?: string
+					diffFilePath?: string
+			  }
+			| undefined = undefined
 
 		const result = await runPort({
 			octokit: createOctokitMock(),
@@ -140,6 +148,8 @@ describe('runPort', () => {
 			sourceRepo: SOURCE_REPO,
 			commitSha: sourceChange.mergedCommitSha,
 			targetWorkingDirectory: '/tmp/target-repo',
+			sourceWorkingDirectory,
+			diffFilePath,
 			stageOverrides: {
 				readSourceContext: async () => {
 					callOrder.push('read')
@@ -157,8 +167,12 @@ describe('runPort', () => {
 
 					return makeDecision('PORT_REQUIRED', 'Port required.')
 				},
-				executePort: async () => {
+				executePort: async input => {
 					callOrder.push('execute')
+					executeInput = {
+						sourceWorkingDirectory: input.sourceWorkingDirectory,
+						diffFilePath: input.diffFilePath,
+					}
 
 					return makeExecution(true)
 				},
@@ -178,6 +192,9 @@ describe('runPort', () => {
 		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/901')
 		expect(result.durationMs).toBeGreaterThan(0)
 		expect(result.summary).toContain('Port PR opened')
+		expect(executeInput).toBeDefined()
+		expect(executeInput!.sourceWorkingDirectory).toBe(sourceWorkingDirectory)
+		expect(executeInput!.diffFilePath).toBe(diffFilePath)
 	})
 
 	test('returns skipped_not_required and does not execute or deliver', async () => {

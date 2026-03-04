@@ -42,7 +42,11 @@ export class ClaudeAgentProvider implements AgentProvider {
 		const toolCallLog: ToolCallEntry[] = []
 		const assistantNotes: string[] = []
 		const startTimesByToolUseId = new Map<string, number>()
-		const systemPrompt = buildSystemPrompt(input.pluginConfig)
+		const systemPrompt = buildSystemPrompt({
+			pluginConfig: input.pluginConfig,
+			sourceWorkingDirectory: input.sourceWorkingDirectory,
+			diffFilePath: input.diffFilePath,
+		})
 		const userPrompt = buildUserPrompt(input)
 		let resultMessage: SDKResultMessage | undefined = undefined
 

@@ -1,7 +1,7 @@
 import type {
 	AgentInput,
-	ExecutionAttempt,
 	PluginConfig,
+	ExecutionAttempt,
 	ValidationCommandResult,
 } from '@repo-port-bot/engine'
 
@@ -12,10 +12,18 @@ const MISSING_PATCH_NOTE = '(patch omitted by source API)'
 /**
  * Build a system prompt from plugin configuration.
  *
- * @param pluginConfig - Resolved plugin config.
+ * @param input - Prompt context.
+ * @param input.pluginConfig - Resolved plugin config.
+ * @param input.sourceWorkingDirectory - Optional source repository path.
+ * @param input.diffFilePath - Optional source diff file path.
  * @returns System prompt text.
  */
-export function buildSystemPrompt(pluginConfig: PluginConfig): string {
+export function buildSystemPrompt(input: {
+	pluginConfig: PluginConfig
+	sourceWorkingDirectory?: string
+	diffFilePath?: string
+}): string {
+	const { pluginConfig } = input
 	const mappingEntries = Object.entries(pluginConfig.pathMappings)
 	const mappingsSection =
 		mappingEntries.length === 0
@@ -30,17 +38,28 @@ export function buildSystemPrompt(pluginConfig: PluginConfig): string {
 	const additionalInstructions = pluginConfig.prompt
 		? `Additional instructions:\n${pluginConfig.prompt}`
 		: undefined
+	const sourceRepoSection = input.sourceWorkingDirectory
+		? `Source repository checkout:\n- \`${input.sourceWorkingDirectory}\``
+		: undefined
+	const diffFileSection = input.diffFilePath
+		? `Source diff file:\n- \`${input.diffFilePath}\``
+		: undefined
 
 	return (
 		joinNonEmptyLines(
 			[
 				'You are a code porting agent. Apply equivalent changes from a source repository into the target repository.',
+				sourceRepoSection,
+				diffFileSection,
 				mappingsSection,
 				namingSection,
 				additionalInstructions,
 				[
 					'Rules:',
+					'- Your working directory is the target repository.',
 					'- Only modify files in the target repository.',
+					'- If source repository checkout is provided, use absolute paths when reading source files.',
+					'- If source diff file is provided, read it for detailed change context.',
 					'- Do NOT run validation commands; the orchestrator handles validation.',
 					'- If uncertain, include uncertainty in your notes.',
 				].join('\n'),
@@ -68,6 +87,7 @@ export function buildUserPrompt(input: AgentInput): string {
 		joinNonEmptyLines(
 			[
 				'Task: Port the source changes into this target repository checkout.',
+				`Target repository path: \`${input.targetWorkingDirectory}\``,
 				changedFilesSection,
 				retrySection,
 				retryInstruction,
@@ -85,12 +105,24 @@ export function buildUserPrompt(input: AgentInput): string {
  */
 function renderChangedFilesSection(input: AgentInput): string {
 	const lines = ['Changed files:']
+	const hasDiskSourceContext = Boolean(input.sourceWorkingDirectory || input.diffFilePath)
 
 	for (const file of input.files) {
 		lines.push(
 			`- \`${file.path}\` (${file.status}, +${String(file.additions)} / -${String(file.deletions)})`,
 		)
-		lines.push(file.patch ? `\`\`\`diff\n${file.patch}\n\`\`\`` : MISSING_PATCH_NOTE)
+
+		if (!hasDiskSourceContext) {
+			lines.push(file.patch ? `\`\`\`diff\n${file.patch}\n\`\`\`` : MISSING_PATCH_NOTE)
+		}
+	}
+
+	if (input.diffFilePath) {
+		lines.push(`Full diff file: \`${input.diffFilePath}\``)
+	}
+
+	if (input.sourceWorkingDirectory) {
+		lines.push(`Source repository path: \`${input.sourceWorkingDirectory}\``)
 	}
 
 	return lines.join('\n')

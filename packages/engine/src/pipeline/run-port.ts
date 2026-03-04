@@ -42,6 +42,8 @@ interface RunPortOptions {
 	portBotJson?: PortBotJsonConfig | string
 	skipPortBotJson?: boolean
 	targetWorkingDirectory: string
+	sourceWorkingDirectory?: string
+	diffFilePath?: string
 	maxAttempts?: number
 	/**
 	 * Internal testing hook for replacing stage implementations.
@@ -237,6 +239,8 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			context,
 			maxAttempts: options.maxAttempts,
 			targetWorkingDirectory: options.targetWorkingDirectory,
+			sourceWorkingDirectory: options.sourceWorkingDirectory,
+			diffFilePath: options.diffFilePath,
 		})
 		const delivery = await stages.deliverResult({
 			octokit: options.octokit,

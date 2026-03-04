@@ -9,6 +9,8 @@ interface ExecutePortOptions {
 	context: PortContext
 	maxAttempts?: number
 	targetWorkingDirectory: string
+	sourceWorkingDirectory?: string
+	diffFilePath?: string
 }
 
 const DEFAULT_MAX_ATTEMPTS = 3
@@ -21,6 +23,8 @@ const DEFAULT_MAX_ATTEMPTS = 3
  * @param options.context - Port run context.
  * @param options.maxAttempts - Retry budget. Defaults to 3.
  * @param options.targetWorkingDirectory - Writable target repo path.
+ * @param options.sourceWorkingDirectory - Optional source repo checkout path.
+ * @param options.diffFilePath - Optional source diff file path.
  * @returns Execution result with history and success/failure state.
  */
 export async function executePort(options: ExecutePortOptions): Promise<ExecutionResult> {
@@ -38,6 +42,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 			const agentOutput = await options.agentProvider.executePort({
 				files: options.context.sourceChange.files,
 				targetWorkingDirectory: options.targetWorkingDirectory,
+				sourceWorkingDirectory: options.sourceWorkingDirectory,
+				diffFilePath: options.diffFilePath,
 				pluginConfig: options.context.pluginConfig,
 				previousAttempts: history,
 			})

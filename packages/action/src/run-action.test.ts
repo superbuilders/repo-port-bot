@@ -50,6 +50,10 @@ describe('runAction', () => {
 				effectiveSourceToken: 'source-token',
 				effectiveTargetToken: 'target-token',
 			}),
+			cloneSourceRepo: async () => ({
+				sourceWorkingDirectory: '/tmp/source-repo',
+				diffFilePath: '/tmp/source-repo/port-diff.patch',
+			}),
 			cloneTargetRepo: async () => '/tmp/target-repo',
 			createOctokit: token => (token === 'source-token' ? sourceOctokit : targetOctokit),
 			createAgentProvider: () =>
@@ -121,6 +125,8 @@ describe('runAction', () => {
 			sourceRepo: RepoRef
 			commitSha: string
 			targetWorkingDirectory: string
+			sourceWorkingDirectory?: string
+			diffFilePath?: string
 			maxAttempts: number
 			skipPortBotJson: boolean
 			builtInConfig: {
@@ -134,6 +140,8 @@ describe('runAction', () => {
 		expect(call.sourceRepo).toEqual(SOURCE_REPO)
 		expect(call.commitSha).toBe('abc123')
 		expect(call.targetWorkingDirectory).toBe('/tmp/target-repo')
+		expect(call.sourceWorkingDirectory).toBe('/tmp/source-repo')
+		expect(call.diffFilePath).toBe('/tmp/source-repo/port-diff.patch')
 		expect(call.maxAttempts).toBe(3)
 		expect(call.skipPortBotJson).toBe(true)
 		expect(call.builtInConfig.targetRepo).toEqual({

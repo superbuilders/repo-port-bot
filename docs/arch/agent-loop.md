@@ -9,8 +9,9 @@ This is the least-determined part of the system. Use this doc to capture decisio
 The agent loop runs inside a **GitHub Actions runner** triggered by the source repo workflow.
 
 - **Ephemeral filesystem**: fresh checkout each run, no persistent state between runs.
-- **Source context via API**: source PR metadata and diffs are fetched via GitHub REST API — the source repo is not checked out to disk.
-- **Target repo on disk**: shallow-cloned into a temp directory at the target's default branch, with bot git identity configured.
+- **Source repo on disk**: shallow-cloned at the merge commit SHA into a temp directory. The agent can `Read`/`Grep`/`Glob` source files for context beyond the diff.
+- **Target repo on disk**: shallow-cloned at the target's default branch into a separate temp directory, with bot git identity configured. This is the agent's `cwd` where edits happen.
+- **Diff artifact**: `git diff HEAD~1` is computed from the source clone and saved to a file (`port-diff.patch`) in the source directory. Always available for agent reference regardless of size.
 - **Available tooling**: stock `ubuntu-latest` runner plus whatever the workflow installs before the action step.
 - **Network access**: GitHub API, package registries, LLM provider endpoints.
 - **Budget control**: the Claude Agent SDK accepts `maxBudgetUsd` and `maxTurns` per attempt; the engine enforces `maxAttempts` across retries.
@@ -24,10 +25,12 @@ The agent loop runs inside a **GitHub Actions runner** triggered by the source r
 
 ### Inputs
 
-The agent receives a `PortContext` containing:
+The agent receives:
 
 - Source PR metadata (title, body, URL, labels)
-- Diff summary and changed files list
+- Changed files list with stats (from GitHub API)
+- Path to the saved diff file (`port-diff.patch`) for full diff content
+- Path to the source repo clone for exploratory reads
 - Resolved plugin config:
     - target repo ref
     - path mappings (source path → target path)
@@ -37,9 +40,11 @@ The agent receives a `PortContext` containing:
 
 ### Workspace
 
-- Target repo is shallow-cloned at the default branch into a temp directory.
+- **Source repo**: shallow-cloned at the merge commit SHA. Read-only reference for the agent. Contains `port-diff.patch` (full `git diff HEAD~1` output).
+- **Target repo**: shallow-cloned at the default branch. Agent's `cwd` — all edits happen here.
 - Port branch is created at delivery time: `port/<sourceRepo>/<sourcePrNumber>-<shortSha>`
-- Source context (PR metadata, diffs, patches) comes via GitHub REST API — not from disk.
+
+The agent uses absolute paths to read source files and the diff, and relative paths (from `cwd`) to edit target files.
 
 ### Execution cycle
 
@@ -156,7 +161,6 @@ Potential alternatives that would implement the same interface:
 
 ### Prompt tuning
 
-- How much source context fits in the initial prompt vs. tool-retrieved on demand?
 - Does the agent see full validation output or a truncated/parsed version on retry?
 
 ### Quality signals
@@ -208,7 +212,14 @@ Record decisions here as they're made.
 
 - **Question**: What tools does the agent get?
 - **Decision**: `Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash` (Claude Agent SDK built-ins).
-- **Rationale**: Covers file operations, search, and shell access. Agent can run validation commands and inspect errors via Bash.
+- **Rationale**: Covers file operations, search, and shell access for code exploration and edits. Validation is orchestrator-owned; prompt rules instruct the agent not to run validation commands directly.
+
+### 2026-03-03 — Source repo access
+
+- **Date**: 2026-03-03
+- **Question**: Should the agent get source context only via API patches in the prompt, or have disk access to the source repo?
+- **Decision**: Clone source repo at the merge commit SHA. Compute `git diff HEAD~1` and save to `port-diff.patch`. Agent gets both the diff file and the full source clone for exploratory reads.
+- **Rationale**: Eliminates GitHub API patch truncation, lets the agent explore context beyond the diff (imports, tests, adjacent files), and reduces prompt bloat by letting the agent pull what it needs on demand. When source paths are provided, prompts reference the on-disk diff/source paths instead of inlining per-file patches. Inline patch rendering remains only as a fallback for callers that do not provide source paths.
 
 ### Decision template
 

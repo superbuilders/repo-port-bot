@@ -39,6 +39,17 @@ export interface CloneTargetRepoOptions {
 	token: string
 }
 
+export interface CloneSourceRepoOptions {
+	repo: ParsedRepo
+	commitSha: string
+	token: string
+}
+
+export interface CloneSourceRepoResult {
+	sourceWorkingDirectory: string
+	diffFilePath: string
+}
+
 export interface CloneTargetRepoDependencies {
 	createTempDirectory(prefix: string): Promise<string>
 	runCommand(input: {
@@ -47,10 +58,24 @@ export interface CloneTargetRepoDependencies {
 	}): Promise<{ exitCode: number; stderr: string; stdout: string }>
 }
 
+export interface CloneSourceRepoDependencies {
+	createTempDirectory(prefix: string): Promise<string>
+	runCommand(input: {
+		command: string[]
+		workingDirectory?: string
+	}): Promise<{ exitCode: number; stderr: string; stdout: string }>
+	writeFile(path: string, content: string): Promise<void>
+}
+
 export type CloneTargetRepoFn = (
 	options: CloneTargetRepoOptions,
 	dependencies?: Partial<CloneTargetRepoDependencies>,
 ) => Promise<string>
+
+export type CloneSourceRepoFn = (
+	options: CloneSourceRepoOptions,
+	dependencies?: Partial<CloneSourceRepoDependencies>,
+) => Promise<CloneSourceRepoResult>
 
 export interface ParseActionInputsDependencies {
 	getInput(name: string, options?: core.InputOptions): string
@@ -63,6 +88,7 @@ export type ParseActionInputsFn = (
 
 export interface RunActionDependencies {
 	parseInputs: ParseActionInputsFn
+	cloneSourceRepo: CloneSourceRepoFn
 	cloneTargetRepo: CloneTargetRepoFn
 	createOctokit(token: string): Octokit
 	createAgentProvider(input: {
