@@ -5,6 +5,8 @@ import { join } from 'node:path'
 
 import { executePort } from './execute-port.ts'
 
+import type { Logger } from '@repo-port-bot/logger'
+
 import type { AgentInput, AgentProvider, PortContext, RepoRef } from '../types.ts'
 
 const SOURCE_REPO: RepoRef = {
@@ -200,5 +202,39 @@ describe('executePort', () => {
 		expect(result.history).toHaveLength(1)
 		expect(result.history[0]?.validation).toEqual([])
 		expect(result.failureReason).toContain('Agent provider failed on attempt 1')
+	})
+
+	test('emits per-attempt logs when logger is provided', async () => {
+		const directory = await createTempDirectory()
+		const infoMessages: string[] = []
+		const logger: Logger = {
+			error: () => {},
+			warn: () => {},
+			info: message => infoMessages.push(message),
+			debug: () => {},
+			group: () => {},
+			groupEnd: () => {},
+		}
+		const provider: AgentProvider = {
+			async executePort(): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
+				return {
+					touchedFiles: ['src/failing.ts'],
+					complete: true,
+					toolCallLog: [],
+				}
+			},
+		}
+
+		await executePort({
+			agentProvider: provider,
+			context: makeContext(['false']),
+			targetWorkingDirectory: directory,
+			maxAttempts: 1,
+			logger,
+		})
+
+		expect(infoMessages.some(message => message.includes('stage=execute attempt=1/1'))).toBe(
+			true,
+		)
 	})
 })

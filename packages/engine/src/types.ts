@@ -130,6 +130,14 @@ export interface SourceChange {
 }
 
 /**
+ * Partially-specified plugin config used when merging built-in action inputs
+ * with `port-bot.json`. All fields are optional so the resolver can fill gaps.
+ */
+export type PartialPluginConfig = Partial<PluginConfig> & {
+	targetRepo?: Partial<RepoRef>
+}
+
+/**
  * Repo-pairing configuration resolved from plugin code and/or `port-bot.json`.
  */
 export interface PluginConfig {
@@ -435,6 +443,40 @@ export interface ExecutionResult {
 }
 
 // ---------------------------------------------------------------------------
+// Delivery
+// ---------------------------------------------------------------------------
+
+/**
+ * Terminal outcome from the delivery stage before mapping to `PortRunOutcome`.
+ *
+ * - `pr_opened`: target PR created and ready for review
+ * - `draft_pr_opened`: target draft PR created (validation failed after retries)
+ * - `needs_human`: follow-up issue created in target repo
+ * - `skipped`: no delivery performed (PORT_NOT_REQUIRED)
+ */
+export type DeliveryOutcome = 'pr_opened' | 'draft_pr_opened' | 'needs_human' | 'skipped'
+
+/**
+ * Output contract of the delivery stage.
+ */
+export interface DeliveryResult {
+	/**
+	 * Delivery outcome that the pipeline maps to a `PortRunOutcome`.
+	 */
+	outcome: DeliveryOutcome
+
+	/**
+	 * Created target pull request URL when a PR was opened.
+	 */
+	targetPullRequestUrl?: string
+
+	/**
+	 * Created follow-up issue URL for NEEDS_HUMAN outcomes.
+	 */
+	followUpIssueUrl?: string
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline result
 // ---------------------------------------------------------------------------
 
@@ -492,4 +534,16 @@ export interface PortRunResult {
 	 * pipeline start to terminal outcome.
 	 */
 	durationMs: number
+
+	/**
+	 * Optional stage timing breakdown captured during orchestration.
+	 */
+	stageTimings?: {
+		contextMs?: number
+		configMs?: number
+		decisionMs?: number
+		executeMs?: number
+		deliverMs?: number
+		notifyMs?: number
+	}
 }

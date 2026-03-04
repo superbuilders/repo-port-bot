@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
+import { createConsoleLogger } from '@repo-port-bot/logger'
+
 import { runPort } from './run-port.ts'
 
 import type { Octokit } from '@octokit/rest'
+import type { Logger } from '@repo-port-bot/logger'
 
 import type {
 	AgentProvider,
@@ -151,6 +154,7 @@ describe('runPort', () => {
 			targetWorkingDirectory: '/tmp/target-repo',
 			sourceWorkingDirectory,
 			diffFilePath,
+			logger: createConsoleLogger('error'),
 			stageOverrides: {
 				readSourceContext: async () => {
 					callOrder.push('read')
@@ -199,6 +203,12 @@ describe('runPort', () => {
 		expect(result.outcome).toBe('pr_opened')
 		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/901')
 		expect(result.durationMs).toBeGreaterThan(0)
+		expect(result.stageTimings?.contextMs).toBeGreaterThan(0)
+		expect(result.stageTimings?.configMs).toBeGreaterThan(0)
+		expect(result.stageTimings?.decisionMs).toBeGreaterThan(0)
+		expect(result.stageTimings?.executeMs).toBeGreaterThan(0)
+		expect(result.stageTimings?.deliverMs).toBeGreaterThan(0)
+		expect(result.stageTimings?.notifyMs).toBeGreaterThan(0)
 		expect(result.summary).toContain('Port PR opened')
 		expect(executeInput).toBeDefined()
 		expect(executeInput!.sourceWorkingDirectory).toBe(sourceWorkingDirectory)
@@ -421,5 +431,38 @@ describe('runPort', () => {
 
 		expect(fetchCalled).toBe(false)
 		expect(resolvedPortBotJson).toBeUndefined()
+	})
+
+	test('emits structured stage logs via injected logger', async () => {
+		const infoMessages: string[] = []
+		const logger: Logger = {
+			error: () => {},
+			warn: () => {},
+			info: message => infoMessages.push(message),
+			debug: () => {},
+			group: () => {},
+			groupEnd: () => {},
+		}
+
+		await runPort({
+			octokit: createOctokitMock(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			logger,
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => makePluginConfig(),
+				decide: () => makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+			},
+		})
+
+		expect(infoMessages.some(message => message.includes('stage=context'))).toBe(true)
+		expect(infoMessages.some(message => message.includes('stage=config'))).toBe(true)
+		expect(infoMessages.some(message => message.includes('stage=decision'))).toBe(true)
+		expect(infoMessages.some(message => message.includes('outcome=skipped_not_required'))).toBe(
+			true,
+		)
 	})
 })

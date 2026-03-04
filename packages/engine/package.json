@@ -10,6 +10,7 @@
 	},
 	"dependencies": {
 		"@octokit/rest": "^22.0.1",
+		"@repo-port-bot/logger": "workspace:*",
 		"decoders": "^2.8.0",
 		"micromatch": "^4.0.8"
 	},

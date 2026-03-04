@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest'
 import { ClaudeAgentProvider } from '@repo-port-bot/agent-claude'
 import { deliverResult, readSourceContext, runPort } from '@repo-port-bot/engine'
 
+import { createActionsLogger } from './logger.ts'
 import { cloneSourceRepo } from './setup/clone-source-repo.ts'
 import { cloneTargetRepo } from './setup/clone-target-repo.ts'
 import { parseActionInputs } from './setup/parse-inputs.ts'
@@ -29,6 +30,7 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 					maxTurns: input.maxTurns,
 					maxBudgetUsd: input.maxBudgetUsd,
 				})),
+		createLogger: dependencies.createLogger ?? (level => createActionsLogger(level)),
 		runPort: dependencies.runPort ?? runPort,
 		readSourceContext: dependencies.readSourceContext ?? readSourceContext,
 		deliverResult: dependencies.deliverResult ?? deliverResult,
@@ -42,6 +44,7 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 		maxTurns: inputs.maxTurns,
 		maxBudgetUsd: inputs.maxBudgetUsd,
 	})
+	const logger = resolvedDependencies.createLogger(inputs.logLevel)
 	const sourceClone = await resolvedDependencies.cloneSourceRepo({
 		repo: inputs.sourceRepo,
 		commitSha: inputs.commitSha,
@@ -86,5 +89,6 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 					octokit: targetOctokit,
 				}),
 		},
+		logger,
 	})
 }

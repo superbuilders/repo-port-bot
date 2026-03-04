@@ -55,6 +55,7 @@ describe('parseActionInputs', () => {
 				'max-turns': '50',
 				'max-budget-usd': '2.5',
 				'skip-port-bot-json': 'false',
+				'log-level': 'info',
 			}),
 			context: createContext() as never,
 		})
@@ -65,6 +66,7 @@ describe('parseActionInputs', () => {
 		expect(parsed.pathMappings).toEqual({ 'src/': 'src/' })
 		expect(parsed.maxBudgetUsd).toBe(CUSTOM_MAX_BUDGET_USD)
 		expect(parsed.skipPortBotJson).toBe(false)
+		expect(parsed.logLevel).toBe('info')
 	})
 
 	test('uses split source and target tokens when provided', () => {
@@ -85,6 +87,7 @@ describe('parseActionInputs', () => {
 				'max-turns': '75',
 				'max-budget-usd': '',
 				'skip-port-bot-json': 'true',
+				'log-level': 'debug',
 			}),
 			context: createContext() as never,
 		})
@@ -95,6 +98,7 @@ describe('parseActionInputs', () => {
 		expect(parsed.maxTurns).toBe(CUSTOM_MAX_TURNS)
 		expect(parsed.maxBudgetUsd).toBeUndefined()
 		expect(parsed.skipPortBotJson).toBe(true)
+		expect(parsed.logLevel).toBe('debug')
 	})
 
 	test('throws when no effective target token can be resolved', () => {
@@ -116,6 +120,7 @@ describe('parseActionInputs', () => {
 					'max-turns': '50',
 					'max-budget-usd': '',
 					'skip-port-bot-json': 'false',
+					'log-level': 'info',
 				}),
 				context: createContext() as never,
 			}),
@@ -141,9 +146,36 @@ describe('parseActionInputs', () => {
 					'max-turns': '50',
 					'max-budget-usd': '',
 					'skip-port-bot-json': 'yes',
+					'log-level': 'info',
 				}),
 				context: createContext() as never,
 			}),
 		).toThrow('Input "skip-port-bot-json" must be "true" or "false".')
+	})
+
+	test('throws when log-level is invalid', () => {
+		expect(() =>
+			parseActionInputs({
+				getInput: createGetInput({
+					'github-token': 'shared-token',
+					'source-github-token': '',
+					'target-github-token': '',
+					'llm-api-key': 'llm-key',
+					'target-repo': 'acme/target-repo',
+					'target-default-branch': 'main',
+					'validation-commands': '',
+					'path-mappings': '{}',
+					'naming-conventions': '',
+					prompt: '',
+					model: 'claude-sonnet-4-6',
+					'max-attempts': '3',
+					'max-turns': '50',
+					'max-budget-usd': '',
+					'skip-port-bot-json': 'false',
+					'log-level': 'verbose',
+				}),
+				context: createContext() as never,
+			}),
+		).toThrow('Input "log-level" must be one of: error, warn, info, debug.')
 	})
 })

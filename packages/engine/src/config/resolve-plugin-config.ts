@@ -1,11 +1,7 @@
 import { parseAndDecodePortBotJson } from './port-bot-json.decoder.ts'
 
-import type { PluginConfig, RepoRef } from '../types.ts'
+import type { PartialPluginConfig, PluginConfig, RepoRef } from '../types.ts'
 import type { PortBotJsonConfig } from './types.ts'
-
-type PartialPluginConfig = Partial<PluginConfig> & {
-	targetRepo?: Partial<RepoRef>
-}
 
 interface ResolvePluginConfigOptions {
 	builtInConfig?: PartialPluginConfig

@@ -1,6 +1,9 @@
+import { createConsoleLogger } from '@repo-port-bot/logger'
+
 import { decodePortBotJson } from './port-bot-json.decoder.ts'
 
 import type { Octokit } from '@octokit/rest'
+import type { Logger } from '@repo-port-bot/logger'
 
 import type { PortBotJsonConfig } from './types.ts'
 
@@ -9,6 +12,7 @@ interface FetchPortBotJsonOptions {
 	owner: string
 	repo: string
 	ref: string
+	logger?: Logger
 }
 
 const NOT_FOUND_STATUS = 404
@@ -37,6 +41,8 @@ function isHttpStatusError(error: unknown, status: number): boolean {
 export async function fetchPortBotJson(
 	options: FetchPortBotJsonOptions,
 ): Promise<PortBotJsonConfig | undefined> {
+	const logger = options.logger ?? createConsoleLogger('info')
+
 	try {
 		const response = await options.octokit.rest.repos.getContent({
 			owner: options.owner,
@@ -47,9 +53,7 @@ export async function fetchPortBotJson(
 		const payload = response.data
 
 		if (Array.isArray(payload) || payload.type !== 'file' || !payload.content) {
-			console.warn(
-				'repo-port-bot: `port-bot.json` exists but is not a normal file; skipping.',
-			)
+			logger.warn('repo-port-bot: `port-bot.json` exists but is not a normal file; skipping.')
 
 			return undefined
 		}
@@ -65,7 +69,7 @@ export async function fetchPortBotJson(
 
 		const message = error instanceof Error ? error.message : String(error)
 
-		console.warn(
+		logger.warn(
 			`repo-port-bot: failed to fetch \`port-bot.json\` at ${options.owner}/${options.repo}@${options.ref}: ${message}`,
 		)
 

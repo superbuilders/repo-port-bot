@@ -1,6 +1,14 @@
+import {
+	createConsoleLogger,
+	formatPortBotExecuteAttemptLine,
+	formatPortBotLine,
+} from '@repo-port-bot/logger'
+
 import { joinNonEmptyLines, toErrorMessage } from '../utils.ts'
 import { runValidationCommands } from './run-validation.ts'
 import { buildValidationFailureReason } from './utils.ts'
+
+import type { Logger } from '@repo-port-bot/logger'
 
 import type { AgentProvider, ExecutionAttempt, ExecutionResult, PortContext } from '../types.ts'
 
@@ -11,6 +19,7 @@ interface ExecutePortOptions {
 	targetWorkingDirectory: string
 	sourceWorkingDirectory?: string
 	diffFilePath?: string
+	logger?: Logger
 }
 
 const DEFAULT_MAX_ATTEMPTS = 3
@@ -29,6 +38,7 @@ const DEFAULT_MAX_ATTEMPTS = 3
  */
 export async function executePort(options: ExecutePortOptions): Promise<ExecutionResult> {
 	const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
+	const logger = options.logger ?? createConsoleLogger('info')
 
 	if (maxAttempts < 1) {
 		throw new Error('`maxAttempts` must be greater than or equal to 1.')
@@ -38,6 +48,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 	const touchedFiles = new Set<string>()
 
 	for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber += 1) {
+		const attemptStartedAtMs = Date.now()
+
 		try {
 			const agentOutput = await options.agentProvider.executePort({
 				files: options.context.sourceChange.files,
@@ -74,6 +86,33 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 
 			const allValidationPassed = validation.every(result => result.ok)
 
+			logger.info(
+				formatPortBotExecuteAttemptLine({
+					runId: options.context.runId,
+					attempt: attemptNumber,
+					maxAttempts,
+					touched: attempt.touchedFiles.length,
+					validation: allValidationPassed ? 'pass' : 'fail',
+					durationMs: Math.max(1, Date.now() - attemptStartedAtMs),
+				}),
+			)
+			logger.group(`Attempt ${String(attemptNumber)} validation`)
+			logger.debug(JSON.stringify(validation, null, 2))
+			logger.groupEnd()
+
+			for (const toolCall of attempt.toolCallLog) {
+				logger.debug(
+					formatPortBotLine({
+						runId: options.context.runId,
+						fields: {
+							stage: 'execute',
+							tool: toolCall.toolName,
+							toolDurationMs: toolCall.durationMs,
+						},
+					}),
+				)
+			}
+
 			if (allValidationPassed) {
 				return {
 					success: true,
@@ -103,6 +142,26 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 			}
 
 			history.push(attempt)
+
+			logger.info(
+				formatPortBotExecuteAttemptLine({
+					runId: options.context.runId,
+					attempt: attemptNumber,
+					maxAttempts,
+					touched: 0,
+					validation: 'error',
+					durationMs: Math.max(1, Date.now() - attemptStartedAtMs),
+				}),
+			)
+			logger.warn(
+				formatPortBotLine({
+					runId: options.context.runId,
+					fields: {
+						stage: 'execute',
+						error: `agent provider failed on attempt ${String(attemptNumber)}: ${errorMessage}`,
+					},
+				}),
+			)
 
 			return {
 				success: false,

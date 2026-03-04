@@ -1,3 +1,15 @@
+const MIN_DURATION_MS = 1
+
+/**
+ * Measure elapsed runtime in milliseconds.
+ *
+ * @param startedAtMs - Start timestamp from `Date.now()`.
+ * @returns Elapsed duration, floored at 1ms.
+ */
+export function getDurationMs(startedAtMs: number): number {
+	return Math.max(MIN_DURATION_MS, Date.now() - startedAtMs)
+}
+
 /**
  * Get a user-friendly error message string.
  *

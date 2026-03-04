@@ -1,28 +1,30 @@
+import { createConsoleLogger } from '@repo-port-bot/logger'
+
 import { fetchPortBotJson } from '../config/fetch-port-bot-json.ts'
 import { resolvePluginConfig } from '../config/resolve-plugin-config.ts'
-import { decide } from '../decision/decide.ts'
+import { buildEngineFailureDecision, decide } from '../decision/decide.ts'
 import { executePort } from '../execution/execute-port.ts'
 import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
-import { joinNonEmptyLines, toErrorMessage } from '../utils.ts'
+import { renderRunSummary } from '../github/render-body.ts'
+import { getDurationMs, toErrorMessage } from '../utils.ts'
+import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
+import { runNeedsHumanFlow } from './needs-human.ts'
+import { runPortRequiredFlow } from './port-required.ts'
 
 import type { Octokit } from '@octokit/rest'
+import type { Logger } from '@repo-port-bot/logger'
 
 import type { PortBotJsonConfig } from '../config/types.ts'
 import type {
 	AgentProvider,
-	ExecutionResult,
+	PartialPluginConfig,
 	PluginConfig,
 	PortContext,
-	PortDecision,
 	PortRunResult,
 	RepoRef,
 	SourceChange,
 } from '../types.ts'
-
-type PartialPluginConfig = Partial<PluginConfig> & {
-	targetRepo?: Partial<RepoRef>
-}
 
 interface RunPortStageOverrides {
 	readSourceContext: typeof readSourceContext
@@ -46,108 +48,13 @@ interface RunPortOptions {
 	sourceWorkingDirectory?: string
 	diffFilePath?: string
 	maxAttempts?: number
+	logger?: Logger
 	/**
 	 * Internal testing hook for replacing stage implementations.
 	 *
 	 * @internal
 	 */
 	stageOverrides?: Partial<RunPortStageOverrides>
-}
-
-const ENGINE_ERROR_SIGNAL = 'engine-error'
-const MIN_DURATION_MS = 1
-
-/**
- * Measure elapsed runtime in milliseconds.
- *
- * @param startedAtMs - Start timestamp.
- * @returns Elapsed duration.
- */
-function getDurationMs(startedAtMs: number): number {
-	return Math.max(MIN_DURATION_MS, Date.now() - startedAtMs)
-}
-
-/**
- * Build a fallback decision when the pipeline fails before decision stage output exists.
- *
- * @param message - Error message.
- * @returns Decision describing engine failure.
- */
-function buildEngineFailureDecision(message: string): PortDecision {
-	return {
-		kind: 'NEEDS_HUMAN',
-		reason: `Engine failure before decision completed: ${message}`,
-		signals: [ENGINE_ERROR_SIGNAL],
-	}
-}
-
-/**
- * Render final run summary from stage outputs.
- *
- * @param input - Summary composition input.
- * @param input.outcome - Terminal outcome.
- * @param input.decision - Decision stage output.
- * @param input.execution - Optional execution result.
- * @param input.targetPullRequestUrl - Optional created target PR URL.
- * @param input.followUpIssueUrl - Optional created follow-up issue URL.
- * @param input.errorMessage - Optional engine failure message.
- * @returns Human-readable summary text.
- */
-function renderSummary(input: {
-	outcome: PortRunResult['outcome']
-	decision: PortDecision
-	execution?: ExecutionResult
-	targetPullRequestUrl?: string
-	followUpIssueUrl?: string
-	errorMessage?: string
-}): string {
-	const { decision, execution, followUpIssueUrl, outcome, targetPullRequestUrl } = input
-
-	switch (outcome) {
-		case 'skipped_not_required': {
-			return `Skipped: ${decision.reason}`
-		}
-		case 'needs_human': {
-			return (
-				joinNonEmptyLines(
-					[
-						`Needs human review: ${decision.reason}`,
-						followUpIssueUrl && `Issue: ${followUpIssueUrl}`,
-					],
-					' ',
-				) ?? `Needs human review: ${decision.reason}`
-			)
-		}
-		case 'pr_opened': {
-			return (
-				joinNonEmptyLines(
-					[
-						targetPullRequestUrl && `Port PR opened: ${targetPullRequestUrl}`,
-						execution && `(${String(execution.attempts)} attempts)`,
-					],
-					' ',
-				) ?? 'Port PR opened.'
-			)
-		}
-		case 'draft_pr_opened': {
-			return (
-				joinNonEmptyLines(
-					[
-						targetPullRequestUrl &&
-							`Draft PR opened (stalled): ${targetPullRequestUrl}.`,
-						execution?.failureReason,
-					],
-					' ',
-				) ?? 'Draft PR opened (stalled).'
-			)
-		}
-		case 'failed': {
-			return `Engine failure: ${input.errorMessage ?? decision.reason}`
-		}
-		default: {
-			return 'Port run completed.'
-		}
-	}
 }
 
 /**
@@ -160,8 +67,11 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 	const startedAtMs = Date.now()
 	const runId = crypto.randomUUID()
 	const startedAt = new Date(startedAtMs).toISOString()
-	let decision: PortDecision | undefined = undefined
+	const logger = options.logger ?? createConsoleLogger('info')
+
+	let decision: PortRunResult['decision'] | undefined = undefined
 	let context: PortContext | undefined = undefined
+	const stageTimings: NonNullable<PortRunResult['stageTimings']> = {}
 
 	const stages: RunPortStageOverrides = {
 		readSourceContext: options.stageOverrides?.readSourceContext ?? readSourceContext,
@@ -180,6 +90,14 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			repo: options.sourceRepo.name,
 			commitSha: options.commitSha,
 		})
+
+		logStage(logger, runId, 'context', {
+			source: `${options.sourceRepo.owner}/${options.sourceRepo.name}`,
+			pr: sourceChange.pullRequest?.number,
+			files: sourceChange.files.length,
+			contextMs: (stageTimings.contextMs = getDurationMs(startedAtMs)),
+		})
+
 		const resolvedPortBotJson =
 			options.portBotJson === undefined && options.skipPortBotJson !== true
 				? await stages.fetchPortBotJson({
@@ -187,12 +105,18 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 						owner: options.sourceRepo.owner,
 						repo: options.sourceRepo.name,
 						ref: options.commitSha,
+						logger,
 					})
 				: options.portBotJson
 
 		const pluginConfig: PluginConfig = stages.resolvePluginConfig({
 			builtInConfig: options.builtInConfig,
 			portBotJson: resolvedPortBotJson,
+		})
+
+		logStage(logger, runId, 'config', {
+			target: `${pluginConfig.targetRepo.owner}/${pluginConfig.targetRepo.name}`,
+			configMs: (stageTimings.configMs = getDurationMs(startedAtMs)),
 		})
 
 		context = {
@@ -203,125 +127,57 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			pluginConfig,
 		}
 
-		const portContext = context
-
-		/**
-		 * Post a non-blocking source PR comment for terminal run outcomes.
-		 *
-		 * @param input - Comment payload.
-		 * @param input.outcome - Terminal outcome to report.
-		 * @param input.targetPullRequestUrl - Optional created target PR URL.
-		 * @param input.followUpIssueUrl - Optional created follow-up issue URL.
-		 */
-		async function trySourcePrComment(input: {
-			outcome: Exclude<PortRunResult['outcome'], 'skipped_not_required'>
-			targetPullRequestUrl?: string
-			followUpIssueUrl?: string
-		}): Promise<void> {
-			const sourcePullRequestNumber = portContext.sourceChange.pullRequest?.number
-
-			if (!sourcePullRequestNumber) {
-				return
-			}
-
-			try {
-				await stages.commentOnSourcePr({
-					octokit: options.octokit,
-					sourceRepo: portContext.sourceRepo,
-					pullRequestNumber: sourcePullRequestNumber,
-					context: portContext,
-					outcome: input.outcome,
-					targetPullRequestUrl: input.targetPullRequestUrl,
-					followUpIssueUrl: input.followUpIssueUrl,
-					runId,
-				})
-			} catch (error) {
-				console.warn('Unable to post source PR comment from pipeline stage.', error)
-			}
-		}
-
 		decision = stages.decide(context)
+		logStage(logger, runId, 'decision', {
+			kind: decision.kind,
+			decisionMs: (stageTimings.decisionMs = getDurationMs(startedAtMs)),
+		})
 
 		if (decision.kind === 'PORT_NOT_REQUIRED') {
+			logOutcome(logger, runId, 'skipped_not_required', getDurationMs(startedAtMs))
+
 			return {
 				runId,
 				outcome: 'skipped_not_required',
 				decision,
-				summary: renderSummary({ outcome: 'skipped_not_required', decision }),
+				summary: renderRunSummary({ outcome: 'skipped_not_required', decision }),
 				durationMs: getDurationMs(startedAtMs),
+				stageTimings,
 			}
 		}
 
 		if (decision.kind === 'NEEDS_HUMAN') {
-			const delivery = await stages.deliverResult({
+			return runNeedsHumanFlow({
 				octokit: options.octokit,
 				context,
 				decision,
 				targetWorkingDirectory: options.targetWorkingDirectory,
-			})
-
-			await trySourcePrComment({
-				outcome: 'needs_human',
-				followUpIssueUrl: delivery.followUpIssueUrl,
-			})
-
-			return {
+				deliverStage: stages.deliverResult,
+				commentStage: stages.commentOnSourcePr,
+				logger,
 				runId,
-				outcome: 'needs_human',
-				decision,
-				followUpIssueUrl: delivery.followUpIssueUrl,
-				summary: renderSummary({
-					outcome: 'needs_human',
-					decision,
-					followUpIssueUrl: delivery.followUpIssueUrl,
-				}),
-				durationMs: getDurationMs(startedAtMs),
-			}
+				startedAtMs,
+				stageTimings,
+			})
 		}
 
-		const execution = await stages.executePort({
+		return runPortRequiredFlow({
+			octokit: options.octokit,
 			agentProvider: options.agentProvider,
 			context,
-			maxAttempts: options.maxAttempts,
+			decision,
 			targetWorkingDirectory: options.targetWorkingDirectory,
 			sourceWorkingDirectory: options.sourceWorkingDirectory,
 			diffFilePath: options.diffFilePath,
-		})
-		const delivery = await stages.deliverResult({
-			octokit: options.octokit,
-			context,
-			decision,
-			execution,
-			targetWorkingDirectory: options.targetWorkingDirectory,
-		})
-
-		if (delivery.outcome !== 'pr_opened' && delivery.outcome !== 'draft_pr_opened') {
-			throw new Error(
-				`Unexpected delivery outcome for PORT_REQUIRED decision: ${delivery.outcome}`,
-			)
-		}
-
-		const outcome = delivery.outcome
-
-		await trySourcePrComment({
-			outcome,
-			targetPullRequestUrl: delivery.targetPullRequestUrl,
-		})
-
-		return {
+			maxAttempts: options.maxAttempts,
+			executeStage: stages.executePort,
+			deliverStage: stages.deliverResult,
+			commentStage: stages.commentOnSourcePr,
+			logger,
 			runId,
-			outcome,
-			decision,
-			execution,
-			targetPullRequestUrl: delivery.targetPullRequestUrl,
-			summary: renderSummary({
-				outcome,
-				decision,
-				execution,
-				targetPullRequestUrl: delivery.targetPullRequestUrl,
-			}),
-			durationMs: getDurationMs(startedAtMs),
-		}
+			startedAtMs,
+			stageTimings,
+		})
 	} catch (error) {
 		const errorMessage = toErrorMessage(error)
 		const failureDecision = decision ?? buildEngineFailureDecision(errorMessage)
@@ -336,22 +192,29 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 					context,
 					outcome: 'failed',
 					runId,
+					logger,
 				})
 			} catch (commentError) {
-				console.warn('Unable to post source PR comment for failed run.', commentError)
+				logger.warn(
+					'[port-bot] Unable to post source PR comment for failed run.',
+					commentError,
+				)
 			}
 		}
+
+		logFailedOutcome(logger, runId, getDurationMs(startedAtMs), errorMessage)
 
 		return {
 			runId,
 			outcome: 'failed',
 			decision: failureDecision,
-			summary: renderSummary({
+			summary: renderRunSummary({
 				outcome: 'failed',
 				decision: failureDecision,
 				errorMessage,
 			}),
 			durationMs: getDurationMs(startedAtMs),
+			stageTimings,
 		}
 	}
 }

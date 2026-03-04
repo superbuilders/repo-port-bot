@@ -1,6 +1,8 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 
+import type { LogLevel } from '@repo-port-bot/logger'
+
 import type { ParseActionInputsDependencies, ParsedActionInputs, ParsedRepo } from '../types.ts'
 
 const REPO_SEGMENT_COUNT = 2
@@ -136,6 +138,27 @@ function parseBoolean(name: string, value: string): boolean {
 }
 
 /**
+ * Parse and validate logger level input.
+ *
+ * @param value - Raw log level value.
+ * @returns Normalized log level.
+ */
+function parseLogLevel(value: string): LogLevel {
+	const normalized = value.trim().toLowerCase()
+
+	if (
+		normalized === 'error' ||
+		normalized === 'warn' ||
+		normalized === 'info' ||
+		normalized === 'debug'
+	) {
+		return normalized
+	}
+
+	throw new Error('Input "log-level" must be one of: error, warn, info, debug.')
+}
+
+/**
  * Parse and validate all action inputs + workflow context.
  *
  * @param dependencies - Injectable input/context dependencies for testing.
@@ -185,6 +208,7 @@ export function parseActionInputs(
 	const namingConventions = getInput('naming-conventions').trim() || undefined
 	const prompt = getInput('prompt').trim() || undefined
 	const skipPortBotJson = parseBoolean('skip-port-bot-json', getInput('skip-port-bot-json'))
+	const logLevel = parseLogLevel(getInput('log-level') || 'info')
 
 	return {
 		sourceRepo: {
@@ -205,6 +229,7 @@ export function parseActionInputs(
 		namingConventions,
 		prompt,
 		skipPortBotJson,
+		logLevel,
 		effectiveSourceToken,
 		effectiveTargetToken,
 	}

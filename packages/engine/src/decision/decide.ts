@@ -2,6 +2,22 @@ import { DECISION_HEURISTICS } from './heuristics.ts'
 
 import type { PortContext, PortDecision } from '../types.ts'
 
+const ENGINE_ERROR_SIGNAL = 'engine-error'
+
+/**
+ * Build a fallback decision when pipeline fails before decision output exists.
+ *
+ * @param message - Error message.
+ * @returns Decision describing engine failure.
+ */
+export function buildEngineFailureDecision(message: string): PortDecision {
+	return {
+		kind: 'NEEDS_HUMAN',
+		reason: `Engine failure before decision completed: ${message}`,
+		signals: [ENGINE_ERROR_SIGNAL],
+	}
+}
+
 /**
  * Classifier fallback used when no fast heuristic can make a decision.
  *

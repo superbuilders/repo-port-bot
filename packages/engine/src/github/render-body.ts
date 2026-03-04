@@ -1,3 +1,5 @@
+import { joinNonEmptyLines } from '../utils.ts'
+
 import type {
 	ExecutionResult,
 	PortContext,
@@ -23,6 +25,15 @@ interface RenderSourceCommentInput {
 	targetPullRequestUrl?: string
 	followUpIssueUrl?: string
 	runId: string
+}
+
+interface RenderRunSummaryInput {
+	outcome: PortRunOutcome
+	decision: PortDecision
+	execution?: ExecutionResult
+	targetPullRequestUrl?: string
+	followUpIssueUrl?: string
+	errorMessage?: string
 }
 
 const SHORT_SHA_LENGTH = 7
@@ -245,6 +256,62 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				`- Source: ${sourceReference}`,
 				`- Run ID: \`${input.runId}\``,
 			].join('\n')
+		}
+	}
+}
+
+/**
+ * Render a one-line human-readable run summary from stage outputs.
+ *
+ * @param input - Summary composition input.
+ * @returns Human-readable summary text.
+ */
+export function renderRunSummary(input: RenderRunSummaryInput): string {
+	const { decision, execution, followUpIssueUrl, outcome, targetPullRequestUrl } = input
+
+	switch (outcome) {
+		case 'skipped_not_required': {
+			return `Skipped: ${decision.reason}`
+		}
+		case 'needs_human': {
+			return (
+				joinNonEmptyLines(
+					[
+						`Needs human review: ${decision.reason}`,
+						followUpIssueUrl && `Issue: ${followUpIssueUrl}`,
+					],
+					' ',
+				) ?? `Needs human review: ${decision.reason}`
+			)
+		}
+		case 'pr_opened': {
+			return (
+				joinNonEmptyLines(
+					[
+						targetPullRequestUrl && `Port PR opened: ${targetPullRequestUrl}`,
+						execution && `(${String(execution.attempts)} attempts)`,
+					],
+					' ',
+				) ?? 'Port PR opened.'
+			)
+		}
+		case 'draft_pr_opened': {
+			return (
+				joinNonEmptyLines(
+					[
+						targetPullRequestUrl &&
+							`Draft PR opened (stalled): ${targetPullRequestUrl}.`,
+						execution?.failureReason,
+					],
+					' ',
+				) ?? 'Draft PR opened (stalled).'
+			)
+		}
+		case 'failed': {
+			return `Engine failure: ${input.errorMessage ?? decision.reason}`
+		}
+		default: {
+			return 'Port run completed.'
 		}
 	}
 }

@@ -12,6 +12,9 @@
 		},
 		{
 			"path": "packages/action"
+		},
+		{
+			"path": "packages/logger"
 		}
 	]
 }

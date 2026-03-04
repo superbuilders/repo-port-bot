@@ -11,11 +11,13 @@
 		"test": "bun test --no-env-file"
 	},
 	"dependencies": {
+		"@actions/artifact": "^2.3.2",
 		"@actions/core": "^1.11.1",
 		"@actions/github": "^6.0.1",
 		"@octokit/rest": "^22.0.1",
 		"@repo-port-bot/agent-claude": "workspace:*",
-		"@repo-port-bot/engine": "workspace:*"
+		"@repo-port-bot/engine": "workspace:*",
+		"@repo-port-bot/logger": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",

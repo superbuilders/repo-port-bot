@@ -1,3 +1,5 @@
+import { createConsoleLogger } from '@repo-port-bot/logger'
+
 import {
 	renderNeedsHumanIssueBody,
 	renderNeedsHumanIssueTitle,
@@ -7,22 +9,16 @@ import {
 } from './render-body.ts'
 
 import type { Octokit } from '@octokit/rest'
+import type { Logger } from '@repo-port-bot/logger'
 
 import type {
+	DeliveryResult,
 	ExecutionResult,
 	PortContext,
 	PortDecision,
 	PortRunOutcome,
 	RepoRef,
 } from '../types.ts'
-
-type DeliveryOutcome = 'pr_opened' | 'draft_pr_opened' | 'needs_human' | 'skipped'
-
-interface DeliveryResult {
-	outcome: DeliveryOutcome
-	targetPullRequestUrl?: string
-	followUpIssueUrl?: string
-}
 
 type CommandRunner = (input: {
 	command: string[]
@@ -36,6 +32,7 @@ interface DeliverResultOptions {
 	execution?: ExecutionResult
 	targetWorkingDirectory: string
 	runCommand?: CommandRunner
+	logger?: Logger
 }
 
 interface CommentOnSourcePrOptions {
@@ -47,6 +44,7 @@ interface CommentOnSourcePrOptions {
 	targetPullRequestUrl?: string
 	followUpIssueUrl?: string
 	runId: string
+	logger?: Logger
 }
 
 const PORT_BOT_FOOTER = 'Ported-By: repo-port-bot'
@@ -170,6 +168,8 @@ async function stageAndCommit(
 export async function commentOnSourcePr(
 	options: CommentOnSourcePrOptions,
 ): Promise<string | undefined> {
+	const logger = options.logger ?? createConsoleLogger('info')
+
 	try {
 		const response = await options.octokit.rest.issues.createComment({
 			owner: options.sourceRepo.owner,
@@ -186,7 +186,7 @@ export async function commentOnSourcePr(
 
 		return response.data.html_url
 	} catch (error) {
-		console.warn('Unable to comment on source pull request.', error)
+		logger.warn('[port-bot] Unable to comment on source pull request.', error)
 
 		return undefined
 	}

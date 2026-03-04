@@ -58,6 +58,10 @@ inputs:
         description: Optional budget cap (USD) for a single attempt.
         required: false
         default: ''
+    log-level:
+        description: Minimum log level for stdout output (error, warn, info, debug).
+        required: false
+        default: info
 
 outputs:
     run-id:

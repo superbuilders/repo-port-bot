@@ -4,6 +4,7 @@ import { runAction } from './run-action.ts'
 
 import type { Octokit } from '@octokit/rest'
 import type { AgentProvider, PortRunResult, RepoRef } from '@repo-port-bot/engine'
+import type { Logger } from '@repo-port-bot/logger'
 
 const SOURCE_REPO: RepoRef = {
 	owner: 'acme',
@@ -47,6 +48,7 @@ describe('runAction', () => {
 				namingConventions: undefined,
 				prompt: undefined,
 				skipPortBotJson: true,
+				logLevel: 'debug',
 				effectiveSourceToken: 'source-token',
 				effectiveTargetToken: 'target-token',
 			}),
@@ -66,6 +68,15 @@ describe('runAction', () => {
 						}
 					},
 				}) as AgentProvider,
+			createLogger: () =>
+				({
+					error: () => {},
+					warn: () => {},
+					info: () => {},
+					debug: () => {},
+					group: () => {},
+					groupEnd: () => {},
+				}) as Logger,
 			readSourceContext: async input => ({
 				mergedCommitSha: input.commitSha,
 				pullRequest: undefined,

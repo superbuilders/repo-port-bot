@@ -8,6 +8,7 @@ import type {
 	RepoRef,
 	runPort,
 } from '@repo-port-bot/engine'
+import type { LogLevel, Logger } from '@repo-port-bot/logger'
 
 export interface ParsedRepo {
 	owner: string
@@ -29,6 +30,7 @@ export interface ParsedActionInputs {
 	namingConventions?: string
 	prompt?: string
 	skipPortBotJson: boolean
+	logLevel: LogLevel
 	effectiveSourceToken: string
 	effectiveTargetToken: string
 }
@@ -97,6 +99,7 @@ export interface RunActionDependencies {
 		maxTurns: number
 		maxBudgetUsd?: number
 	}): AgentProvider
+	createLogger(level: LogLevel): Logger
 	runPort: typeof runPort
 	readSourceContext: typeof readSourceContext
 	deliverResult: typeof deliverResult
