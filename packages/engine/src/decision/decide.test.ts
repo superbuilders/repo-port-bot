@@ -81,7 +81,7 @@ function makeContext(input: {
 }
 
 describe('decide', () => {
-	test('returns NEEDS_HUMAN when pull request metadata is missing', () => {
+	test('returns PORT_NOT_REQUIRED when pull request metadata is missing', () => {
 		const context = makeContext({
 			pullRequest: null,
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
@@ -89,7 +89,7 @@ describe('decide', () => {
 
 		const result = decide(context)
 
-		expect(result.kind).toBe('NEEDS_HUMAN')
+		expect(result.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
 	test('returns PORT_NOT_REQUIRED for auto-port label (loop prevention)', () => {

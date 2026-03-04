@@ -19,16 +19,20 @@ const CONFIG_PATTERNS = [
 ]
 
 /**
- * Check if the source change has no associated pull request context.
+ * Skip when the push event has no associated pull request.
+ *
+ * Without PR metadata the pipeline lacks a changed-file list, labels, and
+ * title/body context. Supporting plain pushes is a future goal — for now the
+ * safest default is to skip silently.
  *
  * @param context - Decision context.
- * @returns `NEEDS_HUMAN` when pull request metadata is missing.
+ * @returns `PORT_NOT_REQUIRED` when pull request metadata is missing.
  */
 function checkMissingPullRequest(context: PortContext): PortDecision | null {
 	if (!context.sourceChange.pullRequest) {
 		return {
-			kind: 'NEEDS_HUMAN',
-			reason: 'Source commit could not be associated with a pull request.',
+			kind: 'PORT_NOT_REQUIRED',
+			reason: 'Skipping because the push has no associated pull request (plain push).',
 		}
 	}
 

@@ -208,6 +208,16 @@ Users reference `@v1` which always points to the latest release build on `main`.
 
 Not in scope for v1 but the engine should accept a PR number as input rather than only discovering it from the push event.
 
+## Plain pushes (no PR)
+
+Currently the engine skips (`PORT_NOT_REQUIRED`) when a push event cannot be associated with a merged pull request. Without PR metadata the pipeline lacks a changed-file list, labels, and title/body context needed by heuristics, agent prompts, and delivery rendering.
+
+Future work to support plain pushes:
+
+- Populate `sourceChange.files` from the local `git diff HEAD~1` output instead of the GitHub list-files API.
+- Allow heuristics and rendering to operate on commit metadata alone.
+- Handle multi-commit pushes where `HEAD~1` only captures the last commit.
+
 ## Open questions
 
 - Should the engine create labels automatically if they don't exist, or require pre-setup?
