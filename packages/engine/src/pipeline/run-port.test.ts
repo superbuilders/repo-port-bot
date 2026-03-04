@@ -1,0 +1,283 @@
+import { describe, expect, test } from 'bun:test'
+
+import { runPort } from './run-port.ts'
+
+import type { Octokit } from '@octokit/rest'
+
+import type {
+	AgentProvider,
+	ExecutionResult,
+	PluginConfig,
+	PortContext,
+	PortDecision,
+	RepoRef,
+	SourceChange,
+} from '../types.ts'
+
+const SOURCE_REPO: RepoRef = {
+	owner: 'acme',
+	name: 'source-repo',
+	defaultBranch: 'main',
+}
+
+const TARGET_REPO: RepoRef = {
+	owner: 'acme',
+	name: 'target-repo',
+	defaultBranch: 'main',
+}
+
+/**
+ * Build a no-op Octokit mock for run-port tests.
+ *
+ * @returns Octokit mock value.
+ */
+function createOctokitMock(): Octokit {
+	return {} as Octokit
+}
+
+/**
+ * Build a default source change fixture.
+ *
+ * @returns Source change payload.
+ */
+function makeSourceChange(): SourceChange {
+	return {
+		mergedCommitSha: 'abc1234567890',
+		pullRequest: {
+			number: 42,
+			title: 'Ship feature',
+			body: 'PR body',
+			url: 'https://github.com/acme/source-repo/pull/42',
+			labels: [],
+		},
+		files: [{ path: 'src/feature.ts', status: 'modified', additions: 10, deletions: 2 }],
+	}
+}
+
+/**
+ * Build a resolved plugin config fixture.
+ *
+ * @returns Plugin config payload.
+ */
+function makePluginConfig(): PluginConfig {
+	return {
+		targetRepo: TARGET_REPO,
+		ignorePatterns: [],
+		validationCommands: ['bun run check'],
+		pathMappings: {},
+	}
+}
+
+/**
+ * Build decision fixture with customizable kind.
+ *
+ * @param kind - Decision kind.
+ * @param reason - Decision explanation text.
+ * @returns Decision value.
+ */
+function makeDecision(kind: PortDecision['kind'], reason: string): PortDecision {
+	return {
+		kind,
+		reason,
+		signals: ['test-signal'],
+	}
+}
+
+/**
+ * Build execution fixture for success/failure paths.
+ *
+ * @param success - Execution success state.
+ * @returns Execution result fixture.
+ */
+function makeExecution(success: boolean): ExecutionResult {
+	return {
+		success,
+		attempts: success ? 1 : 3,
+		history: [
+			{
+				attempt: success ? 1 : 3,
+				touchedFiles: ['src/ported.ts'],
+				validation: [],
+				notes: success ? 'Done.' : 'Validation failed after retries.',
+				toolCallLog: [],
+			},
+		],
+		touchedFiles: ['src/ported.ts'],
+		failureReason: success ? undefined : 'Validation failed after 3 attempts: `bun run check`.',
+	}
+}
+
+/**
+ * Build a no-op agent provider for orchestrator tests.
+ *
+ * @returns Agent provider instance.
+ */
+function createAgentProvider(): AgentProvider {
+	return {
+		async executePort() {
+			throw new Error('Agent provider should not be called directly in run-port tests.')
+		},
+	}
+}
+
+describe('runPort', () => {
+	test('runs full PORT_REQUIRED flow and returns pr_opened', async () => {
+		const callOrder: string[] = []
+		const sourceChange = makeSourceChange()
+		const pluginConfig = makePluginConfig()
+
+		const result = await runPort({
+			octokit: createOctokitMock(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: sourceChange.mergedCommitSha,
+			targetWorkingDirectory: '/tmp/target-repo',
+			stageOverrides: {
+				readSourceContext: async () => {
+					callOrder.push('read')
+
+					return sourceChange
+				},
+				resolvePluginConfig: () => {
+					callOrder.push('resolve')
+
+					return pluginConfig
+				},
+				decide: (context: PortContext) => {
+					callOrder.push('decide')
+					expect(context.sourceChange.mergedCommitSha).toBe(sourceChange.mergedCommitSha)
+
+					return makeDecision('PORT_REQUIRED', 'Port required.')
+				},
+				executePort: async () => {
+					callOrder.push('execute')
+
+					return makeExecution(true)
+				},
+				deliverResult: async () => {
+					callOrder.push('deliver')
+
+					return {
+						outcome: 'pr_opened',
+						targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
+					}
+				},
+			},
+		})
+
+		expect(callOrder).toEqual(['read', 'resolve', 'decide', 'execute', 'deliver'])
+		expect(result.outcome).toBe('pr_opened')
+		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/901')
+		expect(result.durationMs).toBeGreaterThan(0)
+		expect(result.summary).toContain('Port PR opened')
+	})
+
+	test('returns skipped_not_required and does not execute or deliver', async () => {
+		let executeCalled = false
+		let deliverCalled = false
+
+		const result = await runPort({
+			octokit: createOctokitMock(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => makePluginConfig(),
+				decide: () => makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+				executePort: async () => {
+					executeCalled = true
+
+					return makeExecution(true)
+				},
+				deliverResult: async () => {
+					deliverCalled = true
+
+					return { outcome: 'skipped' }
+				},
+			},
+		})
+
+		expect(result.outcome).toBe('skipped_not_required')
+		expect(result.summary).toContain('Skipped:')
+		expect(executeCalled).toBe(false)
+		expect(deliverCalled).toBe(false)
+	})
+
+	test('routes NEEDS_HUMAN to issue delivery and returns needs_human', async () => {
+		let executeCalled = false
+
+		const result = await runPort({
+			octokit: createOctokitMock(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => makePluginConfig(),
+				decide: () => makeDecision('NEEDS_HUMAN', 'Classifier is uncertain.'),
+				executePort: async () => {
+					executeCalled = true
+
+					return makeExecution(true)
+				},
+				deliverResult: async () => ({
+					outcome: 'needs_human',
+					followUpIssueUrl: 'https://github.com/acme/target-repo/issues/55',
+				}),
+			},
+		})
+
+		expect(result.outcome).toBe('needs_human')
+		expect(result.followUpIssueUrl).toBe('https://github.com/acme/target-repo/issues/55')
+		expect(result.summary).toContain('Needs human review')
+		expect(executeCalled).toBe(false)
+	})
+
+	test('returns draft_pr_opened when execution fails and delivery opens draft', async () => {
+		const result = await runPort({
+			octokit: createOctokitMock(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => makePluginConfig(),
+				decide: () => makeDecision('PORT_REQUIRED', 'Port required.'),
+				executePort: async () => makeExecution(false),
+				deliverResult: async () => ({
+					outcome: 'draft_pr_opened',
+					targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/333',
+				}),
+			},
+		})
+
+		expect(result.outcome).toBe('draft_pr_opened')
+		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/333')
+		expect(result.summary).toContain('Draft PR opened (stalled)')
+		expect(result.summary).toContain('Validation failed after 3 attempts')
+	})
+
+	test('returns failed when a stage throws and still includes duration', async () => {
+		const result = await runPort({
+			octokit: createOctokitMock(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			stageOverrides: {
+				readSourceContext: async () => {
+					throw new Error('read context exploded')
+				},
+			},
+		})
+
+		expect(result.outcome).toBe('failed')
+		expect(result.decision.kind).toBe('NEEDS_HUMAN')
+		expect(result.summary).toContain('Engine failure: read context exploded')
+		expect(result.durationMs).toBeGreaterThan(0)
+	})
+})

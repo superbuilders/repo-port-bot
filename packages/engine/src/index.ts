@@ -4,6 +4,7 @@ export { decodePortBotJson, parseAndDecodePortBotJson } from './config/port-bot-
 export { resolvePluginConfig } from './config/resolve-plugin-config.ts'
 export { decide } from './decision/decide.ts'
 export { executePort } from './execution/execute-port.ts'
+export { runPort } from './pipeline/run-port.ts'
 
 export type {
 	AgentInput,
