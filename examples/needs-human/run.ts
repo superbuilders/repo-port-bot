@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * NEEDS_HUMAN scenario — classifier stub defers to human review.
+ * NEEDS_HUMAN scenario — forced decision defers to human review.
  *
  * Usage:
  *   bun examples/needs-human/run.ts
@@ -113,6 +113,9 @@ const result = await runPort({
 	reader: createLocalReader(sourceChange),
 	writer: createDryRunWriter(),
 	agentProvider: {
+		async decidePort() {
+			throw new Error('Should not be called — decide is overridden.')
+		},
 		async executePort() {
 			throw new Error('Should not be called in NEEDS_HUMAN path.')
 		},
@@ -122,6 +125,12 @@ const result = await runPort({
 	targetWorkingDirectory: targetDir,
 	portBotJson: { target: 'example/target-repo', validation: ['true'] },
 	logger: createConsoleLogger('info'),
+	stageOverrides: {
+		decide: async () => ({
+			kind: 'NEEDS_HUMAN',
+			reason: 'Forced NEEDS_HUMAN for local example.',
+		}),
+	},
 })
 
 // --- output ---
