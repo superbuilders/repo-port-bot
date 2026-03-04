@@ -3,14 +3,13 @@ import { getDurationMs } from '../utils.ts'
 import { logOutcome, logStage } from './logging.ts'
 import { postSourcePrCommentBestEffort } from './notify-source.ts'
 
-import type { Octokit } from '@octokit/rest'
 import type { Logger } from '@repo-port-bot/logger'
 
 import type { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
-import type { PortContext, PortDecision, PortRunResult } from '../types.ts'
+import type { GitHubWriter, PortContext, PortDecision, PortRunResult } from '../types.ts'
 
 interface NeedsHumanFlowInput {
-	octokit: Octokit
+	writer: GitHubWriter
 	context: PortContext
 	decision: PortDecision
 	targetWorkingDirectory: string
@@ -31,7 +30,7 @@ interface NeedsHumanFlowInput {
 export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<PortRunResult> {
 	const deliverStartedAtMs = Date.now()
 	const delivery = await input.deliverStage({
-		octokit: input.octokit,
+		writer: input.writer,
 		context: input.context,
 		decision: input.decision,
 		targetWorkingDirectory: input.targetWorkingDirectory,
@@ -45,7 +44,7 @@ export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<Por
 	const notifyMs = await postSourcePrCommentBestEffort({
 		commentStage: input.commentStage,
 		context: input.context,
-		octokit: input.octokit,
+		writer: input.writer,
 		outcome: 'needs_human',
 		followUpIssueUrl: delivery.followUpIssueUrl,
 		runId: input.runId,

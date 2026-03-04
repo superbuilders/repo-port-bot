@@ -12,12 +12,13 @@ import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
 import { runNeedsHumanFlow } from './needs-human.ts'
 import { runPortRequiredFlow } from './port-required.ts'
 
-import type { Octokit } from '@octokit/rest'
 import type { Logger } from '@repo-port-bot/logger'
 
 import type { PortBotJsonConfig } from '../config/types.ts'
 import type {
 	AgentProvider,
+	GitHubReader,
+	GitHubWriter,
 	PartialPluginConfig,
 	PluginConfig,
 	PortContext,
@@ -37,7 +38,8 @@ interface RunPortStageOverrides {
 }
 
 interface RunPortOptions {
-	octokit: Octokit
+	reader: GitHubReader
+	writer: GitHubWriter
 	agentProvider: AgentProvider
 	sourceRepo: RepoRef
 	commitSha: string
@@ -85,7 +87,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 
 	try {
 		const sourceChange: SourceChange = await stages.readSourceContext({
-			octokit: options.octokit,
+			reader: options.reader,
 			owner: options.sourceRepo.owner,
 			repo: options.sourceRepo.name,
 			commitSha: options.commitSha,
@@ -101,7 +103,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		const resolvedPortBotJson =
 			options.portBotJson === undefined && options.skipPortBotJson !== true
 				? await stages.fetchPortBotJson({
-						octokit: options.octokit,
+						reader: options.reader,
 						owner: options.sourceRepo.owner,
 						repo: options.sourceRepo.name,
 						ref: options.commitSha,
@@ -148,7 +150,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 
 		if (decision.kind === 'NEEDS_HUMAN') {
 			return runNeedsHumanFlow({
-				octokit: options.octokit,
+				writer: options.writer,
 				context,
 				decision,
 				targetWorkingDirectory: options.targetWorkingDirectory,
@@ -162,7 +164,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		}
 
 		return runPortRequiredFlow({
-			octokit: options.octokit,
+			writer: options.writer,
 			agentProvider: options.agentProvider,
 			context,
 			decision,
@@ -186,8 +188,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		if (context && sourcePullRequestNumber) {
 			try {
 				await stages.commentOnSourcePr({
-					octokit: options.octokit,
-					sourceRepo: context.sourceRepo,
+					writer: options.writer,
 					pullRequestNumber: sourcePullRequestNumber,
 					context,
 					outcome: 'failed',

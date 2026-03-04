@@ -3,15 +3,20 @@ import { getDurationMs } from '../utils.ts'
 import { logOutcome, logStage } from './logging.ts'
 import { postSourcePrCommentBestEffort } from './notify-source.ts'
 
-import type { Octokit } from '@octokit/rest'
 import type { Logger } from '@repo-port-bot/logger'
 
 import type { executePort } from '../execution/execute-port.ts'
 import type { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
-import type { AgentProvider, PortContext, PortDecision, PortRunResult } from '../types.ts'
+import type {
+	AgentProvider,
+	GitHubWriter,
+	PortContext,
+	PortDecision,
+	PortRunResult,
+} from '../types.ts'
 
 interface PortRequiredFlowInput {
-	octokit: Octokit
+	writer: GitHubWriter
 	agentProvider: AgentProvider
 	context: PortContext
 	decision: PortDecision
@@ -54,7 +59,7 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 
 	const deliverStartedAtMs = Date.now()
 	const delivery = await input.deliverStage({
-		octokit: input.octokit,
+		writer: input.writer,
 		context: input.context,
 		decision: input.decision,
 		execution,
@@ -77,7 +82,7 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 	const notifyMs = await postSourcePrCommentBestEffort({
 		commentStage: input.commentStage,
 		context: input.context,
-		octokit: input.octokit,
+		writer: input.writer,
 		outcome,
 		targetPullRequestUrl: delivery.targetPullRequestUrl,
 		runId: input.runId,

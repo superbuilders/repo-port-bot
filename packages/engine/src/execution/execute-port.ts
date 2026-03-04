@@ -10,7 +10,18 @@ import { buildValidationFailureReason } from './utils.ts'
 
 import type { Logger } from '@repo-port-bot/logger'
 
-import type { AgentProvider, ExecutionAttempt, ExecutionResult, PortContext } from '../types.ts'
+import type {
+	AgentProvider,
+	ExecutionAttempt,
+	ExecutionResult,
+	PortContext,
+	ValidationCommandResult,
+} from '../types.ts'
+
+type ValidationRunner = (options: {
+	commands: string[]
+	workingDirectory: string
+}) => Promise<ValidationCommandResult[]>
 
 interface ExecutePortOptions {
 	agentProvider: AgentProvider
@@ -20,6 +31,7 @@ interface ExecutePortOptions {
 	sourceWorkingDirectory?: string
 	diffFilePath?: string
 	logger?: Logger
+	validate?: ValidationRunner
 }
 
 const DEFAULT_MAX_ATTEMPTS = 3
@@ -39,6 +51,7 @@ const DEFAULT_MAX_ATTEMPTS = 3
 export async function executePort(options: ExecutePortOptions): Promise<ExecutionResult> {
 	const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
 	const logger = options.logger ?? createConsoleLogger('info')
+	const validate = options.validate ?? runValidationCommands
 
 	if (maxAttempts < 1) {
 		throw new Error('`maxAttempts` must be greater than or equal to 1.')
@@ -64,7 +77,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 				touchedFiles.add(path)
 			}
 
-			const validation = await runValidationCommands({
+			const validation = await validate({
 				commands: options.context.pluginConfig.validationCommands,
 				workingDirectory: options.targetWorkingDirectory,
 			})

@@ -1,8 +1,9 @@
 import type * as core from '@actions/core'
 import type * as github from '@actions/github'
-import type { Octokit } from '@octokit/rest'
 import type {
 	AgentProvider,
+	GitHubReader,
+	GitHubWriter,
 	deliverResult,
 	readSourceContext,
 	RepoRef,
@@ -92,7 +93,8 @@ export interface RunActionDependencies {
 	parseInputs: ParseActionInputsFn
 	cloneSourceRepo: CloneSourceRepoFn
 	cloneTargetRepo: CloneTargetRepoFn
-	createOctokit(token: string): Octokit
+	createReader(token: string): GitHubReader
+	createWriter(token: string): GitHubWriter
 	createAgentProvider(input: {
 		apiKey: string
 		model: string

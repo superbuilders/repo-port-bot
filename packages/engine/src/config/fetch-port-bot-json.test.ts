@@ -2,42 +2,37 @@ import { describe, expect, test } from 'bun:test'
 
 import { fetchPortBotJson } from './fetch-port-bot-json.ts'
 
-import type { Octokit } from '@octokit/rest'
+import type { GitHubReader } from '../types.ts'
 
 /**
- * Build an Octokit mock with configurable getContent behavior.
+ * Build a GitHubReader fake with configurable getFileContent behavior.
  *
- * @param getContent - Mocked getContent implementation.
- * @returns Octokit mock.
+ * @param getFileContent - Mocked getFileContent implementation.
+ * @returns GitHubReader fake.
  */
-function createOctokitMock(getContent: () => Promise<unknown>): Octokit {
+function createReaderFake(getFileContent: GitHubReader['getFileContent']): GitHubReader {
 	return {
-		rest: {
-			repos: {
-				getContent,
-			},
+		async listPullRequestsForCommit() {
+			return []
 		},
-	} as unknown as Octokit
+		async listChangedFiles() {
+			return []
+		},
+		getFileContent,
+	}
 }
 
 describe('fetchPortBotJson', () => {
 	test('returns decoded config when file exists', async () => {
-		const content = Buffer.from(
+		const reader = createReaderFake(async () =>
 			JSON.stringify({
 				target: 'acme/target-repo',
 				validation: ['bun run check'],
 			}),
-			'utf8',
-		).toString('base64')
-		const octokit = createOctokitMock(async () => ({
-			data: {
-				type: 'file',
-				content,
-			},
-		}))
+		)
 
 		const result = await fetchPortBotJson({
-			octokit,
+			reader,
 			owner: 'acme',
 			repo: 'source-repo',
 			ref: 'abc123',
@@ -49,13 +44,11 @@ describe('fetchPortBotJson', () => {
 		})
 	})
 
-	test('returns undefined on 404', async () => {
-		const octokit = createOctokitMock(async () => {
-			throw { status: 404 }
-		})
+	test('returns undefined when file does not exist', async () => {
+		const reader = createReaderFake(async () => undefined)
 
 		const result = await fetchPortBotJson({
-			octokit,
+			reader,
 			owner: 'acme',
 			repo: 'source-repo',
 			ref: 'abc123',
@@ -64,7 +57,7 @@ describe('fetchPortBotJson', () => {
 		expect(result).toBeUndefined()
 	})
 
-	test('returns undefined and warns on non-404 errors', async () => {
+	test('returns undefined and warns on errors', async () => {
 		let warned = false
 		const originalWarn = console.warn
 
@@ -72,12 +65,12 @@ describe('fetchPortBotJson', () => {
 			warned = true
 		}
 
-		const octokit = createOctokitMock(async () => {
+		const reader = createReaderFake(async () => {
 			throw new Error('boom')
 		})
 
 		const result = await fetchPortBotJson({
-			octokit,
+			reader,
 			owner: 'acme',
 			repo: 'source-repo',
 			ref: 'abc123',

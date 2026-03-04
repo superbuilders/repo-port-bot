@@ -344,6 +344,152 @@ export interface AgentProvider {
 }
 
 // ---------------------------------------------------------------------------
+// GitHub adapter contracts
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal result shape for a created GitHub pull request.
+ */
+export interface CreatedPullRequest {
+	/**
+	 * Pull request number in the target repository.
+	 */
+	number: number
+
+	/**
+	 * Canonical HTML URL for linking and traceability.
+	 */
+	url: string
+}
+
+/**
+ * Minimal result shape for a created GitHub issue.
+ */
+export interface CreatedIssue {
+	/**
+	 * Issue number in the target repository.
+	 */
+	number: number
+
+	/**
+	 * Canonical HTML URL for linking and traceability.
+	 */
+	url: string
+}
+
+/**
+ * Read-only GitHub operations needed by the engine.
+ *
+ * The engine depends on this interface; the action layer provides an
+ * Octokit-backed implementation. Tests supply in-memory fakes.
+ */
+export interface GitHubReader {
+	/**
+	 * List merged pull requests associated with a commit SHA.
+	 *
+	 * @param owner - Repository owner.
+	 * @param repo - Repository name.
+	 * @param commitSha - Merge commit SHA.
+	 * @returns Pull request refs ordered by association (first is best match).
+	 */
+	listPullRequestsForCommit(
+		owner: string,
+		repo: string,
+		commitSha: string,
+	): Promise<PullRequestRef[]>
+
+	/**
+	 * List changed files for a pull request with full pagination.
+	 *
+	 * @param owner - Repository owner.
+	 * @param repo - Repository name.
+	 * @param pullRequestNumber - PR number.
+	 * @returns Normalized changed files.
+	 */
+	listChangedFiles(owner: string, repo: string, pullRequestNumber: number): Promise<ChangedFile[]>
+
+	/**
+	 * Fetch a single file's UTF-8 content at a given ref.
+	 *
+	 * @param owner - Repository owner.
+	 * @param repo - Repository name.
+	 * @param path - Repository-relative file path.
+	 * @param ref - Git ref (branch, tag, or SHA).
+	 * @returns Decoded file content, or `undefined` when the file does not exist.
+	 */
+	getFileContent(
+		owner: string,
+		repo: string,
+		path: string,
+		ref: string,
+	): Promise<string | undefined>
+}
+
+/**
+ * Write-side GitHub operations needed by the engine.
+ *
+ * Mirrors `GitHubReader` in philosophy: the engine depends on this
+ * interface, not on Octokit internals. Implementations are swappable
+ * for testing and alternative hosting platforms.
+ */
+export interface GitHubWriter {
+	/**
+	 * Create a pull request in the target repository.
+	 *
+	 * @param params - Pull request creation parameters.
+	 * @returns Created pull request metadata.
+	 */
+	createPullRequest(params: {
+		owner: string
+		repo: string
+		title: string
+		body: string
+		head: string
+		base: string
+		draft: boolean
+	}): Promise<CreatedPullRequest>
+
+	/**
+	 * Create an issue in the target repository.
+	 *
+	 * @param params - Issue creation parameters.
+	 * @returns Created issue metadata.
+	 */
+	createIssue(params: {
+		owner: string
+		repo: string
+		title: string
+		body: string
+		labels: string[]
+	}): Promise<CreatedIssue>
+
+	/**
+	 * Add labels to an issue or pull request.
+	 *
+	 * @param params - Label parameters.
+	 */
+	addLabels(params: {
+		owner: string
+		repo: string
+		issueNumber: number
+		labels: string[]
+	}): Promise<void>
+
+	/**
+	 * Create a comment on an issue or pull request.
+	 *
+	 * @param params - Comment parameters.
+	 * @returns Created comment HTML URL, or `undefined` on failure.
+	 */
+	createComment(params: {
+		owner: string
+		repo: string
+		issueNumber: number
+		body: string
+	}): Promise<string | undefined>
+}
+
+// ---------------------------------------------------------------------------
 // Validation & execution
 // ---------------------------------------------------------------------------
 

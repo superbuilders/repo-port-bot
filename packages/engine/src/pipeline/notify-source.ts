@@ -1,15 +1,14 @@
 import { getDurationMs } from '../utils.ts'
 
-import type { Octokit } from '@octokit/rest'
 import type { Logger } from '@repo-port-bot/logger'
 
 import type { commentOnSourcePr } from '../github/deliver.ts'
-import type { PortContext, PortRunResult } from '../types.ts'
+import type { GitHubWriter, PortContext, PortRunResult } from '../types.ts'
 
 interface PostSourcePrCommentInput {
 	commentStage: typeof commentOnSourcePr
 	context: PortContext
-	octokit: Octokit
+	writer: GitHubWriter
 	outcome: Exclude<PortRunResult['outcome'], 'skipped_not_required'>
 	runId: string
 	logger: Logger
@@ -36,8 +35,7 @@ export async function postSourcePrCommentBestEffort(
 
 	try {
 		await input.commentStage({
-			octokit: input.octokit,
-			sourceRepo: input.context.sourceRepo,
+			writer: input.writer,
 			pullRequestNumber: sourcePullRequestNumber,
 			context: input.context,
 			outcome: input.outcome,

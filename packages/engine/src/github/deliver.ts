@@ -8,16 +8,15 @@ import {
 	renderSourceComment,
 } from './render-body.ts'
 
-import type { Octokit } from '@octokit/rest'
 import type { Logger } from '@repo-port-bot/logger'
 
 import type {
 	DeliveryResult,
 	ExecutionResult,
+	GitHubWriter,
 	PortContext,
 	PortDecision,
 	PortRunOutcome,
-	RepoRef,
 } from '../types.ts'
 
 type CommandRunner = (input: {
@@ -26,7 +25,7 @@ type CommandRunner = (input: {
 }) => Promise<{ exitCode: number; stderr: string; stdout: string }>
 
 interface DeliverResultOptions {
-	octokit: Octokit
+	writer: GitHubWriter
 	context: PortContext
 	decision: PortDecision
 	execution?: ExecutionResult
@@ -36,8 +35,7 @@ interface DeliverResultOptions {
 }
 
 interface CommentOnSourcePrOptions {
-	octokit: Octokit
-	sourceRepo: RepoRef
+	writer: GitHubWriter
 	pullRequestNumber: number
 	context: PortContext
 	outcome: Exclude<PortRunOutcome, 'skipped_not_required'>
@@ -171,10 +169,10 @@ export async function commentOnSourcePr(
 	const logger = options.logger ?? createConsoleLogger('info')
 
 	try {
-		const response = await options.octokit.rest.issues.createComment({
-			owner: options.sourceRepo.owner,
-			repo: options.sourceRepo.name,
-			issue_number: options.pullRequestNumber,
+		return await options.writer.createComment({
+			owner: options.context.sourceRepo.owner,
+			repo: options.context.sourceRepo.name,
+			issueNumber: options.pullRequestNumber,
 			body: renderSourceComment({
 				context: options.context,
 				outcome: options.outcome,
@@ -183,8 +181,6 @@ export async function commentOnSourcePr(
 				runId: options.runId,
 			}),
 		})
-
-		return response.data.html_url
 	} catch (error) {
 		logger.warn('[port-bot] Unable to comment on source pull request.', error)
 
@@ -207,7 +203,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	}
 
 	if (options.decision.kind === 'NEEDS_HUMAN') {
-		const issue = await options.octokit.rest.issues.create({
+		const issue = await options.writer.createIssue({
 			owner: targetRepo.owner,
 			repo: targetRepo.name,
 			title: renderNeedsHumanIssueTitle(options.context),
@@ -220,7 +216,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 
 		return {
 			outcome: 'needs_human',
-			followUpIssueUrl: issue.data.html_url,
+			followUpIssueUrl: issue.url,
 		}
 	}
 
@@ -246,7 +242,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		options.targetWorkingDirectory,
 	)
 
-	const pullRequest = await options.octokit.rest.pulls.create({
+	const pullRequest = await options.writer.createPullRequest({
 		owner: targetRepo.owner,
 		repo: targetRepo.name,
 		title: renderPortPullRequestTitle(options.context),
@@ -262,15 +258,15 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 
 	const labels = options.execution.success ? ['auto-port'] : ['auto-port', 'port-stalled']
 
-	await options.octokit.rest.issues.addLabels({
+	await options.writer.addLabels({
 		owner: targetRepo.owner,
 		repo: targetRepo.name,
-		issue_number: pullRequest.data.number,
+		issueNumber: pullRequest.number,
 		labels,
 	})
 
 	return {
 		outcome: options.execution.success ? 'pr_opened' : 'draft_pr_opened',
-		targetPullRequestUrl: pullRequest.data.html_url,
+		targetPullRequestUrl: pullRequest.url,
 	}
 }

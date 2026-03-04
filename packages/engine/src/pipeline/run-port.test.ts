@@ -4,12 +4,13 @@ import { createConsoleLogger } from '@repo-port-bot/logger'
 
 import { runPort } from './run-port.ts'
 
-import type { Octokit } from '@octokit/rest'
 import type { Logger } from '@repo-port-bot/logger'
 
 import type {
 	AgentProvider,
 	ExecutionResult,
+	GitHubReader,
+	GitHubWriter,
 	PluginConfig,
 	PortContext,
 	PortDecision,
@@ -30,20 +31,42 @@ const TARGET_REPO: RepoRef = {
 }
 
 /**
- * Build a no-op Octokit mock for run-port tests.
+ * Build a no-op GitHubReader fake for run-port tests.
  *
- * @returns Octokit mock value.
+ * @returns Reader fake.
  */
-function createOctokitMock(): Octokit {
+function createReaderFake(): GitHubReader {
 	return {
-		rest: {
-			repos: {
-				async getContent() {
-					throw { status: 404 }
-				},
-			},
+		async listPullRequestsForCommit() {
+			return []
 		},
-	} as unknown as Octokit
+		async listChangedFiles() {
+			return []
+		},
+		async getFileContent() {
+			return undefined
+		},
+	}
+}
+
+/**
+ * Build a no-op GitHubWriter fake for run-port tests.
+ *
+ * @returns Writer fake.
+ */
+function createWriterFake(): GitHubWriter {
+	return {
+		async createPullRequest() {
+			return { number: 0, url: '' }
+		},
+		async createIssue() {
+			return { number: 0, url: '' }
+		},
+		async addLabels() {},
+		async createComment() {
+			return undefined
+		},
+	}
 }
 
 /**
@@ -147,7 +170,8 @@ describe('runPort', () => {
 			| undefined = undefined
 
 		const result = await runPort({
-			octokit: createOctokitMock(),
+			reader: createReaderFake(),
+			writer: createWriterFake(),
 			agentProvider: createAgentProvider(),
 			sourceRepo: SOURCE_REPO,
 			commitSha: sourceChange.mergedCommitSha,
@@ -221,7 +245,8 @@ describe('runPort', () => {
 		let commentCalled = false
 
 		const result = await runPort({
-			octokit: createOctokitMock(),
+			reader: createReaderFake(),
+			writer: createWriterFake(),
 			agentProvider: createAgentProvider(),
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',
@@ -260,7 +285,8 @@ describe('runPort', () => {
 		const commentOutcomes: string[] = []
 
 		const result = await runPort({
-			octokit: createOctokitMock(),
+			reader: createReaderFake(),
+			writer: createWriterFake(),
 			agentProvider: createAgentProvider(),
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',
@@ -297,7 +323,8 @@ describe('runPort', () => {
 		const commentOutcomes: string[] = []
 
 		const result = await runPort({
-			octokit: createOctokitMock(),
+			reader: createReaderFake(),
+			writer: createWriterFake(),
 			agentProvider: createAgentProvider(),
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',
@@ -328,7 +355,8 @@ describe('runPort', () => {
 
 	test('returns failed when a stage throws and still includes duration', async () => {
 		const result = await runPort({
-			octokit: createOctokitMock(),
+			reader: createReaderFake(),
+			writer: createWriterFake(),
 			agentProvider: createAgentProvider(),
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',
@@ -348,7 +376,8 @@ describe('runPort', () => {
 
 	test('returns failed and continues when source comment posting throws', async () => {
 		const result = await runPort({
-			octokit: createOctokitMock(),
+			reader: createReaderFake(),
+			writer: createWriterFake(),
 			agentProvider: createAgentProvider(),
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',
@@ -375,7 +404,8 @@ describe('runPort', () => {
 		let resolvedPortBotJson: unknown = undefined
 
 		await runPort({
-			octokit: createOctokitMock(),
+			reader: createReaderFake(),
+			writer: createWriterFake(),
 			agentProvider: createAgentProvider(),
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',
@@ -407,7 +437,8 @@ describe('runPort', () => {
 		let resolvedPortBotJson: unknown = undefined
 
 		await runPort({
-			octokit: createOctokitMock(),
+			reader: createReaderFake(),
+			writer: createWriterFake(),
 			agentProvider: createAgentProvider(),
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',
@@ -445,7 +476,8 @@ describe('runPort', () => {
 		}
 
 		await runPort({
-			octokit: createOctokitMock(),
+			reader: createReaderFake(),
+			writer: createWriterFake(),
 			agentProvider: createAgentProvider(),
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',

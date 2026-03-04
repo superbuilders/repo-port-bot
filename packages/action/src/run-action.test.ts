@@ -2,8 +2,13 @@ import { describe, expect, test } from 'bun:test'
 
 import { runAction } from './run-action.ts'
 
-import type { Octokit } from '@octokit/rest'
-import type { AgentProvider, PortRunResult, RepoRef } from '@repo-port-bot/engine'
+import type {
+	AgentProvider,
+	GitHubReader,
+	GitHubWriter,
+	PortRunResult,
+	RepoRef,
+} from '@repo-port-bot/engine'
 import type { Logger } from '@repo-port-bot/logger'
 
 const SOURCE_REPO: RepoRef = {
@@ -12,10 +17,49 @@ const SOURCE_REPO: RepoRef = {
 	defaultBranch: 'main',
 }
 
+/**
+ * Build a no-op GitHubReader fake.
+ *
+ * @returns Reader fake.
+ */
+function createReaderFake(): GitHubReader {
+	return {
+		async listPullRequestsForCommit() {
+			return []
+		},
+		async listChangedFiles() {
+			return []
+		},
+		async getFileContent() {
+			return undefined
+		},
+	}
+}
+
+/**
+ * Build a no-op GitHubWriter fake.
+ *
+ * @returns Writer fake.
+ */
+function createWriterFake(): GitHubWriter {
+	return {
+		async createPullRequest() {
+			return { number: 0, url: '' }
+		},
+		async createIssue() {
+			return { number: 0, url: '' }
+		},
+		async addLabels() {},
+		async createComment() {
+			return undefined
+		},
+	}
+}
+
 describe('runAction', () => {
-	test('wires split source/target tokens through runPort stage overrides', async () => {
-		const sourceOctokit = { kind: 'source' } as unknown as Octokit
-		const targetOctokit = { kind: 'target' } as unknown as Octokit
+	test('wires split source/target tokens through runPort', async () => {
+		const sourceReader = createReaderFake()
+		const targetWriter = createWriterFake()
 		const runPortCalls: unknown[] = []
 		const portResult: PortRunResult = {
 			runId: 'run-1',
@@ -57,7 +101,8 @@ describe('runAction', () => {
 				diffFilePath: '/tmp/source-repo/port-diff.patch',
 			}),
 			cloneTargetRepo: async () => '/tmp/target-repo',
-			createOctokit: token => (token === 'source-token' ? sourceOctokit : targetOctokit),
+			createReader: token => (token === 'source-token' ? sourceReader : createReaderFake()),
+			createWriter: token => (token === 'target-token' ? targetWriter : createWriterFake()),
 			createAgentProvider: () =>
 				({
 					async executePort() {
@@ -92,13 +137,13 @@ describe('runAction', () => {
 				const stageOverrides = input.stageOverrides!
 
 				const readResult = await stageOverrides.readSourceContext!({
-					octokit: {} as Octokit,
+					reader: createReaderFake(),
 					owner: 'acme',
 					repo: 'source-repo',
 					commitSha: 'abc123',
 				})
 				const deliverResult = await stageOverrides.deliverResult!({
-					octokit: {} as Octokit,
+					writer: createWriterFake(),
 					context: {
 						runId: 'run-1',
 						startedAt: new Date().toISOString(),
@@ -132,7 +177,8 @@ describe('runAction', () => {
 		expect(runPortCalls).toHaveLength(1)
 
 		const call = runPortCalls[0] as {
-			octokit: Octokit
+			reader: GitHubReader
+			writer: GitHubWriter
 			sourceRepo: RepoRef
 			commitSha: string
 			targetWorkingDirectory: string
@@ -147,7 +193,8 @@ describe('runAction', () => {
 			}
 		}
 
-		expect(call.octokit).toBe(sourceOctokit)
+		expect(call.reader).toBe(sourceReader)
+		expect(call.writer).toBe(targetWriter)
 		expect(call.sourceRepo).toEqual(SOURCE_REPO)
 		expect(call.commitSha).toBe('abc123')
 		expect(call.targetWorkingDirectory).toBe('/tmp/target-repo')

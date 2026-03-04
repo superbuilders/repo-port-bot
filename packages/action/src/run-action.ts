@@ -1,6 +1,12 @@
 import { Octokit } from '@octokit/rest'
 import { ClaudeAgentProvider } from '@repo-port-bot/agent-claude'
-import { deliverResult, readSourceContext, runPort } from '@repo-port-bot/engine'
+import {
+	createOctokitReader,
+	createOctokitWriter,
+	deliverResult,
+	readSourceContext,
+	runPort,
+} from '@repo-port-bot/engine'
 
 import { createActionsLogger } from './logger.ts'
 import { cloneSourceRepo } from './setup/clone-source-repo.ts'
@@ -8,6 +14,26 @@ import { cloneTargetRepo } from './setup/clone-target-repo.ts'
 import { parseActionInputs } from './setup/parse-inputs.ts'
 
 import type { RunActionDependencies } from './types.ts'
+
+/**
+ * Build default reader/writer factories that create Octokit-backed adapters.
+ *
+ * @param token - GitHub token.
+ * @returns Octokit reader.
+ */
+function defaultCreateReader(token: string) {
+	return createOctokitReader(new Octokit({ auth: token }))
+}
+
+/**
+ * Build default writer factory that creates Octokit-backed adapter.
+ *
+ * @param token - GitHub token.
+ * @returns Octokit writer.
+ */
+function defaultCreateWriter(token: string) {
+	return createOctokitWriter(new Octokit({ auth: token }))
+}
 
 /**
  * Execute one full port-bot run for the current GitHub Actions context.
@@ -20,7 +46,8 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 		parseInputs: dependencies.parseInputs ?? parseActionInputs,
 		cloneSourceRepo: dependencies.cloneSourceRepo ?? cloneSourceRepo,
 		cloneTargetRepo: dependencies.cloneTargetRepo ?? cloneTargetRepo,
-		createOctokit: dependencies.createOctokit ?? (token => new Octokit({ auth: token })),
+		createReader: dependencies.createReader ?? defaultCreateReader,
+		createWriter: dependencies.createWriter ?? defaultCreateWriter,
 		createAgentProvider:
 			dependencies.createAgentProvider ??
 			(input =>
@@ -36,8 +63,8 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 		deliverResult: dependencies.deliverResult ?? deliverResult,
 	}
 	const inputs = resolvedDependencies.parseInputs()
-	const sourceOctokit = resolvedDependencies.createOctokit(inputs.effectiveSourceToken)
-	const targetOctokit = resolvedDependencies.createOctokit(inputs.effectiveTargetToken)
+	const sourceReader = resolvedDependencies.createReader(inputs.effectiveSourceToken)
+	const targetWriter = resolvedDependencies.createWriter(inputs.effectiveTargetToken)
 	const agentProvider = resolvedDependencies.createAgentProvider({
 		apiKey: inputs.llmApiKey,
 		model: inputs.model,
@@ -57,7 +84,8 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 	})
 
 	return resolvedDependencies.runPort({
-		octokit: sourceOctokit,
+		reader: sourceReader,
+		writer: targetWriter,
 		agentProvider,
 		sourceRepo: inputs.sourceRepo,
 		commitSha: inputs.commitSha,
@@ -81,12 +109,12 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 			readSourceContext: options =>
 				resolvedDependencies.readSourceContext({
 					...options,
-					octokit: sourceOctokit,
+					reader: sourceReader,
 				}),
 			deliverResult: options =>
 				resolvedDependencies.deliverResult({
 					...options,
-					octokit: targetOctokit,
+					writer: targetWriter,
 				}),
 		},
 		logger,

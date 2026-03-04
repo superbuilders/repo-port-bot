@@ -1,35 +1,19 @@
 import { createConsoleLogger } from '@repo-port-bot/logger'
 
 import { decodePortBotJson } from './port-bot-json.decoder.ts'
+import { PORT_BOT_JSON_FILENAME } from './types.ts'
 
-import type { Octokit } from '@octokit/rest'
 import type { Logger } from '@repo-port-bot/logger'
 
+import type { GitHubReader } from '../types.ts'
 import type { PortBotJsonConfig } from './types.ts'
 
 interface FetchPortBotJsonOptions {
-	octokit: Octokit
+	reader: GitHubReader
 	owner: string
 	repo: string
 	ref: string
 	logger?: Logger
-}
-
-const NOT_FOUND_STATUS = 404
-
-/**
- * Check whether an error has a given HTTP status code.
- *
- * @param error - Unknown thrown value.
- * @param status - HTTP status to match.
- * @returns True when status matches.
- */
-function isHttpStatusError(error: unknown, status: number): boolean {
-	if (!error || typeof error !== 'object') {
-		return false
-	}
-
-	return (error as { status?: unknown }).status === status
 }
 
 /**
@@ -44,29 +28,21 @@ export async function fetchPortBotJson(
 	const logger = options.logger ?? createConsoleLogger('info')
 
 	try {
-		const response = await options.octokit.rest.repos.getContent({
-			owner: options.owner,
-			repo: options.repo,
-			path: 'port-bot.json',
-			ref: options.ref,
-		})
-		const payload = response.data
+		const content = await options.reader.getFileContent(
+			options.owner,
+			options.repo,
+			PORT_BOT_JSON_FILENAME,
+			options.ref,
+		)
 
-		if (Array.isArray(payload) || payload.type !== 'file' || !payload.content) {
-			logger.warn('repo-port-bot: `port-bot.json` exists but is not a normal file; skipping.')
-
+		if (content === undefined) {
 			return undefined
 		}
 
-		const decodedText = Buffer.from(payload.content, 'base64').toString('utf8')
-		const parsed = JSON.parse(decodedText) as unknown
+		const parsed = JSON.parse(content) as unknown
 
 		return decodePortBotJson(parsed)
 	} catch (error) {
-		if (isHttpStatusError(error, NOT_FOUND_STATUS)) {
-			return undefined
-		}
-
 		const message = error instanceof Error ? error.message : String(error)
 
 		logger.warn(

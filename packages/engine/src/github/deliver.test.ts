@@ -2,10 +2,11 @@ import { describe, expect, test } from 'bun:test'
 
 import { commentOnSourcePr, deliverResult } from './deliver.ts'
 
-import type { Octokit } from '@octokit/rest'
-
 import type {
+	CreatedIssue,
+	CreatedPullRequest,
 	ExecutionResult,
+	GitHubWriter,
 	PortContext,
 	PortDecision,
 	RepoRef,
@@ -114,75 +115,53 @@ function makeExecution(success: boolean): ExecutionResult {
 }
 
 /**
- * Build an Octokit mock and capture outbound API calls.
+ * Build a GitHubWriter fake and capture outbound calls.
  *
- * @returns Mock octokit plus captured call arrays.
+ * @returns Fake writer plus captured call arrays.
  */
-function createOctokitMock(): {
-	octokit: Octokit
-	pullsCreateCalls: Record<string, unknown>[]
-	issuesCreateCalls: Record<string, unknown>[]
-	addLabelsCalls: Record<string, unknown>[]
-	createCommentCalls: Record<string, unknown>[]
+function createWriterFake(): {
+	writer: GitHubWriter
+	createPrCalls: unknown[]
+	createIssueCalls: unknown[]
+	addLabelsCalls: unknown[]
+	createCommentCalls: unknown[]
 } {
-	const pullsCreateCalls: Record<string, unknown>[] = []
-	const issuesCreateCalls: Record<string, unknown>[] = []
-	const addLabelsCalls: Record<string, unknown>[] = []
-	const createCommentCalls: Record<string, unknown>[] = []
+	const createPrCalls: unknown[] = []
+	const createIssueCalls: unknown[] = []
+	const addLabelsCalls: unknown[] = []
+	const createCommentCalls: unknown[] = []
 
-	const octokit = {
-		rest: {
-			pulls: {
-				create: async (params: Record<string, unknown>) => {
-					pullsCreateCalls.push(params)
+	const writer: GitHubWriter = {
+		async createPullRequest(params): Promise<CreatedPullRequest> {
+			createPrCalls.push(params)
 
-					return {
-						data: {
-							number: 901,
-							html_url: 'https://github.com/acme/target-repo/pull/901',
-						},
-					}
-				},
-			},
-			issues: {
-				create: async (params: Record<string, unknown>) => {
-					issuesCreateCalls.push(params)
-
-					return {
-						data: {
-							number: 777,
-							html_url: 'https://github.com/acme/target-repo/issues/777',
-						},
-					}
-				},
-				addLabels: async (params: Record<string, unknown>) => {
-					addLabelsCalls.push(params)
-
-					return { data: {} }
-				},
-				createComment: async (params: Record<string, unknown>) => {
-					createCommentCalls.push(params)
-
-					return {
-						data: {
-							html_url: 'https://github.com/acme/source-repo/pull/42#issuecomment-1',
-						},
-					}
-				},
-			},
+			return { number: 901, url: 'https://github.com/acme/target-repo/pull/901' }
 		},
-	} as unknown as Octokit
+		async createIssue(params): Promise<CreatedIssue> {
+			createIssueCalls.push(params)
 
-	return { octokit, pullsCreateCalls, issuesCreateCalls, addLabelsCalls, createCommentCalls }
+			return { number: 777, url: 'https://github.com/acme/target-repo/issues/777' }
+		},
+		async addLabels(params): Promise<void> {
+			addLabelsCalls.push(params)
+		},
+		async createComment(params): Promise<string | undefined> {
+			createCommentCalls.push(params)
+
+			return 'https://github.com/acme/source-repo/pull/42#issuecomment-1'
+		},
+	}
+
+	return { writer, createPrCalls, createIssueCalls, addLabelsCalls, createCommentCalls }
 }
 
 describe('deliverResult', () => {
 	test('returns skipped for PORT_NOT_REQUIRED without side effects', async () => {
-		const { octokit, pullsCreateCalls, issuesCreateCalls, addLabelsCalls } = createOctokitMock()
+		const { writer, createPrCalls, createIssueCalls, addLabelsCalls } = createWriterFake()
 		const commandCalls: string[][] = []
 
 		const result = await deliverResult({
-			octokit,
+			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_NOT_REQUIRED'),
 			targetWorkingDirectory: '/tmp/unused',
@@ -195,17 +174,17 @@ describe('deliverResult', () => {
 
 		expect(result).toEqual({ outcome: 'skipped' })
 		expect(commandCalls).toEqual([])
-		expect(pullsCreateCalls).toEqual([])
-		expect(issuesCreateCalls).toEqual([])
+		expect(createPrCalls).toEqual([])
+		expect(createIssueCalls).toEqual([])
 		expect(addLabelsCalls).toEqual([])
 	})
 
 	test('creates needs-human issue and does not run git for NEEDS_HUMAN', async () => {
-		const { octokit, pullsCreateCalls, issuesCreateCalls, addLabelsCalls } = createOctokitMock()
+		const { writer, createPrCalls, createIssueCalls, addLabelsCalls } = createWriterFake()
 		let commandInvoked = false
 
 		const result = await deliverResult({
-			octokit,
+			writer,
 			context: makeContext(),
 			decision: makeDecision('NEEDS_HUMAN'),
 			targetWorkingDirectory: '/tmp/unused',
@@ -219,17 +198,17 @@ describe('deliverResult', () => {
 		expect(result.outcome).toBe('needs_human')
 		expect(result.followUpIssueUrl).toContain('/issues/777')
 		expect(commandInvoked).toBe(false)
-		expect(issuesCreateCalls[0]?.labels).toEqual(['needs-human'])
-		expect(pullsCreateCalls).toEqual([])
+		expect((createIssueCalls[0] as { labels: string[] }).labels).toEqual(['needs-human'])
+		expect(createPrCalls).toEqual([])
 		expect(addLabelsCalls).toEqual([])
 	})
 
 	test('creates ready PR with auto-port label for successful execution', async () => {
-		const { octokit, pullsCreateCalls, addLabelsCalls } = createOctokitMock()
+		const { writer, createPrCalls, addLabelsCalls } = createWriterFake()
 		const commandCalls: string[][] = []
 
 		const result = await deliverResult({
-			octokit,
+			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(true),
@@ -247,8 +226,8 @@ describe('deliverResult', () => {
 
 		expect(result.outcome).toBe('pr_opened')
 		expect(result.targetPullRequestUrl).toContain('/pull/901')
-		expect(pullsCreateCalls[0]?.draft).toBe(false)
-		expect(addLabelsCalls[0]?.labels).toEqual(['auto-port'])
+		expect((createPrCalls[0] as { draft: boolean }).draft).toBe(false)
+		expect((addLabelsCalls[0] as { labels: string[] }).labels).toEqual(['auto-port'])
 		expect(commandCalls.map(call => call.join(' '))).toEqual([
 			'git checkout -b port/source-repo/42-abc1234',
 			'git add -A',
@@ -259,10 +238,10 @@ describe('deliverResult', () => {
 	})
 
 	test('creates draft PR with stalled label when execution fails', async () => {
-		const { octokit, pullsCreateCalls, addLabelsCalls } = createOctokitMock()
+		const { writer, createPrCalls, addLabelsCalls } = createWriterFake()
 
 		const result = await deliverResult({
-			octokit,
+			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(false),
@@ -277,16 +256,19 @@ describe('deliverResult', () => {
 		})
 
 		expect(result.outcome).toBe('draft_pr_opened')
-		expect(pullsCreateCalls[0]?.draft).toBe(true)
-		expect(addLabelsCalls[0]?.labels).toEqual(['auto-port', 'port-stalled'])
+		expect((createPrCalls[0] as { draft: boolean }).draft).toBe(true)
+		expect((addLabelsCalls[0] as { labels: string[] }).labels).toEqual([
+			'auto-port',
+			'port-stalled',
+		])
 	})
 
 	test('throws when PORT_REQUIRED is delivered without execution result', async () => {
-		const { octokit } = createOctokitMock()
+		const { writer } = createWriterFake()
 
 		await expect(
 			deliverResult({
-				octokit,
+				writer,
 				context: makeContext(),
 				decision: makeDecision('PORT_REQUIRED'),
 				targetWorkingDirectory: '/tmp/target-repo',
@@ -298,12 +280,11 @@ describe('deliverResult', () => {
 
 describe('commentOnSourcePr', () => {
 	test('creates comment on source pull request and returns comment URL', async () => {
-		const { octokit, createCommentCalls } = createOctokitMock()
+		const { writer, createCommentCalls } = createWriterFake()
 		const context = makeContext()
 
 		const commentUrl = await commentOnSourcePr({
-			octokit,
-			sourceRepo: SOURCE_REPO,
+			writer,
 			pullRequestNumber: 42,
 			context,
 			outcome: 'pr_opened',
@@ -313,29 +294,33 @@ describe('commentOnSourcePr', () => {
 
 		expect(commentUrl).toBe('https://github.com/acme/source-repo/pull/42#issuecomment-1')
 		expect(createCommentCalls).toHaveLength(1)
-		expect(createCommentCalls[0]?.owner).toBe('acme')
-		expect(createCommentCalls[0]?.repo).toBe('source-repo')
-		expect(createCommentCalls[0]?.issue_number).toBe(SOURCE_PULL_REQUEST_NUMBER)
-		expect(String(createCommentCalls[0]?.body)).toContain(
+		expect((createCommentCalls[0] as { owner: string }).owner).toBe('acme')
+		expect((createCommentCalls[0] as { repo: string }).repo).toBe('source-repo')
+		expect((createCommentCalls[0] as { issueNumber: number }).issueNumber).toBe(
+			SOURCE_PULL_REQUEST_NUMBER,
+		)
+		expect(String((createCommentCalls[0] as { body: string }).body)).toContain(
 			'Port PR opened: https://github.com/acme/target-repo/pull/901',
 		)
 	})
 
 	test('returns undefined when comment creation throws', async () => {
 		const context = makeContext()
-		const octokit = {
-			rest: {
-				issues: {
-					createComment: async () => {
-						throw new Error('rate limited')
-					},
-				},
+		const writer: GitHubWriter = {
+			async createPullRequest() {
+				return { number: 0, url: '' }
 			},
-		} as unknown as Octokit
+			async createIssue() {
+				return { number: 0, url: '' }
+			},
+			async addLabels() {},
+			async createComment() {
+				throw new Error('rate limited')
+			},
+		}
 
 		const commentUrl = await commentOnSourcePr({
-			octokit,
-			sourceRepo: SOURCE_REPO,
+			writer,
 			pullRequestNumber: 42,
 			context,
 			outcome: 'failed',

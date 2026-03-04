@@ -2,118 +2,84 @@ import { describe, expect, test } from 'bun:test'
 
 import { readSourceContext } from './read-source-context.ts'
 
-import type { Octokit } from '@octokit/rest'
+import type { ChangedFile, GitHubReader, PullRequestRef } from '../types.ts'
 
-type CommitPullResponse = Awaited<
-	ReturnType<Octokit['rest']['repos']['listPullRequestsAssociatedWithCommit']>
->['data']
-type PullFilesResponse = Awaited<ReturnType<Octokit['rest']['pulls']['listFiles']>>['data']
-
-interface OctokitMockConfig {
-	pullRequests: CommitPullResponse
-	files: PullFilesResponse
+interface ReaderMockConfig {
+	pullRequests: PullRequestRef[]
+	files: ChangedFile[]
 }
 
 /**
- * Build a lightweight Octokit mock with controllable PR/file responses.
+ * Build a GitHubReader fake with controllable PR/file responses.
  *
  * @param config - Mock response payloads.
- * @returns Mock octokit and recorded paginate call parameters.
+ * @returns Fake reader and recorded call parameters.
  */
-function createOctokitMock(config: OctokitMockConfig): {
-	octokit: Octokit
-	paginateCalls: { owner: string; per_page: number; pull_number: number; repo: string }[]
+function createReaderFake(config: ReaderMockConfig): {
+	reader: GitHubReader
+	listFilesCalls: { owner: string; repo: string; pullRequestNumber: number }[]
 } {
-	const paginateCalls: {
-		owner: string
-		per_page: number
-		pull_number: number
-		repo: string
-	}[] = []
+	const listFilesCalls: { owner: string; repo: string; pullRequestNumber: number }[] = []
 
-	const octokit = {
-		rest: {
-			repos: {
-				listPullRequestsAssociatedWithCommit: async () => ({
-					data: config.pullRequests,
-				}),
-			},
-			pulls: {
-				listFiles: async () => ({
-					data: config.files,
-				}),
-			},
+	const reader: GitHubReader = {
+		async listPullRequestsForCommit() {
+			return config.pullRequests
 		},
-		paginate: async (
-			_: unknown,
-			params: { owner: string; per_page: number; pull_number: number; repo: string },
-		) => {
-			paginateCalls.push(params)
+		async listChangedFiles(owner, repo, pullRequestNumber) {
+			listFilesCalls.push({ owner, repo, pullRequestNumber })
 
 			return config.files
 		},
-	} as unknown as Octokit
+		async getFileContent() {
+			return undefined
+		},
+	}
 
-	return { octokit, paginateCalls }
+	return { reader, listFilesCalls }
 }
 
 describe('readSourceContext', () => {
 	test('returns pull request metadata and changed files', async () => {
-		const pullRequests = [
+		const pullRequests: PullRequestRef[] = [
 			{
-				body: 'PR body',
-				html_url: 'https://github.com/acme/source-repo/pull/42',
-				labels: [{ name: 'no-port' }, { name: 'sdk' }],
 				number: 42,
 				title: 'Add feature',
+				body: 'PR body',
+				url: 'https://github.com/acme/source-repo/pull/42',
+				labels: ['no-port', 'sdk'],
 			},
-		] as unknown as CommitPullResponse
-		const files = [
-			{
-				additions: 12,
-				deletions: 4,
-				filename: 'src/new-file.ts',
-				status: 'added',
-				patch: '@@ -0,0 +1,12 @@\n+export const value = 1',
-			},
-		] as unknown as PullFilesResponse
-		const { octokit } = createOctokitMock({ pullRequests, files })
-
-		const result = await readSourceContext({
-			octokit,
-			owner: 'acme',
-			repo: 'source-repo',
-			commitSha: 'abc123',
-		})
-
-		expect(result.mergedCommitSha).toBe('abc123')
-		expect(result.pullRequest).toEqual({
-			number: 42,
-			title: 'Add feature',
-			body: 'PR body',
-			url: 'https://github.com/acme/source-repo/pull/42',
-			labels: ['no-port', 'sdk'],
-		})
-		expect(result.files).toEqual([
+		]
+		const files: ChangedFile[] = [
 			{
 				path: 'src/new-file.ts',
 				status: 'added',
 				additions: 12,
 				deletions: 4,
 				patch: '@@ -0,0 +1,12 @@\n+export const value = 1',
-				previousPath: undefined,
 			},
-		])
+		]
+		const { reader } = createReaderFake({ pullRequests, files })
+
+		const result = await readSourceContext({
+			reader,
+			owner: 'acme',
+			repo: 'source-repo',
+			commitSha: 'abc123',
+		})
+
+		expect(result.mergedCommitSha).toBe('abc123')
+		expect(result.pullRequest).toEqual(pullRequests[0])
+		expect(result.files).toEqual(files)
 	})
 
 	test('returns empty context when commit has no associated pull request', async () => {
-		const { octokit, paginateCalls } = createOctokitMock({
+		const { reader, listFilesCalls } = createReaderFake({
 			pullRequests: [],
 			files: [],
 		})
 
 		const result = await readSourceContext({
-			octokit,
+			reader,
 			owner: 'acme',
 			repo: 'source-repo',
 			commitSha: 'no-pr-commit',
@@ -124,95 +90,36 @@ describe('readSourceContext', () => {
 			pullRequest: undefined,
 			files: [],
 		})
-		expect(paginateCalls.length).toBe(0)
+		expect(listFilesCalls.length).toBe(0)
 	})
 
-	test('maps renamed files and missing patches', async () => {
-		const pullRequests = [
+	test('passes owner/repo/prNumber to listChangedFiles', async () => {
+		const pullRequests: PullRequestRef[] = [
 			{
-				body: null,
-				html_url: 'https://github.com/acme/source-repo/pull/7',
-				labels: [{ name: 'feature' }],
-				number: 7,
-				title: 'Rename file',
-			},
-		] as unknown as CommitPullResponse
-		const files = [
-			{
-				additions: 2,
-				deletions: 2,
-				filename: 'src/new-name.ts',
-				previous_filename: 'src/old-name.ts',
-				status: 'renamed',
-			},
-		] as unknown as PullFilesResponse
-		const { octokit } = createOctokitMock({ pullRequests, files })
-
-		const result = await readSourceContext({
-			octokit,
-			owner: 'acme',
-			repo: 'source-repo',
-			commitSha: 'rename123',
-		})
-
-		expect(result.files[0]).toEqual({
-			path: 'src/new-name.ts',
-			status: 'renamed',
-			additions: 2,
-			deletions: 2,
-			patch: undefined,
-			previousPath: 'src/old-name.ts',
-		})
-	})
-
-	test('uses pagination and normalizes github statuses', async () => {
-		const pullRequests = [
-			{
-				body: '',
-				html_url: 'https://github.com/acme/source-repo/pull/18',
-				labels: [{ name: 'auto-port' }],
 				number: 18,
 				title: 'Mixed file changes',
+				body: '',
+				url: 'https://github.com/acme/source-repo/pull/18',
+				labels: ['auto-port'],
 			},
-		] as unknown as CommitPullResponse
-		const files = [
-			{
-				additions: 1,
-				deletions: 9,
-				filename: 'src/removed.ts',
-				status: 'removed',
-			},
-			{
-				additions: 30,
-				deletions: 0,
-				filename: 'src/copied.ts',
-				status: 'copied',
-			},
-			{
-				additions: 6,
-				deletions: 6,
-				filename: 'src/changed.ts',
-				status: 'changed',
-			},
-		] as unknown as PullFilesResponse
-		const { octokit, paginateCalls } = createOctokitMock({ pullRequests, files })
+		]
+		const files: ChangedFile[] = [
+			{ path: 'src/removed.ts', status: 'deleted', additions: 1, deletions: 9 },
+			{ path: 'src/copied.ts', status: 'added', additions: 30, deletions: 0 },
+			{ path: 'src/changed.ts', status: 'modified', additions: 6, deletions: 6 },
+		]
+		const { reader, listFilesCalls } = createReaderFake({ pullRequests, files })
 
 		const result = await readSourceContext({
-			octokit,
+			reader,
 			owner: 'acme',
 			repo: 'source-repo',
 			commitSha: 'paginate123',
 		})
 
-		expect(paginateCalls).toEqual([
-			{
-				owner: 'acme',
-				repo: 'source-repo',
-				pull_number: 18,
-				per_page: 100,
-			},
+		expect(listFilesCalls).toEqual([
+			{ owner: 'acme', repo: 'source-repo', pullRequestNumber: 18 },
 		])
-
 		expect(result.files.map(file => file.status)).toEqual(['deleted', 'added', 'modified'])
 	})
 })

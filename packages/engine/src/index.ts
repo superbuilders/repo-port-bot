@@ -1,5 +1,6 @@
 export { readSourceContext } from './github/read-source-context.ts'
 export { deliverResult } from './github/deliver.ts'
+export { createOctokitReader, createOctokitWriter } from './github/octokit-adapter.ts'
 export { decodePortBotJson, parseAndDecodePortBotJson } from './config/port-bot-json.decoder.ts'
 export { fetchPortBotJson } from './config/fetch-port-bot-json.ts'
 export { resolvePluginConfig } from './config/resolve-plugin-config.ts'
@@ -13,10 +14,14 @@ export type {
 	AgentProvider,
 	ChangedFile,
 	ChangedFileStatus,
+	CreatedIssue,
+	CreatedPullRequest,
 	DeliveryOutcome,
 	DeliveryResult,
 	ExecutionAttempt,
 	ExecutionResult,
+	GitHubReader,
+	GitHubWriter,
 	PartialPluginConfig,
 	PluginConfig,
 	PortContext,
