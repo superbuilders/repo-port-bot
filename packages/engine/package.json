@@ -10,10 +10,12 @@
 	},
 	"dependencies": {
 		"@octokit/rest": "^22.0.1",
-		"decoders": "^2.8.0"
+		"decoders": "^2.8.0",
+		"micromatch": "^4.0.8"
 	},
 	"devDependencies": {
-		"@types/bun": "latest"
+		"@types/bun": "latest",
+		"@types/micromatch": "^4.0.10"
 	},
 	"peerDependencies": {
 		"typescript": "^5"
