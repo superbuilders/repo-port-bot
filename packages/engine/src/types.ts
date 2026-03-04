@@ -220,11 +220,6 @@ export interface PortDecision {
 	 * Optional confidence score for classifier-backed decisions (0-1 range).
 	 */
 	confidence?: number
-
-	/**
-	 * Optional machine-readable evidence tags, for example `docs-only`.
-	 */
-	signals?: string[]
 }
 
 // ---------------------------------------------------------------------------

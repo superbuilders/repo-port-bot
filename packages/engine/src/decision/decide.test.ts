@@ -90,7 +90,6 @@ describe('decide', () => {
 		const result = decide(context)
 
 		expect(result.kind).toBe('NEEDS_HUMAN')
-		expect(result.signals).toContain('missing-pr')
 	})
 
 	test('returns PORT_NOT_REQUIRED for auto-port label (loop prevention)', () => {
@@ -102,7 +101,6 @@ describe('decide', () => {
 		const result = decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
-		expect(result.signals).toContain('loop-prevention')
 	})
 
 	test('returns PORT_NOT_REQUIRED for no-port label', () => {
@@ -114,7 +112,6 @@ describe('decide', () => {
 		const result = decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
-		expect(result.signals).toContain('no-port-label')
 	})
 
 	test('returns PORT_NOT_REQUIRED for docs-only changes', () => {
@@ -129,7 +126,6 @@ describe('decide', () => {
 		const result = decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
-		expect(result.signals).toContain('docs-only')
 	})
 
 	test('returns PORT_NOT_REQUIRED for config-only changes', () => {
@@ -149,7 +145,6 @@ describe('decide', () => {
 		const result = decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
-		expect(result.signals).toContain('config-only')
 	})
 
 	test('treats ignored paths as config-only for skip decision', () => {
@@ -164,7 +159,6 @@ describe('decide', () => {
 		const result = decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
-		expect(result.signals).toContain('config-only')
 	})
 
 	test('falls through to classifier stub for mixed changes', () => {
@@ -179,6 +173,5 @@ describe('decide', () => {
 		const result = decide(context)
 
 		expect(result.kind).toBe('NEEDS_HUMAN')
-		expect(result.signals).toContain('classifier-stub')
 	})
 })

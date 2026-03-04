@@ -177,7 +177,6 @@ const result = await runPort({
 		decide: () => ({
 			kind: 'PORT_REQUIRED',
 			reason: 'Forced PORT_REQUIRED for local example.',
-			signals: ['example-override'],
 		}),
 		deliverResult: options =>
 			deliverResult({

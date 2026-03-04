@@ -84,8 +84,18 @@ Source: GitHub REST API (`POST /repos/{owner}/{repo}/pulls`).
 When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the target repo instead of attempting a port.
 
 - Tagged `needs-human`
-- Links to source PR
-- Includes decision rationale and any signals
+- Compact title: `Needs review: <source PR title (truncated to 60 chars)>`
+- Body is a short narrative with the source PR link, reason, and file count
+
+**Example body:**
+
+```md
+[Add formatting/date helpers](https://github.com/handlebauer/port-bot-test-source/pull/1) was merged in `port-bot-test-source` but could not be automatically ported.
+
+**Why:** No heuristic matched; LLM classifier not yet implemented.
+
+**Changed files:** 2
+```
 
 ### Labels
 
@@ -180,7 +190,7 @@ Responsible for:
 - Parsing action inputs and token mode
 - Cloning source repo at merge SHA (read-only reference + diff computation)
 - Cloning target repo at default branch (agent working directory)
-- Running the engine entrypoint from `packages/action/dist/index.js`
+- Running the engine entrypoint from `packages/action/dist/index.cjs`
 - Publishing action outputs for downstream workflow steps
 
 ### Release workflow
@@ -189,7 +199,7 @@ Responsible for:
 
 1. Install, check, test
 2. Build action bundle via esbuild
-3. Force-add `packages/action/dist/index.js` and commit (if changed)
+3. Force-add `packages/action/dist/index.cjs` and commit (if changed)
 4. Force-update `v1` tag
 
 Users reference `@v1` which always points to the latest release build on `main`.
