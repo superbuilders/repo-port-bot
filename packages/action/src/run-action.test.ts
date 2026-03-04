@@ -105,6 +105,12 @@ describe('runAction', () => {
 			createWriter: token => (token === 'target-token' ? targetWriter : createWriterFake()),
 			createAgentProvider: () =>
 				({
+					async decidePort() {
+						return {
+							required: true,
+							reason: 'Required',
+						}
+					},
 					async executePort() {
 						return {
 							touchedFiles: [],

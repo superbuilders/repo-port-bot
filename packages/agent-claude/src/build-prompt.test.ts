@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { buildSystemPrompt, buildUserPrompt } from './build-prompt.ts'
+import {
+	buildDecideSystemPrompt,
+	buildDecideUserPrompt,
+	buildSystemPrompt,
+	buildUserPrompt,
+} from './build-prompt.ts'
 
 import type { AgentInput, PluginConfig } from '@repo-port-bot/engine'
 
@@ -155,5 +160,37 @@ describe('buildUserPrompt', () => {
 		expect(prompt).toContain('Validation failure')
 		expect(prompt).toContain('Type error in src/feature.ts')
 		expect(prompt).toContain('Previous attempt failed validation')
+	})
+})
+
+describe('buildDecideSystemPrompt', () => {
+	test('includes classification instructions and source context', () => {
+		const prompt = buildDecideSystemPrompt({
+			pluginConfig: makePluginConfig(),
+			sourceWorkingDirectory: '/tmp/source',
+			diffFilePath: '/tmp/source/port-diff.patch',
+		})
+
+		expect(prompt).toContain('classification mode')
+		expect(prompt).toContain('/tmp/source')
+		expect(prompt).toContain('/tmp/source/port-diff.patch')
+		expect(prompt).not.toContain('strict JSON')
+	})
+})
+
+describe('buildDecideUserPrompt', () => {
+	test('renders changed files without inline JSON schema instructions', () => {
+		const prompt = buildDecideUserPrompt({
+			files: makeInput().files,
+			targetWorkingDirectory: '/tmp/target',
+			pluginConfig: makePluginConfig(),
+			sourceWorkingDirectory: '/tmp/source',
+			diffFilePath: '/tmp/source/port-diff.patch',
+		})
+
+		expect(prompt).toContain('should be ported')
+		expect(prompt).toContain('Changed files:')
+		expect(prompt).toContain('`src/feature.ts`')
+		expect(prompt).not.toContain('{"required"')
 	})
 })

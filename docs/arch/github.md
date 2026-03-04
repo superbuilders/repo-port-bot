@@ -92,7 +92,7 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the 
 ```md
 [Add formatting/date helpers](https://github.com/handlebauer/port-bot-test-source/pull/1) was merged in `port-bot-test-source` but could not be automatically ported.
 
-**Why:** No heuristic matched; LLM classifier not yet implemented.
+**Why:** Classifier could not determine a safe automatic port target.
 
 **Changed files:** 2
 ```

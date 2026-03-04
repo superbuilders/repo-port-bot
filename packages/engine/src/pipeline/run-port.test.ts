@@ -147,6 +147,9 @@ function makeExecution(success: boolean): ExecutionResult {
  */
 function createAgentProvider(): AgentProvider {
 	return {
+		async decidePort() {
+			throw new Error('Agent provider should not be called directly in run-port tests.')
+		},
 		async executePort() {
 			throw new Error('Agent provider should not be called directly in run-port tests.')
 		},
@@ -189,7 +192,7 @@ describe('runPort', () => {
 
 					return pluginConfig
 				},
-				decide: (context: PortContext) => {
+				decide: async (context: PortContext) => {
 					callOrder.push('decide')
 					expect(context.sourceChange.mergedCommitSha).toBe(sourceChange.mergedCommitSha)
 
@@ -253,7 +256,8 @@ describe('runPort', () => {
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => makePluginConfig(),
-				decide: () => makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+				decide: async () =>
+					makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
 				executePort: async () => {
 					executeCalled = true
 
@@ -293,7 +297,7 @@ describe('runPort', () => {
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => makePluginConfig(),
-				decide: () => makeDecision('NEEDS_HUMAN', 'Classifier is uncertain.'),
+				decide: async () => makeDecision('NEEDS_HUMAN', 'Classifier is uncertain.'),
 				executePort: async () => {
 					executeCalled = true
 
@@ -331,7 +335,7 @@ describe('runPort', () => {
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => makePluginConfig(),
-				decide: () => makeDecision('PORT_REQUIRED', 'Port required.'),
+				decide: async () => makeDecision('PORT_REQUIRED', 'Port required.'),
 				executePort: async () => makeExecution(false),
 				deliverResult: async () => ({
 					outcome: 'draft_pr_opened',
@@ -384,7 +388,7 @@ describe('runPort', () => {
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => makePluginConfig(),
-				decide: () => {
+				decide: async () => {
 					throw new Error('decider exploded')
 				},
 				commentOnSourcePr: async () => {
@@ -423,7 +427,8 @@ describe('runPort', () => {
 
 					return makePluginConfig()
 				},
-				decide: () => makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+				decide: async () =>
+					makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
 			},
 		})
 
@@ -455,7 +460,8 @@ describe('runPort', () => {
 
 					return makePluginConfig()
 				},
-				decide: () => makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+				decide: async () =>
+					makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
 			},
 		})
 
@@ -485,7 +491,8 @@ describe('runPort', () => {
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => makePluginConfig(),
-				decide: () => makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+				decide: async () =>
+					makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
 			},
 		})
 

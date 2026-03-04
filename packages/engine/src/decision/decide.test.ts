@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { decide } from './decide.ts'
 
 import type {
+	AgentProvider,
 	ChangedFile,
 	PluginConfig,
 	PortContext,
@@ -81,40 +82,40 @@ function makeContext(input: {
 }
 
 describe('decide', () => {
-	test('returns PORT_NOT_REQUIRED when pull request metadata is missing', () => {
+	test('returns PORT_NOT_REQUIRED when pull request metadata is missing', async () => {
 		const context = makeContext({
 			pullRequest: null,
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
 		})
 
-		const result = decide(context)
+		const result = await decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
-	test('returns PORT_NOT_REQUIRED for auto-port label (loop prevention)', () => {
+	test('returns PORT_NOT_REQUIRED for auto-port label (loop prevention)', async () => {
 		const context = makeContext({
 			labels: ['auto-port'],
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
 		})
 
-		const result = decide(context)
+		const result = await decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
-	test('returns PORT_NOT_REQUIRED for no-port label', () => {
+	test('returns PORT_NOT_REQUIRED for no-port label', async () => {
 		const context = makeContext({
 			labels: ['no-port'],
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
 		})
 
-		const result = decide(context)
+		const result = await decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
-	test('returns PORT_NOT_REQUIRED for docs-only changes', () => {
+	test('returns PORT_NOT_REQUIRED for docs-only changes', async () => {
 		const context = makeContext({
 			labels: [],
 			files: [
@@ -123,12 +124,12 @@ describe('decide', () => {
 			],
 		})
 
-		const result = decide(context)
+		const result = await decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
-	test('returns PORT_NOT_REQUIRED for config-only changes', () => {
+	test('returns PORT_NOT_REQUIRED for config-only changes', async () => {
 		const context = makeContext({
 			labels: [],
 			files: [
@@ -142,12 +143,12 @@ describe('decide', () => {
 			],
 		})
 
-		const result = decide(context)
+		const result = await decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
-	test('treats ignored paths as config-only for skip decision', () => {
+	test('treats ignored paths as config-only for skip decision', async () => {
 		const context = makeContext({
 			labels: [],
 			ignorePatterns: ['generated/**'],
@@ -156,12 +157,12 @@ describe('decide', () => {
 			],
 		})
 
-		const result = decide(context)
+		const result = await decide(context)
 
 		expect(result.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
-	test('falls through to classifier stub for mixed changes', () => {
+	test('falls through to conservative fallback for mixed changes without classifier', async () => {
 		const context = makeContext({
 			labels: [],
 			files: [
@@ -170,8 +171,37 @@ describe('decide', () => {
 			],
 		})
 
-		const result = decide(context)
+		const result = await decide(context)
 
-		expect(result.kind).toBe('NEEDS_HUMAN')
+		expect(result.kind).toBe('PORT_REQUIRED')
+	})
+
+	test('uses provider-backed classifier on mixed changes', async () => {
+		const context = makeContext({
+			labels: [],
+			files: [
+				{ path: 'docs/guide.md', status: 'modified', additions: 2, deletions: 0 },
+				{ path: 'src/app.ts', status: 'modified', additions: 4, deletions: 1 },
+			],
+		})
+		const provider: AgentProvider = {
+			async decidePort() {
+				return {
+					required: false,
+					reason: 'No equivalent target code exists for these changes.',
+				}
+			},
+			async executePort() {
+				throw new Error('not used in decide test')
+			},
+		}
+
+		const result = await decide(context, {
+			agentProvider: provider,
+			targetWorkingDirectory: '/tmp/target',
+		})
+
+		expect(result.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.reason).toContain('No equivalent target code exists')
 	})
 })

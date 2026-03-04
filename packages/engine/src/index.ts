@@ -14,6 +14,8 @@ export type {
 	AgentInput,
 	AgentOutput,
 	AgentProvider,
+	DecidePortInput,
+	DecidePortOutput,
 	ChangedFile,
 	ChangedFileStatus,
 	CreatedIssue,

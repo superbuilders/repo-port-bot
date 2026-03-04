@@ -1,6 +1,6 @@
 import { DECISION_HEURISTICS } from './heuristics.ts'
 
-import type { PortContext, PortDecision } from '../types.ts'
+import type { AgentProvider, PortContext, PortDecision } from '../types.ts'
 
 /**
  * Build a fallback decision when pipeline fails before decision output exists.
@@ -18,13 +18,12 @@ export function buildEngineFailureDecision(message: string): PortDecision {
 /**
  * Classifier fallback used when no fast heuristic can make a decision.
  *
- * @param _context - Decision context.
- * @returns Safe default until classifier is implemented.
+ * @returns Conservative fallback.
  */
-function classifyWithStub(_context: PortContext): PortDecision {
+function classifyWithStub(): PortDecision {
 	return {
-		kind: 'NEEDS_HUMAN',
-		reason: 'No heuristic matched; LLM classifier not yet implemented.',
+		kind: 'PORT_REQUIRED',
+		reason: 'No heuristic matched and no classifier was configured; defaulting to port required.',
 	}
 }
 
@@ -32,9 +31,22 @@ function classifyWithStub(_context: PortContext): PortDecision {
  * Run the decision stage for a port run.
  *
  * @param context - Port run context.
+ * @param options - Optional decision dependencies.
+ * @param options.agentProvider - Optional agent provider for LLM-backed classification.
+ * @param options.targetWorkingDirectory - Target repo working directory for classifier context.
+ * @param options.sourceWorkingDirectory - Optional source repo checkout path for classifier context.
+ * @param options.diffFilePath - Optional full source diff file path for classifier context.
  * @returns Decision result from heuristics or classifier fallback.
  */
-export function decide(context: PortContext): PortDecision {
+export async function decide(
+	context: PortContext,
+	options: {
+		agentProvider?: AgentProvider
+		targetWorkingDirectory?: string
+		sourceWorkingDirectory?: string
+		diffFilePath?: string
+	} = {},
+): Promise<PortDecision> {
 	for (const heuristic of DECISION_HEURISTICS) {
 		const decision = heuristic(context)
 
@@ -43,5 +55,20 @@ export function decide(context: PortContext): PortDecision {
 		}
 	}
 
-	return classifyWithStub(context)
+	if (!options.agentProvider) {
+		return classifyWithStub()
+	}
+
+	const classifierDecision = await options.agentProvider.decidePort({
+		files: context.sourceChange.files,
+		targetWorkingDirectory: options.targetWorkingDirectory ?? process.cwd(),
+		sourceWorkingDirectory: options.sourceWorkingDirectory,
+		diffFilePath: options.diffFilePath,
+		pluginConfig: context.pluginConfig,
+	})
+
+	return {
+		kind: classifierDecision.required ? 'PORT_REQUIRED' : 'PORT_NOT_REQUIRED',
+		reason: classifierDecision.reason,
+	}
 }

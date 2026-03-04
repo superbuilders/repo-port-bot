@@ -66,7 +66,7 @@ At `info` level, `runPort` emits one log line per stage transition so the Action
 ```
 [port-bot] run=<runId> stage=context source=acme/source-repo pr=42 files=5 contextMs=12
 [port-bot] run=<runId> stage=config target=acme/target-repo configMs=3
-[port-bot] run=<runId> stage=decision kind=PORT_REQUIRED decisionMs=45
+[port-bot] run=<runId> stage=decision kind=PORT_REQUIRED decisionMs=4500
 [port-bot] run=<runId> stage=execute tool=Read file=src/example.ts
 [port-bot] run=<runId> stage=execute tool=Edit file=src/ported.ts
 [port-bot] run=<runId> stage=execute attempt=1/3 touched=3 validation=pass durationMs=4200
@@ -76,7 +76,9 @@ At `info` level, `runPort` emits one log line per stage transition so the Action
 [port-bot] run=<runId> stage=outcome outcome=pr_opened durationMs=7800
 ```
 
-At `debug` level, each stage additionally logs structured detail: full file lists, resolved config, decision signals, validation stdout/stderr per command, delivery git operations, agent thinking blocks, and per-tool-call durations.
+At `debug` level, each stage additionally logs structured detail: full file lists, resolved config, classifier reasoning, validation stdout/stderr per command, delivery git operations, agent thinking blocks, and per-tool-call durations.
+
+Note: `decisionMs` varies significantly depending on whether a fast heuristic matched (sub-millisecond) or the LLM-backed classifier was invoked (seconds). When the classifier runs, the decision stage uses read-only tools and the SDK's structured output format to produce a validated `{ required, reason }` response.
 
 ### Agent streaming
 
