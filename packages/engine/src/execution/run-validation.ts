@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process'
+
 import type { ValidationCommandResult } from '../types.ts'
 
 interface RunValidationOptions {
@@ -20,25 +22,36 @@ async function runValidationCommand(
 	workingDirectory: string,
 ): Promise<ValidationCommandResult> {
 	const startedAt = Date.now()
-	const process = Bun.spawn(['sh', '-lc', command], {
+	const childProcess = spawn('sh', ['-lc', command], {
 		cwd: workingDirectory,
-		stdout: 'pipe',
-		stderr: 'pipe',
+		stdio: ['ignore', 'pipe', 'pipe'],
+	})
+	const stdoutChunks: Buffer[] = []
+	const stderrChunks: Buffer[] = []
+
+	childProcess.stdout?.on('data', chunk => {
+		stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+	})
+	childProcess.stderr?.on('data', chunk => {
+		stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
 	})
 
-	const [exitCode, stdoutBytes, stderrBytes] = await Promise.all([
-		process.exited,
-		new Response(process.stdout).bytes(),
-		new Response(process.stderr).bytes(),
-	])
+	const exitCode = await new Promise<number>(resolve => {
+		childProcess.once('close', code => {
+			resolve(code ?? 1)
+		})
+		childProcess.once('error', () => {
+			resolve(1)
+		})
+	})
 	const durationMs = Date.now() - startedAt
 
 	return {
 		command,
 		ok: exitCode === SUCCESS_EXIT_CODE,
 		exitCode,
-		stdout: Buffer.from(stdoutBytes).toString(OUTPUT_ENCODING),
-		stderr: Buffer.from(stderrBytes).toString(OUTPUT_ENCODING),
+		stdout: Buffer.concat(stdoutChunks).toString(OUTPUT_ENCODING),
+		stderr: Buffer.concat(stderrChunks).toString(OUTPUT_ENCODING),
 		durationMs,
 	}
 }

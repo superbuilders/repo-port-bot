@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process'
+
 import { createConsoleLogger } from '@repo-port-bot/logger'
 
 import {
@@ -60,21 +62,34 @@ async function runCommand(input: {
 	command: string[]
 	workingDirectory: string
 }): Promise<{ exitCode: number; stderr: string; stdout: string }> {
-	const process = Bun.spawn(input.command, {
+	const [command, ...args] = input.command
+	const childProcess = spawn(command ?? '', args, {
 		cwd: input.workingDirectory,
-		stdout: 'pipe',
-		stderr: 'pipe',
+		stdio: ['ignore', 'pipe', 'pipe'],
 	})
-	const [exitCode, stdoutBytes, stderrBytes] = await Promise.all([
-		process.exited,
-		new Response(process.stdout).bytes(),
-		new Response(process.stderr).bytes(),
-	])
+	const stdoutChunks: Buffer[] = []
+	const stderrChunks: Buffer[] = []
+
+	childProcess.stdout?.on('data', chunk => {
+		stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+	})
+	childProcess.stderr?.on('data', chunk => {
+		stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+	})
+
+	const exitCode = await new Promise<number>(resolve => {
+		childProcess.once('close', code => {
+			resolve(code ?? 1)
+		})
+		childProcess.once('error', () => {
+			resolve(1)
+		})
+	})
 
 	return {
 		exitCode,
-		stdout: Buffer.from(stdoutBytes).toString('utf8'),
-		stderr: Buffer.from(stderrBytes).toString('utf8'),
+		stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+		stderr: Buffer.concat(stderrChunks).toString('utf8'),
 	}
 }
 
