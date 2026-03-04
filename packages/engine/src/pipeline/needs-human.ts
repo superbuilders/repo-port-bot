@@ -28,28 +28,46 @@ interface NeedsHumanFlowInput {
  * @returns Needs-human run result.
  */
 export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<PortRunResult> {
-	const deliverStartedAtMs = Date.now()
-	const delivery = await input.deliverStage({
-		writer: input.writer,
-		context: input.context,
-		decision: input.decision,
-		targetWorkingDirectory: input.targetWorkingDirectory,
-	})
+	const delivery: Awaited<ReturnType<typeof input.deliverStage>> = await (async () => {
+		input.logger.group('Deliver: needs_human')
 
-	logStage(input.logger, input.runId, 'deliver', {
-		outcome: delivery.outcome,
-		deliverMs: (input.stageTimings.deliverMs = getDurationMs(deliverStartedAtMs)),
-	})
+		try {
+			const deliverStartedAtMs = Date.now()
+			const stageDelivery = await input.deliverStage({
+				writer: input.writer,
+				context: input.context,
+				decision: input.decision,
+				targetWorkingDirectory: input.targetWorkingDirectory,
+			})
 
-	const notifyMs = await postSourcePrCommentBestEffort({
-		commentStage: input.commentStage,
-		context: input.context,
-		writer: input.writer,
-		outcome: 'needs_human',
-		followUpIssueUrl: delivery.followUpIssueUrl,
-		runId: input.runId,
-		logger: input.logger,
-	})
+			logStage(input.logger, input.runId, 'deliver', {
+				outcome: stageDelivery.outcome,
+				deliverMs: (input.stageTimings.deliverMs = getDurationMs(deliverStartedAtMs)),
+			})
+
+			return stageDelivery
+		} finally {
+			input.logger.groupEnd()
+		}
+	})()
+
+	const notifyMs: number | undefined = await (async () => {
+		input.logger.group('Notify: source PR comment')
+
+		try {
+			return await postSourcePrCommentBestEffort({
+				commentStage: input.commentStage,
+				context: input.context,
+				writer: input.writer,
+				outcome: 'needs_human',
+				followUpIssueUrl: delivery.followUpIssueUrl,
+				runId: input.runId,
+				logger: input.logger,
+			})
+		} finally {
+			input.logger.groupEnd()
+		}
+	})()
 
 	if (notifyMs !== undefined) {
 		logStage(input.logger, input.runId, 'notify', {

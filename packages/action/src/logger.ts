@@ -40,14 +40,14 @@ export function createActionsLogger(level: LogLevel): Logger {
 			core.debug([message, ...args.map(String)].join(' '))
 		},
 		group(label) {
-			if (!shouldLog(level, 'debug')) {
+			if (!shouldLog(level, 'info')) {
 				return
 			}
 
 			core.startGroup(label)
 		},
 		groupEnd() {
-			if (!shouldLog(level, 'debug')) {
+			if (!shouldLog(level, 'info')) {
 				return
 			}
 

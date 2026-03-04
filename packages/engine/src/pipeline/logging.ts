@@ -5,7 +5,11 @@ import type { Logger } from '@repo-port-bot/logger'
 import type { PortRunResult } from '../types.ts'
 
 /**
- * Emit a structured stage log line.
+ * Emit a structured stage log line for one pipeline phase.
+ *
+ * Intended usage is inside a surrounding logger group (for example:
+ * `Context: ...`, `Config: ...`, `Decision: ...`, `Deliver: ...`), so Actions
+ * UI shows a collapsed section title with this structured detail inside.
  *
  * @param logger - Active logger.
  * @param runId - Correlation run ID.
@@ -24,6 +28,9 @@ export function logStage(
 /**
  * Emit a structured final outcome log line.
  *
+ * This line should remain outside stage groups so operators can always see the
+ * final result without expanding any sections in the Actions log viewer.
+ *
  * @param logger - Active logger.
  * @param runId - Correlation run ID.
  * @param outcome - Final outcome.
@@ -40,6 +47,9 @@ export function logOutcome(
 
 /**
  * Emit a structured failure outcome line at error level.
+ *
+ * Like `logOutcome`, keep this outside stage groups so failures are immediately
+ * visible in flat log view and surfaced at error level.
  *
  * @param logger - Active logger.
  * @param runId - Correlation run ID.

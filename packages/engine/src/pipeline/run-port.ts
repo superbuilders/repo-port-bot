@@ -86,40 +86,62 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 	}
 
 	try {
-		const sourceChange: SourceChange = await stages.readSourceContext({
-			reader: options.reader,
-			owner: options.sourceRepo.owner,
-			repo: options.sourceRepo.name,
-			commitSha: options.commitSha,
-		})
+		const sourceChange: SourceChange = await (async () => {
+			logger.group(
+				`Context: ${options.sourceRepo.owner}/${options.sourceRepo.name} ${options.commitSha}`,
+			)
 
-		logStage(logger, runId, 'context', {
-			source: `${options.sourceRepo.owner}/${options.sourceRepo.name}`,
-			pr: sourceChange.pullRequest?.number,
-			files: sourceChange.files.length,
-			contextMs: (stageTimings.contextMs = getDurationMs(startedAtMs)),
-		})
+			try {
+				const stageSourceChange = await stages.readSourceContext({
+					reader: options.reader,
+					owner: options.sourceRepo.owner,
+					repo: options.sourceRepo.name,
+					commitSha: options.commitSha,
+				})
 
-		const resolvedPortBotJson =
-			options.portBotJson === undefined && options.skipPortBotJson !== true
-				? await stages.fetchPortBotJson({
-						reader: options.reader,
-						owner: options.sourceRepo.owner,
-						repo: options.sourceRepo.name,
-						ref: options.commitSha,
-						logger,
-					})
-				: options.portBotJson
+				logStage(logger, runId, 'context', {
+					source: `${options.sourceRepo.owner}/${options.sourceRepo.name}`,
+					pr: stageSourceChange.pullRequest?.number,
+					files: stageSourceChange.files.length,
+					contextMs: (stageTimings.contextMs = getDurationMs(startedAtMs)),
+				})
 
-		const pluginConfig: PluginConfig = stages.resolvePluginConfig({
-			builtInConfig: options.builtInConfig,
-			portBotJson: resolvedPortBotJson,
-		})
+				return stageSourceChange
+			} finally {
+				logger.groupEnd()
+			}
+		})()
 
-		logStage(logger, runId, 'config', {
-			target: `${pluginConfig.targetRepo.owner}/${pluginConfig.targetRepo.name}`,
-			configMs: (stageTimings.configMs = getDurationMs(startedAtMs)),
-		})
+		const pluginConfig: PluginConfig = await (async () => {
+			logger.group('Config: resolve plugin config')
+
+			try {
+				const resolvedPortBotJson =
+					options.portBotJson === undefined && options.skipPortBotJson !== true
+						? await stages.fetchPortBotJson({
+								reader: options.reader,
+								owner: options.sourceRepo.owner,
+								repo: options.sourceRepo.name,
+								ref: options.commitSha,
+								logger,
+							})
+						: options.portBotJson
+
+				const stagePluginConfig = stages.resolvePluginConfig({
+					builtInConfig: options.builtInConfig,
+					portBotJson: resolvedPortBotJson,
+				})
+
+				logStage(logger, runId, 'config', {
+					target: `${stagePluginConfig.targetRepo.owner}/${stagePluginConfig.targetRepo.name}`,
+					configMs: (stageTimings.configMs = getDurationMs(startedAtMs)),
+				})
+
+				return stagePluginConfig
+			} finally {
+				logger.groupEnd()
+			}
+		})()
 
 		context = {
 			runId,
@@ -129,11 +151,17 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			pluginConfig,
 		}
 
-		decision = stages.decide(context)
-		logStage(logger, runId, 'decision', {
-			kind: decision.kind,
-			decisionMs: (stageTimings.decisionMs = getDurationMs(startedAtMs)),
-		})
+		logger.group('Decision: classify source change')
+
+		try {
+			decision = stages.decide(context)
+			logStage(logger, runId, 'decision', {
+				kind: decision.kind,
+				decisionMs: (stageTimings.decisionMs = getDurationMs(startedAtMs)),
+			})
+		} finally {
+			logger.groupEnd()
+		}
 
 		if (decision.kind === 'PORT_NOT_REQUIRED') {
 			logOutcome(logger, runId, 'skipped_not_required', getDurationMs(startedAtMs))

@@ -136,14 +136,14 @@ export function createConsoleLogger(level: LogLevel): Logger {
 			console.debug(message, ...args)
 		},
 		group(label) {
-			if (!shouldLog(level, 'debug')) {
+			if (!shouldLog(level, 'info')) {
 				return
 			}
 
 			console.group(label)
 		},
 		groupEnd() {
-			if (!shouldLog(level, 'debug')) {
+			if (!shouldLog(level, 'info')) {
 				return
 			}
 

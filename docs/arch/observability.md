@@ -61,7 +61,7 @@ This keeps the default output scannable for a maintainer checking "did the port 
 
 ## Structured stage logging (stdout)
 
-At `info` level, `runPort` emits one log line per stage transition so the Actions log tells a clear story:
+At `info` level, `runPort` emits one log line per stage transition so the Actions log tells a clear story. These lines are produced inside descriptive `group` sections for stage-level scanning, while the final outcome line stays outside groups so it is always visible.
 
 ```
 [port-bot] run=<runId> stage=context source=acme/source-repo pr=42 files=5 contextMs=12
@@ -93,7 +93,25 @@ This means at `info` level an operator sees real-time progress (which files Clau
 
 ### Collapsible groups
 
-Long output (validation stderr, file lists, config dumps) is wrapped in `core.group()` / `core.endGroup()` so the Actions log stays scannable even at `debug` level.
+At `info` level and above, the logger emits `core.group()` / `core.endGroup()` boundaries so runs are organized into top-level collapsible sections in the Actions UI.
+
+Typical collapsed view:
+
+```
+> Context: acme/source-repo PR #42 (5 files)
+> Config: target=acme/target-repo
+> Decision: PORT_REQUIRED
+> Attempt 1/3
+> Deliver: pr_opened
+> Notify: source PR comment
+[port-bot] run=<runId> stage=outcome outcome=pr_opened durationMs=7800
+```
+
+Notes:
+
+- Groups are intentionally flat in Actions (no nesting).
+- Stage and attempt detail lines are emitted inside these groups.
+- The outcome line remains outside groups for immediate visibility.
 
 ## Job summary
 

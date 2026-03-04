@@ -86,7 +86,7 @@ describe('createConsoleLogger', () => {
 		expect(warnSpy).toHaveBeenCalledTimes(0)
 	})
 
-	test('emits groups only at debug level', () => {
+	test('emits groups at info level and above', () => {
 		const groupSpy = mock(() => {})
 		const groupEndSpy = mock(() => {})
 
@@ -94,15 +94,18 @@ describe('createConsoleLogger', () => {
 		console.groupEnd = groupEndSpy as never
 
 		const infoLogger = createConsoleLogger('info')
+		const warnLogger = createConsoleLogger('warn')
 		const debugLogger = createConsoleLogger('debug')
 
 		infoLogger.group('hidden')
 		infoLogger.groupEnd()
+		warnLogger.group('hidden')
+		warnLogger.groupEnd()
 		debugLogger.group('visible')
 		debugLogger.groupEnd()
 
-		expect(groupSpy).toHaveBeenCalledTimes(1)
-		expect(groupEndSpy).toHaveBeenCalledTimes(1)
+		expect(groupSpy).toHaveBeenCalledTimes(2)
+		expect(groupEndSpy).toHaveBeenCalledTimes(2)
 	})
 })
 

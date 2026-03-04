@@ -57,20 +57,30 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 		executeMs: (input.stageTimings.executeMs = getDurationMs(executeStartedAtMs)),
 	})
 
-	const deliverStartedAtMs = Date.now()
-	const delivery = await input.deliverStage({
-		writer: input.writer,
-		context: input.context,
-		decision: input.decision,
-		execution,
-		targetWorkingDirectory: input.targetWorkingDirectory,
-		logger: input.logger,
-	})
+	const delivery: Awaited<ReturnType<typeof input.deliverStage>> = await (async () => {
+		input.logger.group('Deliver: PORT_REQUIRED')
 
-	logStage(input.logger, input.runId, 'deliver', {
-		outcome: delivery.outcome,
-		deliverMs: (input.stageTimings.deliverMs = getDurationMs(deliverStartedAtMs)),
-	})
+		try {
+			const deliverStartedAtMs = Date.now()
+			const stageDelivery = await input.deliverStage({
+				writer: input.writer,
+				context: input.context,
+				decision: input.decision,
+				execution,
+				targetWorkingDirectory: input.targetWorkingDirectory,
+				logger: input.logger,
+			})
+
+			logStage(input.logger, input.runId, 'deliver', {
+				outcome: stageDelivery.outcome,
+				deliverMs: (input.stageTimings.deliverMs = getDurationMs(deliverStartedAtMs)),
+			})
+
+			return stageDelivery
+		} finally {
+			input.logger.groupEnd()
+		}
+	})()
 
 	if (delivery.outcome !== 'pr_opened' && delivery.outcome !== 'draft_pr_opened') {
 		throw new Error(
@@ -79,15 +89,23 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 	}
 
 	const outcome = delivery.outcome
-	const notifyMs = await postSourcePrCommentBestEffort({
-		commentStage: input.commentStage,
-		context: input.context,
-		writer: input.writer,
-		outcome,
-		targetPullRequestUrl: delivery.targetPullRequestUrl,
-		runId: input.runId,
-		logger: input.logger,
-	})
+	const notifyMs: number | undefined = await (async () => {
+		input.logger.group('Notify: source PR comment')
+
+		try {
+			return await postSourcePrCommentBestEffort({
+				commentStage: input.commentStage,
+				context: input.context,
+				writer: input.writer,
+				outcome,
+				targetPullRequestUrl: delivery.targetPullRequestUrl,
+				runId: input.runId,
+				logger: input.logger,
+			})
+		} finally {
+			input.logger.groupEnd()
+		}
+	})()
 
 	if (notifyMs !== undefined) {
 		logStage(input.logger, input.runId, 'notify', {
