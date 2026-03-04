@@ -1,17 +1,7 @@
+import { parseAndDecodePortBotJson } from './port-bot-json.decoder.ts'
+
 import type { PluginConfig, RepoRef } from '../types.ts'
-
-interface PortBotJsonConventions {
-	naming?: string
-}
-
-interface PortBotJsonConfig {
-	target?: string
-	ignore?: string[]
-	validation?: string[]
-	mapping?: Record<string, string>
-	conventions?: PortBotJsonConventions
-	prompt?: string
-}
+import type { PortBotJsonConfig } from './types.ts'
 
 type PartialPluginConfig = Partial<PluginConfig> & {
 	targetRepo?: Partial<RepoRef>
@@ -43,30 +33,6 @@ function parseTargetRepo(repo: string): Pick<RepoRef, 'name' | 'owner'> {
 	}
 
 	return { owner, name }
-}
-
-/**
- * Parse optional `port-bot.json` input from object or JSON string.
- *
- * @param portBotJson - Raw json object or string.
- * @returns Parsed configuration object.
- */
-function parsePortBotJson(portBotJson?: PortBotJsonConfig | string): PortBotJsonConfig {
-	if (!portBotJson) {
-		return {}
-	}
-
-	if (typeof portBotJson === 'string') {
-		const parsed = JSON.parse(portBotJson) as unknown
-
-		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-			throw new Error('Invalid port-bot.json content. Expected a JSON object.')
-		}
-
-		return parsed as PortBotJsonConfig
-	}
-
-	return portBotJson
 }
 
 /**
@@ -112,7 +78,7 @@ function validatePluginConfig(config: PluginConfig): void {
  * @returns Fully validated plugin config.
  */
 export function resolvePluginConfig(options: ResolvePluginConfigOptions): PluginConfig {
-	const parsedPortBotJson = parsePortBotJson(options.portBotJson)
+	const parsedPortBotJson = parseAndDecodePortBotJson(options.portBotJson)
 	const targetDefaultBranch = options.targetDefaultBranch ?? 'main'
 	const builtInConfig = options.builtInConfig ?? {}
 
