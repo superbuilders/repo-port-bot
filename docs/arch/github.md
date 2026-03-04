@@ -61,7 +61,7 @@ Port: <source PR title> (#<source PR number>)
 | Outcome                        | PR state         | Labels                      |
 | ------------------------------ | ---------------- | --------------------------- |
 | Validations pass               | Ready for review | `auto-port`                 |
-| Validations fail after retries | Draft            | `auto-port`, `failed-tests` |
+| Validations fail after retries | Draft            | `auto-port`, `port-stalled` |
 
 Source: GitHub REST API (`POST /repos/{owner}/{repo}/pulls`).
 
@@ -77,12 +77,12 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the 
 
 Labels the engine expects to exist (or creates on first use):
 
-| Label          | Purpose                                         |
-| -------------- | ----------------------------------------------- |
-| `auto-port`    | Marks bot-created PRs; used for loop prevention |
-| `failed-tests` | Marks draft PRs where validation failed         |
-| `needs-human`  | Marks issues requiring manual decision          |
-| `no-port`      | User-applied to source PRs to skip porting      |
+| Label          | Purpose                                               |
+| -------------- | ----------------------------------------------------- |
+| `auto-port`    | Marks bot-created PRs; used for loop prevention       |
+| `port-stalled` | Marks draft PRs where validation failed after retries |
+| `needs-human`  | Marks issues requiring manual decision                |
+| `no-port`      | User-applied to source PRs to skip porting            |
 
 ## Loop prevention
 

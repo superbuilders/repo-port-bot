@@ -95,6 +95,12 @@ export interface ChangedFile {
 	deletions: number
 
 	/**
+	 * Git patch content for this file, used by the agent for prompt construction.
+	 * May be absent for binary files or when the diff is too large.
+	 */
+	patch?: string
+
+	/**
 	 * Optional previous path for renamed files.
 	 */
 	previousPath?: string
@@ -110,7 +116,10 @@ export interface SourceChange {
 	mergedCommitSha: string
 
 	/**
-	 * Optional associated PR metadata when available.
+	 * Associated PR metadata. Expected to be present for all PR-merge triggers.
+	 * May be absent if the push event cannot be resolved to a PR (e.g., direct
+	 * push to default branch, or GitHub API lookup failure). When absent, the
+	 * decision stage should treat the run as `NEEDS_HUMAN`.
 	 */
 	pullRequest?: PullRequestRef
 
@@ -210,6 +219,116 @@ export interface PortDecision {
 	signals?: string[]
 }
 
+// ---------------------------------------------------------------------------
+// Agent provider contract
+// ---------------------------------------------------------------------------
+
+/**
+ * Recorded tool invocation from the agent for observability and debugging.
+ */
+export interface ToolCallEntry {
+	/**
+	 * Tool name as registered with the provider, for example `write_file`.
+	 */
+	toolName: string
+
+	/**
+	 * Arguments passed to the tool (schema varies per tool).
+	 */
+	input: unknown
+
+	/**
+	 * Value returned by the tool (schema varies per tool).
+	 */
+	output: unknown
+
+	/**
+	 * Wall-clock duration of the tool call in milliseconds.
+	 */
+	durationMs?: number
+}
+
+/**
+ * Everything the agent provider needs to perform one edit attempt.
+ *
+ * The orchestrator constructs this before each call to the provider. On
+ * retries, `previousAttempts` carries validation errors and touched files
+ * from earlier attempts so the provider can adjust its strategy.
+ */
+export interface AgentInput {
+	/**
+	 * Changed files with patch content from the source PR.
+	 */
+	files: ChangedFile[]
+
+	/**
+	 * Absolute path to the target repo working directory on disk.
+	 */
+	targetWorkingDirectory: string
+
+	/**
+	 * Resolved plugin config (path mappings, conventions, prompt).
+	 */
+	pluginConfig: PluginConfig
+
+	/**
+	 * Previous attempt results provided on retries so the agent can learn
+	 * from validation failures. Empty array on the first attempt.
+	 */
+	previousAttempts: ExecutionAttempt[]
+}
+
+/**
+ * What the agent provider returns after one edit attempt.
+ *
+ * The provider only produces edits — it never runs validation commands.
+ * The orchestrator validates the result and decides whether to retry.
+ */
+export interface AgentOutput {
+	/**
+	 * Files the agent created or modified in the target repo.
+	 */
+	touchedFiles: string[]
+
+	/**
+	 * Whether the agent believes its edits fully address the port.
+	 */
+	complete: boolean
+
+	/**
+	 * Optional free-form notes about uncertainty, trade-offs, or skipped items.
+	 */
+	notes?: string
+
+	/**
+	 * Ordered log of tool calls made during this attempt. Collected from the
+	 * SDK message stream (e.g., `SDKAssistantMessage` tool_use blocks) and
+	 * used for observability, cost tracking, and post-hoc debugging.
+	 */
+	toolCallLog: ToolCallEntry[]
+}
+
+/**
+ * Contract that any agentic backend must implement. The engine depends on
+ * this interface; implementations are swappable without touching
+ * orchestration code.
+ *
+ * @see agent-loop.md "Provider interface" section
+ */
+export interface AgentProvider {
+	/**
+	 * Execute one port attempt given the provided context.
+	 *
+	 * @param input - Context for this attempt including source diff and retry history.
+	 * @returns Agent output with touched files, completion status, and tool call log.
+	 */
+	executePort(input: AgentInput): Promise<AgentOutput>
+}
+
+// ---------------------------------------------------------------------------
+// Validation & execution
+// ---------------------------------------------------------------------------
+
 /**
  * Per-command result from validation execution.
  */
@@ -268,6 +387,11 @@ export interface ExecutionAttempt {
 	 * Optional summary of what changed in this attempt.
 	 */
 	notes?: string
+
+	/**
+	 * Tool calls made by the agent during this attempt, for observability.
+	 */
+	toolCallLog: ToolCallEntry[]
 }
 
 /**
@@ -299,6 +423,10 @@ export interface ExecutionResult {
 	 */
 	failureReason?: string
 }
+
+// ---------------------------------------------------------------------------
+// Pipeline result
+// ---------------------------------------------------------------------------
 
 /**
  * High-level terminal state of a run.
@@ -348,4 +476,10 @@ export interface PortRunResult {
 	 * Human-readable summary suitable for logs and PR body notes.
 	 */
 	summary: string
+
+	/**
+	 * Total wall-clock duration of the run in milliseconds, measured from
+	 * pipeline start to terminal outcome.
+	 */
+	durationMs: number
 }

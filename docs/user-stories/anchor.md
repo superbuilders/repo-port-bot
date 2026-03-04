@@ -44,7 +44,7 @@ Define what "working" means from a maintainer perspective when a change in one r
     - Fast heuristics run first and can short-circuit the decision:
         - docs-only, config-only, formatting-only → `PORT_NOT_REQUIRED`
         - `no-port` label → `PORT_NOT_REQUIRED`
-        - `auto-port` label / port branch → `PORT_NOT_REQUIRED` (loop prevention)
+        - `auto-port` label / `Ported-By: repo-port-bot` commit footer / port branch → `PORT_NOT_REQUIRED` (loop prevention)
     - If no heuristic matches, the LLM classifier makes the call:
         - `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
     - In the happy path, the result is `PORT_REQUIRED`.
@@ -64,6 +64,7 @@ Define what "working" means from a maintainer perspective when a change in one r
         - files touched
         - validation commands and results
         - noteworthy assumptions or uncertainty notes
+        - `Ported-By: repo-port-bot` footer (loop prevention signal)
 
 7. **Maintainer reviews a small, traceable PR**
     - Maintainer sees a focused change set.
@@ -97,7 +98,8 @@ The maintainer experiences porting as "automatic and reviewable":
     - Bot-created port PR merges do not re-trigger an opposite-direction echo port.
 
 6. **Fallback quality**
-    - If retries are exhausted, bot opens a draft PR (or `needs-human` issue) with clear "where it got stuck" notes.
+    - If retries are exhausted, bot opens a draft PR with `port-stalled` label and clear "where it got stuck" notes.
+    - If the decision stage returns `NEEDS_HUMAN`, bot opens an issue tagged `needs-human` linking to the source PR.
 
 ## Non-goals for this story (v1)
 
@@ -112,11 +114,11 @@ The maintainer experiences porting as "automatic and reviewable":
 - Workflow permissions are least-privilege.
 - Secrets are sourced from GitHub Actions secrets only.
 - A port run always ends in one terminal outcome:
-    - `skipped_not_required`
-    - `needs_human`
-    - `pr_opened`
-    - `draft_pr_opened`
-    - `failed`
+    - `skipped_not_required` — heuristics or LLM determined no port needed
+    - `needs_human` — decision stage deferred to a human; issue opened
+    - `pr_opened` — port succeeded, validations pass, PR ready for review
+    - `draft_pr_opened` — port attempted but validations failed after retries; draft PR with notes
+    - `failed` — engine-level error (crash, timeout, API failure) prevented completion; best-effort cleanup
 
 ## Operational SLO targets (initial)
 

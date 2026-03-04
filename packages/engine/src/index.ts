@@ -1,4 +1,7 @@
 export type {
+	AgentInput,
+	AgentOutput,
+	AgentProvider,
 	ChangedFile,
 	ChangedFileStatus,
 	ExecutionAttempt,
@@ -12,5 +15,6 @@ export type {
 	PullRequestRef,
 	RepoRef,
 	SourceChange,
+	ToolCallEntry,
 	ValidationCommandResult,
 } from './types.ts'
