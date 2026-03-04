@@ -1,4 +1,5 @@
 export { readSourceContext } from './github/read-source-context.ts'
+export { deliverResult } from './github/deliver.ts'
 export { decodePortBotJson, parseAndDecodePortBotJson } from './config/port-bot-json.decoder.ts'
 export { resolvePluginConfig } from './config/resolve-plugin-config.ts'
 export { decide } from './decision/decide.ts'
