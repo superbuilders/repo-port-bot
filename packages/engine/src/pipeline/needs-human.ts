@@ -58,6 +58,7 @@ export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<Por
 			return await postSourcePrCommentBestEffort({
 				commentStage: input.commentStage,
 				context: input.context,
+				decision: input.decision,
 				writer: input.writer,
 				outcome: 'needs_human',
 				followUpIssueUrl: delivery.followUpIssueUrl,

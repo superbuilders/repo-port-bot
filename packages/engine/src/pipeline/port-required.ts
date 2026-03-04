@@ -96,6 +96,7 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 			return await postSourcePrCommentBestEffort({
 				commentStage: input.commentStage,
 				context: input.context,
+				decision: input.decision,
 				writer: input.writer,
 				outcome,
 				targetPullRequestUrl: delivery.targetPullRequestUrl,

@@ -146,51 +146,67 @@ describe('render-body', () => {
 		expect(body).toContain('**Changed files:** 1')
 	})
 
-	test('renders source comment for ready PR outcome', () => {
+	test('renders source comment for skipped outcome as narrative with reason', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
+			decision: makeDecision('PORT_NOT_REQUIRED'),
+			outcome: 'skipped_not_required',
+			runId: 'run-0',
+		})
+
+		expect(body).toContain('skipped this for `acme/target-repo`')
+		expect(body).toContain('**Why:** Decision reason')
+	})
+
+	test('renders source comment for pr_opened as narrative with target link', () => {
+		const body = renderSourceComment({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
 			outcome: 'pr_opened',
 			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
 			runId: 'run-1',
 		})
 
-		expect(body).toContain('Port PR opened: https://github.com/acme/target-repo/pull/901')
-		expect(body).toContain('Validation passed; ready for review.')
-		expect(body).toContain('Run ID: `run-1`')
+		expect(body).toContain(
+			'Ported to https://github.com/acme/target-repo/pull/901. Validation passed',
+		)
+		expect(body).toContain('**Why:** Decision reason')
 	})
 
-	test('renders source comment for draft and needs-human outcomes', () => {
+	test('renders source comment for draft_pr_opened and needs_human as narratives', () => {
 		const draftBody = renderSourceComment({
 			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
 			outcome: 'draft_pr_opened',
 			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/333',
 			runId: 'run-2',
 		})
 		const needsHumanBody = renderSourceComment({
 			context: makeContext(),
+			decision: makeDecision('NEEDS_HUMAN'),
 			outcome: 'needs_human',
 			followUpIssueUrl: 'https://github.com/acme/target-repo/issues/55',
 			runId: 'run-3',
 		})
 
-		expect(draftBody).toContain(
-			'Draft port PR opened: https://github.com/acme/target-repo/pull/333',
-		)
-		expect(draftBody).toContain('Validation failed after retries; manual follow-up needed.')
-		expect(needsHumanBody).toContain(
-			'Human follow-up issue opened: https://github.com/acme/target-repo/issues/55',
-		)
-		expect(needsHumanBody).toContain('Port was deferred by decision stage for human review.')
+		expect(draftBody).toContain('validation failed after retries')
+		expect(draftBody).toContain('draft PR: https://github.com/acme/target-repo/pull/333')
+		expect(draftBody).toContain('**Why:** Decision reason')
+		expect(needsHumanBody).toContain('issue: https://github.com/acme/target-repo/issues/55')
+		expect(needsHumanBody).toContain('manual review')
+		expect(needsHumanBody).toContain('**Why:** Decision reason')
 	})
 
-	test('renders source comment for failed outcome', () => {
+	test('renders source comment for failed outcome with run ID', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
+			decision: makeDecision('NEEDS_HUMAN'),
 			outcome: 'failed',
 			runId: 'run-4',
 		})
 
-		expect(body).toContain('Port run failed due to an engine-level error')
+		expect(body).toContain('failed due to an engine error')
+		expect(body).toContain('**Why:** Decision reason')
 		expect(body).toContain('Run ID: `run-4`')
 	})
 })

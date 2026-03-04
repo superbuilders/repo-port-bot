@@ -110,15 +110,55 @@ Labels the engine expects to exist (or creates on first use):
 
 ### Source PR notification
 
-For non-skipped outcomes, the engine posts a best-effort comment on the source PR
-to close the traceability loop from source -> target.
+The engine posts a best-effort comment on the source PR for every outcome (including skips) to close the traceability loop. Each comment includes the `decision.reason` so the maintainer understands what happened without leaving the source repo.
 
-- `pr_opened` -> comment links to ready target PR
-- `draft_pr_opened` -> comment links to draft target PR and notes stalled validation
-- `needs_human` -> comment links to the target follow-up issue
-- `failed` -> comment notes engine-level failure with run ID
+The reason string comes from whichever decision path fired: a hardcoded heuristic message for fast-path skips, or the LLM classifier's free-text explanation when no heuristic matched.
 
 This notification is non-blocking: comment failures never change the terminal run outcome.
+
+**Example comments:**
+
+`skipped_not_required` (heuristic reason):
+
+```md
+Port bot skipped this for `acme/target-repo`.
+
+**Why:** Skipping because all changed files are documentation-only.
+```
+
+`pr_opened` (classifier reason):
+
+```md
+Ported to https://github.com/acme/target-repo/pull/901. Validation passed; ready for review.
+
+**Why:** Source changes affect shared API surface that exists in both repos.
+```
+
+`draft_pr_opened` (classifier reason):
+
+```md
+Port attempted but validation failed after retries. Opened a draft PR: https://github.com/acme/target-repo/pull/333.
+
+**Why:** Source changes affect shared API surface that exists in both repos.
+```
+
+`needs_human` (classifier reason):
+
+```md
+Could not automatically port to `acme/target-repo`. Opened an issue: https://github.com/acme/target-repo/issues/55 for manual review.
+
+**Why:** Classifier could not determine a safe automatic port target.
+```
+
+`failed` (engine fallback reason):
+
+```md
+Port to `acme/target-repo` failed due to an engine error.
+
+**Why:** Engine failure before decision completed: GitHub API returned 403
+
+Run ID: `run-abc123`
+```
 
 ## Loop prevention
 

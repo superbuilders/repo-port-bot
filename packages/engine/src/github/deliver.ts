@@ -40,7 +40,8 @@ interface CommentOnSourcePrOptions {
 	writer: GitHubWriter
 	pullRequestNumber: number
 	context: PortContext
-	outcome: Exclude<PortRunOutcome, 'skipped_not_required'>
+	decision: PortDecision
+	outcome: PortRunOutcome
 	targetPullRequestUrl?: string
 	followUpIssueUrl?: string
 	runId: string
@@ -190,6 +191,7 @@ export async function commentOnSourcePr(
 			issueNumber: options.pullRequestNumber,
 			body: renderSourceComment({
 				context: options.context,
+				decision: options.decision,
 				outcome: options.outcome,
 				targetPullRequestUrl: options.targetPullRequestUrl,
 				followUpIssueUrl: options.followUpIssueUrl,
