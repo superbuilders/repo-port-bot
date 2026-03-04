@@ -6,6 +6,9 @@
 		},
 		{
 			"path": "packages/engine"
+		},
+		{
+			"path": "packages/agent-claude"
 		}
 	]
 }
