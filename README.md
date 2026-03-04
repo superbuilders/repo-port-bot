@@ -18,11 +18,12 @@ If the agent can't confidently port, it opens a draft PR or an issue tagged `nee
 
 ### 1. Install the GitHub Action
 
-Add a workflow to both repos:
+Add a workflow to your source repo:
 
 ```yaml
 # .github/workflows/port-bot.yml
 name: Port Bot
+
 on:
     push:
         branches: [main]
@@ -30,27 +31,58 @@ on:
 jobs:
     port:
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pull-requests: read
         steps:
             - uses: superbuilders/repo-port-bot@v1
               with:
-                  llm_api_key: ${{ secrets.PORT_BOT_LLM_API_KEY }}
-                  github_token: ${{ secrets.PORT_BOT_GITHUB_TOKEN }}
+                  llm-api-key: ${{ secrets.PORT_BOT_LLM_API_KEY }}
+                  github-token: ${{ secrets.PORT_BOT_GITHUB_TOKEN }}
+                  target-repo: acme/target-repo
 ```
 
-### 2. Configure secrets
+### 2. Choose token mode
 
-| Secret                  | Purpose                                        |
-| ----------------------- | ---------------------------------------------- |
-| `PORT_BOT_LLM_API_KEY`  | LLM provider API key (Anthropic, OpenAI, etc.) |
-| `PORT_BOT_GITHUB_TOKEN` | PAT with `repo` scope on the target repo       |
+The action supports both a single-token mode and a split-token mode.
 
-The source repo's built-in `GITHUB_TOKEN` handles reading PR metadata and diffs.
+#### Single token (simple)
 
-### 3. Configure your repo pair
+Use one PAT for source reads + target writes:
+
+```yaml
+with:
+    llm-api-key: ${{ secrets.PORT_BOT_LLM_API_KEY }}
+    github-token: ${{ secrets.PORT_BOT_GITHUB_TOKEN }}
+    target-repo: acme/target-repo
+```
+
+#### Split tokens (least privilege)
+
+Use separate PATs for source/target access:
+
+```yaml
+with:
+    llm-api-key: ${{ secrets.PORT_BOT_LLM_API_KEY }}
+    source-github-token: ${{ secrets.PORT_BOT_SOURCE_GITHUB_TOKEN }}
+    target-github-token: ${{ secrets.PORT_BOT_TARGET_GITHUB_TOKEN }}
+    target-repo: acme/target-repo
+```
+
+### 3. Configure secrets
+
+| Secret                         | Purpose                                            |
+| ------------------------------ | -------------------------------------------------- |
+| `PORT_BOT_LLM_API_KEY`         | LLM provider API key (Anthropic)                   |
+| `PORT_BOT_GITHUB_TOKEN`        | Single-token mode: source reads + target writes    |
+| `PORT_BOT_SOURCE_GITHUB_TOKEN` | Split mode: source repo read token                 |
+| `PORT_BOT_TARGET_GITHUB_TOKEN` | Split mode: target repo write token (PR/issue/git) |
+
+### 4. Configure your repo pair
 
 There are two ways to teach the bot about your repos. Pick whichever fits your situation.
 
-**Option A: Built-in plugin**: best when you're contributing to repo-port-bot itself or want tight control. You add a plugin directly under `src/plugins/` in this repo:
+**Option A: Built-in plugin**: add plugin config under `src/plugins/` in this repo:
 
 ```
 src/plugins/my-project/

@@ -37,7 +37,7 @@ These happen after the agent has produced edits and validation has passed (or re
 - Branch naming: `port/<sourceRepo>/<sourcePrNumber>-<shortSha>`
 - Push the port branch to the target repo remote
 
-Auth: `PORT_BOT_GITHUB_TOKEN` (PAT with `repo` scope on the target).
+Auth: `github-token` (single-token mode) or `target-github-token` (split-token mode).
 
 ### Pull request creation
 
@@ -98,15 +98,18 @@ The workflow should check these before invoking the engine. The engine also chec
 
 ### v1: secrets-based
 
-| Secret                                    | Scope            | Used for                                    |
-| ----------------------------------------- | ---------------- | ------------------------------------------- |
-| `GITHUB_TOKEN` (automatic)                | Source repo      | Read PR metadata, diff, labels, contents    |
-| `PORT_BOT_GITHUB_TOKEN` (user-configured) | Target repo      | Push branch, create PR/issue, manage labels |
-| `PORT_BOT_LLM_API_KEY` (user-configured)  | N/A (not GitHub) | LLM provider calls                          |
+The root action supports two token modes:
 
-`GITHUB_TOKEN` is provided automatically by GitHub Actions with read permissions on the source repo. No user configuration needed.
+1. **Single token mode**
+    - Input: `github-token`
+    - One PAT is used for both source reads and target writes.
 
-`PORT_BOT_GITHUB_TOKEN` must be a PAT with `repo` scope on the target repo. This is the only token that crosses repo boundaries.
+2. **Split token mode**
+    - Inputs: `source-github-token`, `target-github-token`
+    - Source token is used for source-repo API reads.
+    - Target token is used for git push + target-repo PR/issue/label writes.
+
+`llm-api-key` is always required and is not used for GitHub API auth.
 
 ### Future: GitHub App
 
@@ -131,24 +134,27 @@ on:
 jobs:
     port:
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pull-requests: read
         steps:
             - uses: superbuilders/repo-port-bot@v1
               with:
-                  llm_api_key: ${{ secrets.PORT_BOT_LLM_API_KEY }}
-                  github_token: ${{ secrets.PORT_BOT_GITHUB_TOKEN }}
+                  llm-api-key: ${{ secrets.PORT_BOT_LLM_API_KEY }}
+                  github-token: ${{ secrets.PORT_BOT_GITHUB_TOKEN }}
+                  target-repo: acme/target-repo
 ```
 
 ### Action definition (in this repo)
 
-Lives at `.github/actions/port/` (composite action) or as a Docker action.
+Lives at repo root `action.yml` as a JavaScript action.
 
 Responsible for:
 
-- Installing engine dependencies
-- Checking out source repo at merge SHA
-- Checking out target repo at default branch
-- Running the engine entrypoint
-- Passing secrets as environment variables
+- Parsing action inputs and token mode
+- Cloning target repo using PAT-authenticated remote URL
+- Running the engine entrypoint from `packages/action/dist/index.js`
+- Publishing action outputs for downstream workflow steps
 
 ### workflow_dispatch (v2)
 

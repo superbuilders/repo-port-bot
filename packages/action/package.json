@@ -1,0 +1,27 @@
+{
+	"name": "@repo-port-bot/action",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"build": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/index.js --external:@img/*",
+		"test": "bun test --no-env-file"
+	},
+	"dependencies": {
+		"@actions/core": "^1.11.1",
+		"@actions/github": "^6.0.1",
+		"@octokit/rest": "^22.0.1",
+		"@repo-port-bot/agent-claude": "workspace:*",
+		"@repo-port-bot/engine": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"esbuild": "^0.25.10"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	}
+}
