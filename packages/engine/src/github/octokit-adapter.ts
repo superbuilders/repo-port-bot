@@ -226,8 +226,22 @@ export function createOctokitWriter(octokit: Octokit): GitHubWriter {
 				pull_number: params.pullNumber,
 				title: params.title,
 				body: params.body,
-				...(params.draft !== undefined && { draft: params.draft }),
 			})
+
+			if (params.draft === false) {
+				const { data: pr } = await octokit.rest.pulls.get({
+					owner: params.owner,
+					repo: params.repo,
+					pull_number: params.pullNumber,
+				})
+
+				if (pr.draft) {
+					await octokit.graphql(
+						`mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { id } } }`,
+						{ id: pr.node_id },
+					)
+				}
+			}
 		},
 	}
 }
