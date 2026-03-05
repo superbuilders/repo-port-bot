@@ -18,7 +18,7 @@ Define what "working" means from a maintainer perspective when a change in one r
 
 ## Preconditions
 
-- Port bot workflow is installed in both repos.
+- Port bot workflow is installed in the source repo.
 - Required secrets are configured:
     - `PORT_BOT_LLM_API_KEY`
     - `PORT_BOT_GITHUB_TOKEN` (or split `PORT_BOT_SOURCE_GITHUB_TOKEN` / `PORT_BOT_TARGET_GITHUB_TOKEN`)
@@ -42,11 +42,11 @@ Define what "working" means from a maintainer perspective when a change in one r
 
 4. **Engine decides whether porting is required**
     - Fast heuristics run first and can short-circuit the decision:
-        - docs-only, config-only, formatting-only → `PORT_NOT_REQUIRED`
+        - docs-only, config-only → `PORT_NOT_REQUIRED`
         - `no-port` label → `PORT_NOT_REQUIRED`
-        - `auto-port` label / `Ported-By: repo-port-bot` commit footer / port branch → `PORT_NOT_REQUIRED` (loop prevention)
+        - `auto-port` label → `PORT_NOT_REQUIRED` (loop prevention; commit footer and branch name are additional signals the workflow should check before invoking the engine)
     - If no heuristic matches, the LLM classifier makes the call:
-        - `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
+        - `PORT_REQUIRED` or `PORT_NOT_REQUIRED`
     - In the happy path, the result is `PORT_REQUIRED`.
 
 5. **Agent executes port** (see [agent loop spec](../arch/agent-loop.md))
@@ -60,10 +60,10 @@ Define what "working" means from a maintainer perspective when a change in one r
         - `Port: <source PR title> (#<source PR number>)`
     - PR body includes:
         - link to source PR
-        - what was ported
+        - decision kind and reason
         - files touched
         - validation commands and results
-        - noteworthy assumptions or uncertainty notes
+        - per-attempt agent notes (assumptions, uncertainty flags)
         - `Ported-By: repo-port-bot` footer (loop prevention signal)
 
 7. **Maintainer reviews a small, traceable PR**
