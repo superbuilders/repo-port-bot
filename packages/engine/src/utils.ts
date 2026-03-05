@@ -1,5 +1,7 @@
 const MIN_DURATION_MS = 1
 const MS_PER_SECOND = 1000
+const MS_PER_TENTH_SECOND = 100
+const TENTHS_PER_SECOND = 10
 const MS_PER_MINUTE = 60_000
 
 /**
@@ -23,10 +25,10 @@ export function formatDuration(ms: number): string {
 		return `${String(ms)}ms`
 	}
 
-	const SECONDS_DISPLAY_CEILING = 59_950
+	if (ms < MS_PER_MINUTE) {
+		const truncatedTenths = Math.floor(ms / MS_PER_TENTH_SECOND) / TENTHS_PER_SECOND
 
-	if (ms < SECONDS_DISPLAY_CEILING) {
-		return `${(ms / MS_PER_SECOND).toFixed(1)}s`
+		return `${truncatedTenths.toFixed(1)}s`
 	}
 
 	const minutes = Math.floor(ms / MS_PER_MINUTE)
