@@ -43,6 +43,17 @@ const SHORT_SHA_LENGTH = 7
 const MAX_NEEDS_HUMAN_SOURCE_TITLE_LENGTH = 60
 
 /**
+ * Filter predicate that removes `undefined` while preserving empty strings
+ * (used as markdown paragraph separators).
+ *
+ * @param value - Candidate line.
+ * @returns True when the value is a string (including empty).
+ */
+function isDefinedLine(value: string | undefined): value is string {
+	return value !== undefined
+}
+
+/**
  * Truncate text for compact issue titles.
  *
  * @param value - Raw text.
@@ -273,7 +284,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]
-				.filter(Boolean)
+				.filter(isDefinedLine)
 				.join('\n')
 		}
 		case 'pr_opened': {
@@ -285,7 +296,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]
-				.filter(Boolean)
+				.filter(isDefinedLine)
 				.join('\n')
 		}
 		case 'draft_pr_opened': {
@@ -299,7 +310,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]
-				.filter(Boolean)
+				.filter(isDefinedLine)
 				.join('\n')
 		}
 		case 'needs_human': {
@@ -313,7 +324,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]
-				.filter(Boolean)
+				.filter(isDefinedLine)
 				.join('\n')
 		}
 		case 'failed': {
