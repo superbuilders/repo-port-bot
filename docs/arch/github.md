@@ -51,6 +51,22 @@ These happen after the agent has produced edits and validation has passed (or re
 - Branch naming: `port/<sourceRepo>/<sourcePrNumber>-<shortSha>`
 - Force-push the port branch to the target repo remote. The branch is bot-owned (deterministic naming), so force-push is safe and makes re-runs idempotent — fresh agent output replaces any previous attempt on the same branch.
 
+**Commit message** uses the PR title with git trailers for machine-parseable auditing:
+
+```
+Port: Add formatting/date helpers (#1)
+
+Source-PR: https://github.com/acme/source-repo/pull/1
+Source-Commit: 9d67a0487cd618b92aea581294cebf26bf770484
+Agent-Model: claude-sonnet-4-6
+Ported-By: repo-port-bot
+```
+
+- `Source-PR` is included when the source change came from a merged PR
+- `Source-Commit` is always present (the merge commit SHA)
+- `Agent-Model` is included when the provider reports its model
+- `Ported-By` serves as both attribution and loop prevention signal
+
 Auth: `github-token` (single-token mode) or `target-github-token` (split-token mode).
 
 ### Pull request creation (upsert)
@@ -74,7 +90,7 @@ Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
 >
 > - claude-sonnet-4-6
 
-2 files changed · 1 attempt · 5 tool calls
+2 files changed · 1 attempt · 5 tool calls · 18.6s
 
 ### What was ported
 
@@ -97,7 +113,7 @@ Key design choices:
 - **Decision reason as blockquote** — reads as context, not a separate section
 - **`### What was ported`** is the main content — the agent's per-file summary gets top billing
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
-- **At-a-glance stats line** (`2 files changed · 1 attempt · 5 tool calls`) between the source narrative and reason blockquote — sets reviewer expectations for diff size before reading details
+- **At-a-glance stats line** (`2 files changed · 1 attempt · 5 tool calls · 18.6s`) between the source narrative and reason blockquote — sets reviewer expectations for diff size and shows how fast the agent worked
 - **Decision blockquote** includes the agent model name (e.g. `claude-sonnet-4-6`) as a trailing bullet, keeping "who and why" context together
 - **`Ported-By: repo-port-bot`** footer linking to the bot repository, after a horizontal rule for clean separation (also serves as loop prevention signal)
 

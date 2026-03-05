@@ -1,4 +1,4 @@
-import { joinNonEmptyLines } from '../utils.ts'
+import { formatDuration, joinNonEmptyLines } from '../utils.ts'
 
 const PORT_BOT_REPO_URL = 'https://github.com/superbuilders/repo-port-bot'
 
@@ -144,7 +144,10 @@ function renderExecutionMetrics(execution: ExecutionResult): string {
 		0,
 	)
 
-	return `${String(execution.touchedFiles.length)} files changed · ${String(execution.attempts)} attempt${execution.attempts === 1 ? '' : 's'} · ${String(toolCallCount)} tool calls`
+	const durationSuffix =
+		execution.durationMs !== undefined ? ` · ${formatDuration(execution.durationMs)}` : ''
+
+	return `${String(execution.touchedFiles.length)} files changed · ${String(execution.attempts)} attempt${execution.attempts === 1 ? '' : 's'} · ${String(toolCallCount)} tool calls${durationSuffix}`
 }
 
 /**

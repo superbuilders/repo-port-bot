@@ -60,6 +60,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 		throw new Error('`maxAttempts` must be greater than or equal to 1.')
 	}
 
+	const executionStartedAtMs = Date.now()
 	const history: ExecutionAttempt[] = []
 	const touchedFiles = new Set<string>()
 	let agentModel: string | undefined = undefined
@@ -150,6 +151,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						history,
 						touchedFiles: [...touchedFiles],
 						model: agentModel,
+						durationMs: Date.now() - executionStartedAtMs,
 					}
 				}
 
@@ -161,6 +163,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						touchedFiles: [...touchedFiles],
 						failureReason: buildValidationFailureReason(validation, history.length),
 						model: agentModel,
+						durationMs: Date.now() - executionStartedAtMs,
 					}
 				}
 			} catch (error) {
@@ -202,6 +205,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 					touchedFiles: [...touchedFiles],
 					failureReason: `Agent provider failed on attempt ${String(attemptNumber)}: ${errorMessage}`,
 					model: agentModel,
+					durationMs: Date.now() - executionStartedAtMs,
 				}
 			}
 		} finally {

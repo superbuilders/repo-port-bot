@@ -61,7 +61,7 @@ Define what "working" means from a maintainer perspective when a change in one r
         - `Port: <source PR title> (#<source PR number>)`
     - PR body follows a compact layout:
         - `## Cross-repo port` heading with source narrative (`Ported from [<title>](<url>) in <repo>`)
-        - at-a-glance stats line (`2 files changed · 1 attempt · 5 tool calls`)
+        - at-a-glance stats line (`2 files changed · 1 attempt · 5 tool calls · 18.6s`)
         - decision reason as blockquote with model name (classifier or heuristic explanation)
         - `### What was ported` — the agent's per-file summary of changes (the main content)
         - collapsible `Validation & diagnostics` section with pass/fail results

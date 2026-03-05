@@ -246,7 +246,7 @@ describe('deliverResult', () => {
 			'git checkout -b port/source-repo/42-abc1234',
 			'git add -A',
 			'git diff --cached --quiet',
-			'git commit -m Port: Sync feature (#42)\n\nSource-PR: https://github.com/acme/source-repo/pull/42\nPorted-By: repo-port-bot',
+			'git commit -m Port: Sync feature (#42)\n\nSource-PR: https://github.com/acme/source-repo/pull/42\nSource-Commit: abc1234567\nPorted-By: repo-port-bot',
 			'git push --force -u origin port/source-repo/42-abc1234',
 		])
 	})

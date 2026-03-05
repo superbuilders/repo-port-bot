@@ -138,15 +138,21 @@ function buildPortBranchName(context: PortContext): string {
  * Build git commit message for the final delivery commit.
  *
  * @param context - Port context.
- * @returns Commit message.
+ * @param model - Optional agent model identifier for trailer.
+ * @returns Commit message with git trailers.
  */
-function buildCommitMessage(context: PortContext): string {
+function buildCommitMessage(context: PortContext, model?: string): string {
 	const title = renderPortPullRequestTitle(context)
-	const sourceReference = context.sourceChange.pullRequest
-		? `Source-PR: ${context.sourceChange.pullRequest.url}`
-		: `Source-Commit: ${context.sourceChange.mergedCommitSha}`
+	const trailers = [
+		context.sourceChange.pullRequest
+			? `Source-PR: ${context.sourceChange.pullRequest.url}`
+			: undefined,
+		`Source-Commit: ${context.sourceChange.mergedCommitSha}`,
+		model ? `Agent-Model: ${model}` : undefined,
+		PORT_BOT_FOOTER,
+	].filter(Boolean)
 
-	return `${title}\n\n${sourceReference}\n${PORT_BOT_FOOTER}`
+	return `${title}\n\n${trailers.join('\n')}`
 }
 
 /**
@@ -416,7 +422,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	await stageAndCommit(
 		runner,
 		options.targetWorkingDirectory,
-		buildCommitMessage(options.context),
+		buildCommitMessage(options.context, options.execution.model),
 	)
 	await expectCommandSuccess(
 		runner,

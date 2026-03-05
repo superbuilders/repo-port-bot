@@ -777,6 +777,11 @@ export interface ExecutionResult {
 	 * Model identifier used by the agent provider (e.g. `claude-sonnet-4-6`).
 	 */
 	model?: string
+
+	/**
+	 * Total wall-clock duration of the execution stage in milliseconds.
+	 */
+	durationMs?: number
 }
 
 // ---------------------------------------------------------------------------

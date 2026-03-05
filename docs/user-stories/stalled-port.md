@@ -51,7 +51,7 @@ Define what "good failure" looks like when an automated port is attempted but ca
     - Labels applied: `auto-port` + `port-stalled`.
     - PR body follows the same compact layout as successful ports, but with key differences:
         - `## Cross-repo port` heading with source narrative
-        - at-a-glance stats line (files, attempts, tool calls)
+        - at-a-glance stats line (files, attempts, tool calls, duration)
         - decision reason as blockquote with model name
         - `### What was ported` — per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.) with touched files and agent notes for each attempt
         - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes and failure reason
