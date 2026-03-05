@@ -24,17 +24,7 @@ jobs:
 
             - run: bun run test
 
-            - run: bun run build --filter=@repo-port-bot/action
-
-            - name: Commit bundle and update v1 tag
+            - name: Update v1 tag
               run: |
-                  git config user.name "github-actions[bot]"
-                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-                  git add -f packages/action/dist/index.cjs
-                  if git diff --cached --quiet; then
-                    echo "No bundle changes to commit."
-                  else
-                    git commit -m "chore(release): build action bundle"
-                  fi
                   git tag -f v1
-                  git push origin main --tags --force
+                  git push origin refs/tags/v1 --force
