@@ -74,6 +74,8 @@ Port: <source PR title> (#<source PR number>)
 - Per-attempt notes under stable headings (`### Attempt <n>`), containing only the agent's final summary (per-file descriptions of what was ported), not intermediate narration
 - `Ported-By: repo-port-bot` footer (loop prevention signal)
 
+**How per-attempt notes are captured:** The agent streams multiple assistant messages during execution. The provider keeps only the text from the _last_ assistant message before the SDK returns a result. In practice, the model's final message is a natural wrap-up summary (per-file descriptions, what was added/changed), but this is emergent behavior — there is no explicit prompt instruction requesting a structured summary. If consistency becomes an issue, a follow-up could add a closing instruction to the system prompt or post-process the notes into a fixed format.
+
 **PR state:**
 
 | Outcome                        | PR state         | Labels                      |

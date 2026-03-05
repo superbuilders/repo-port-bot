@@ -135,8 +135,12 @@ describe('render-body', () => {
 		expect(body).toContain('`src/app.ts`')
 		expect(body).toContain('## Validation')
 		expect(body).toContain('[PASS] `bun run check`')
+		expect(body).not.toContain('Final status: validation passed')
 		expect(body).toContain('- Attempts: 1')
 		expect(body).toContain('- Tool calls: 0')
+		expect(body).not.toContain('### Attempt 1')
+		expect(body).not.toContain('Touched in attempt')
+		expect(body).toContain('Looks good.')
 		expect(body).toContain('Ported-By: repo-port-bot')
 	})
 
@@ -160,6 +164,7 @@ describe('render-body', () => {
 		})
 
 		expect(body).toContain('Validation not run (no validation commands configured).')
+		expect(body).not.toContain('Final status')
 	})
 
 	test('renders needs-human issue title and body with rationale and signals', () => {

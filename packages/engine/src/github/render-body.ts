@@ -156,7 +156,17 @@ function renderExecutionMetrics(execution: ExecutionResult): string {
  * @returns Markdown sections for each attempt.
  */
 function renderAttemptNotes(execution: ExecutionResult): string {
-	const renderedAttempts = execution.history
+	if (execution.history.length === 0) {
+		return '- None.'
+	}
+
+	if (execution.history.length === 1) {
+		const notes = execution.history[0]?.notes?.trim() || '_No notes recorded._'
+
+		return notes
+	}
+
+	return execution.history
 		.map(attempt => {
 			const touchedInAttempt =
 				attempt.touchedFiles.length > 0
@@ -173,8 +183,6 @@ function renderAttemptNotes(execution: ExecutionResult): string {
 			].join('\n')
 		})
 		.join('\n\n')
-
-	return renderedAttempts.length > 0 ? renderedAttempts : '- None.'
 }
 
 /**
@@ -197,13 +205,14 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 			? input.execution.touchedFiles.map(path => `- \`${path}\``).join('\n')
 			: '- No files recorded.'
 	const notesSection = renderAttemptNotes(input.execution)
-	const failureLine = input.execution.success
-		? '- Final status: validation passed.'
-		: `- Final status: validation failed after retries.\n- Failure reason: ${input.execution.failureReason ?? 'Unknown failure reason.'}`
-	const validationSummary =
-		input.context.pluginConfig.validationCommands.length === 0
-			? '- Validation not run (no validation commands configured).'
-			: renderValidationSummary(input.execution)
+	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
+	const validationSummary = noValidationConfigured
+		? '- Validation not run (no validation commands configured).'
+		: renderValidationSummary(input.execution)
+	const failureLine =
+		!input.execution.success && !noValidationConfigured
+			? `- Final status: validation failed after retries.\n- Failure reason: ${input.execution.failureReason ?? 'Unknown failure reason.'}`
+			: undefined
 
 	return [
 		'## Source',
@@ -225,7 +234,9 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		notesSection,
 		'',
 		'Ported-By: repo-port-bot',
-	].join('\n')
+	]
+		.filter(isDefinedLine)
+		.join('\n')
 }
 
 /**
