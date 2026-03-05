@@ -1,6 +1,6 @@
 # Release to Main
 
-Push the current branch to `dev` and merge into `main`. The release workflow runs automatically on push to `main`.
+Push the current branch to `dev` and open a PR to merge into `main`. The release workflow runs automatically when the PR is merged.
 
 ## Process
 
@@ -10,17 +10,31 @@ Push the current branch to `dev` and merge into `main`. The release workflow run
 git push origin dev
 ```
 
-2. Merge `dev` into `main`:
+2. Generate the PR title and body:
 
 ```bash
-git checkout main && git merge dev --no-ff && git push origin main
+bun scripts/release-notes.ts dev
 ```
 
-3. Switch back to `dev`:
+This outputs JSON with `title` and `body` fields, parsed from the conventional commits in `origin/main..dev`.
+
+3. Create the PR using the generated title and body (or print the URL if one already exists):
 
 ```bash
-git checkout dev
+gh pr create --base main --head dev --title "<title>" --body "<body>"
 ```
+
+4. Merge the PR (no squash — preserve commit history):
+
+```bash
+gh pr merge --merge
+```
+
+5. Stay on `dev`. Do not checkout `main` locally.
+
+## Why a PR instead of local merge
+
+The release workflow commits the built action bundle (`packages/action/dist/index.cjs`) directly to `main`. This means `origin/main` diverges from any local `main` checkout after every release. A PR merges server-side, avoiding local/remote conflicts entirely.
 
 ## What happens automatically
 

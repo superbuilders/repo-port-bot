@@ -3,7 +3,7 @@
 	"ignore": ["examples/**/source/**", "examples/**/target/**"],
 	"workspaces": {
 		".": {
-			"entry": ["scripts/**/index.ts", "examples/**/run.ts"],
+			"entry": ["scripts/**/index.ts", "scripts/release-notes.ts", "examples/**/run.ts"],
 			"project": ["scripts/**/*.ts", "examples/**/*.ts"],
 			"ignoreDependencies": ["@stylistic/eslint-plugin", "eslint-plugin-jsdoc"]
 		}
