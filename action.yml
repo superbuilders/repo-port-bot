@@ -92,7 +92,7 @@ runs:
           shell: bash
           run: |
               cd "${GITHUB_ACTION_PATH}"
-              bun install --production --frozen-lockfile
+              bun install --production --frozen-lockfile --ignore-scripts
 
         - name: Run port bot
           id: run
