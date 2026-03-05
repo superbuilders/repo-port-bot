@@ -45,9 +45,9 @@ Define what "good failure" looks like when an automated port is attempted but ca
 4. **Execution returns `success: false`**
     - The `ExecutionResult` carries the full attempt history: files touched per attempt, validation results (which commands passed, which failed, exit codes), agent notes, and a `failureReason` summarizing the final state.
 
-5. **Draft PR is opened in target repo**
-    - The delivery stage commits the agent's final working tree state (even though validation failed) and pushes a port branch.
-    - A **draft** pull request is created — not ready for merge, clearly signaling incomplete work.
+5. **Draft PR is opened (or updated) in target repo**
+    - The delivery stage commits the agent's final working tree state (even though validation failed) and force-pushes the port branch. If the branch already exists from a previous run, the force-push replaces it.
+    - A **draft** pull request is created. If one already exists for the same port branch (from a prior attempt), the existing PR is updated with the new body instead of creating a duplicate.
     - Labels applied: `auto-port` + `port-stalled`.
     - PR body includes:
         - Link to the source PR.

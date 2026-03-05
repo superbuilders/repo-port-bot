@@ -55,7 +55,8 @@ Define what "working" means from a maintainer perspective when a change in one r
     - Validation commands run; on failure the agent iterates (read error → fix → rerun).
     - In the happy path, validations pass within the retry budget.
 
-6. **PR is opened in target repo**
+6. **PR is opened (or updated) in target repo**
+    - On first run, a new PR is created. On re-runs where the port branch already has an open PR, the existing PR is updated with fresh output rather than failing.
     - PR title follows predictable format:
         - `Port: <source PR title> (#<source PR number>)`
     - PR body includes:
@@ -83,7 +84,7 @@ The maintainer experiences porting as "automatic and reviewable":
 ## Acceptance criteria (v1)
 
 1. **Automation**
-    - Given a qualifying merged source PR, bot opens exactly one target PR without manual intervention.
+    - Given a qualifying merged source PR, bot opens exactly one target PR without manual intervention. Re-runs update the existing PR rather than creating duplicates.
 
 2. **Traceability**
     - Target PR contains a link to source PR and source PR number in title/body.

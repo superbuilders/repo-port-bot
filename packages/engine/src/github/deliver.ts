@@ -13,6 +13,7 @@ import {
 import type { Logger } from '@repo-port-bot/logger'
 
 import type {
+	CreatedPullRequest,
 	DeliveryResult,
 	ExecutionResult,
 	GitHubWriter,
@@ -270,6 +271,100 @@ async function findPreviousFailedComment(input: {
 }
 
 /**
+ * Create a new PR or update an existing one for the same head branch.
+ *
+ * On re-runs the port branch already has an open PR. Rather than failing,
+ * find the existing PR, update its title/body, and return it.
+ *
+ * @param params - PR upsert parameters.
+ * @param params.writer - GitHub writer adapter.
+ * @param params.owner - Target repository owner.
+ * @param params.repo - Target repository name.
+ * @param params.title - PR title.
+ * @param params.body - PR body markdown.
+ * @param params.head - Head branch name.
+ * @param params.base - Base branch name.
+ * @param params.draft - Whether to create as draft.
+ * @returns Created or existing PR metadata.
+ */
+async function upsertPullRequest(params: {
+	writer: GitHubWriter
+	owner: string
+	repo: string
+	title: string
+	body: string
+	head: string
+	base: string
+	draft: boolean
+}): Promise<CreatedPullRequest> {
+	try {
+		return await params.writer.createPullRequest({
+			owner: params.owner,
+			repo: params.repo,
+			title: params.title,
+			body: params.body,
+			head: params.head,
+			base: params.base,
+			draft: params.draft,
+		})
+	} catch (createError) {
+		if (!isExistingPullRequestError(createError)) {
+			throw createError
+		}
+
+		if (!params.writer.findPullRequestForBranch) {
+			throw createError
+		}
+
+		const existing = await params.writer.findPullRequestForBranch({
+			owner: params.owner,
+			repo: params.repo,
+			head: params.head,
+			base: params.base,
+		})
+
+		if (!existing) {
+			throw createError
+		}
+
+		if (params.writer.updatePullRequest) {
+			await params.writer.updatePullRequest({
+				owner: params.owner,
+				repo: params.repo,
+				pullNumber: existing.number,
+				title: params.title,
+				body: params.body,
+			})
+		}
+
+		return existing
+	}
+}
+
+/**
+ * Check whether a PR creation error indicates a PR already exists for the head branch.
+ *
+ * @param error - Error from createPullRequest.
+ * @returns True when the error is a 422 "pull request already exists" response.
+ */
+function isExistingPullRequestError(error: unknown): boolean {
+	if (!error || typeof error !== 'object') {
+		return false
+	}
+
+	const HTTP_UNPROCESSABLE = 422
+	const status = (error as { status?: unknown }).status
+
+	if (status !== HTTP_UNPROCESSABLE) {
+		return false
+	}
+
+	const message = (error as { message?: unknown }).message
+
+	return typeof message === 'string' && message.toLowerCase().includes('already exists')
+}
+
+/**
  * Deliver a run result to GitHub (PR/issue) and remote git branch.
  *
  * @param options - Delivery options.
@@ -319,19 +414,21 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	)
 	await expectCommandSuccess(
 		runner,
-		['git', 'push', '-u', 'origin', branchName],
+		['git', 'push', '--force', '-u', 'origin', branchName],
 		options.targetWorkingDirectory,
 	)
 
-	const pullRequest = await options.writer.createPullRequest({
+	const prBody = renderPortPullRequestBody({
+		context: options.context,
+		decision: options.decision,
+		execution: options.execution,
+	})
+	const pullRequest = await upsertPullRequest({
+		writer: options.writer,
 		owner: targetRepo.owner,
 		repo: targetRepo.name,
 		title: renderPortPullRequestTitle(options.context),
-		body: renderPortPullRequestBody({
-			context: options.context,
-			decision: options.decision,
-			execution: options.execution,
-		}),
+		body: prBody,
 		head: branchName,
 		base: targetRepo.defaultBranch,
 		draft: !options.execution.success,

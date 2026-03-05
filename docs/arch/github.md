@@ -49,11 +49,13 @@ These happen after the agent has produced edits and validation has passed (or re
 ### Branch creation and push
 
 - Branch naming: `port/<sourceRepo>/<sourcePrNumber>-<shortSha>`
-- Push the port branch to the target repo remote
+- Force-push the port branch to the target repo remote. The branch is bot-owned (deterministic naming), so force-push is safe and makes re-runs idempotent — fresh agent output replaces any previous attempt on the same branch.
 
 Auth: `github-token` (single-token mode) or `target-github-token` (split-token mode).
 
-### Pull request creation
+### Pull request creation (upsert)
+
+On first run, a new PR is created. On re-runs where the port branch already has an open PR (from a previous attempt), the engine finds the existing PR and updates its title and body instead of failing. This means re-triggering a workflow produces an updated PR rather than an error.
 
 **Title format:**
 
