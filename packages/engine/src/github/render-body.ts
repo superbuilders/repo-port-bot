@@ -240,6 +240,7 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'## Cross-repo port',
 		'',
 		sourceNarrative,
+		'',
 		atAGlance,
 		'',
 		reasonBlockquote,

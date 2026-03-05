@@ -23,7 +23,9 @@ export function formatDuration(ms: number): string {
 		return `${String(ms)}ms`
 	}
 
-	if (ms < MS_PER_MINUTE) {
+	const SECONDS_DISPLAY_CEILING = 59_950
+
+	if (ms < SECONDS_DISPLAY_CEILING) {
 		return `${(ms / MS_PER_SECOND).toFixed(1)}s`
 	}
 
