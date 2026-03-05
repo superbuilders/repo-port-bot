@@ -134,7 +134,7 @@ describe('render-body', () => {
 		expect(body).toContain('Looks good.')
 		expect(body).toContain('<details><summary>Validation & diagnostics</summary>')
 		expect(body).toContain('[PASS] `bun run check`')
-		expect(body).toContain('1 files changed · 1 attempt · 0 tool calls')
+		expect(body).toContain('1 file changed · 1 attempt · 0 tool calls')
 		expect(body).not.toContain('Final status')
 		expect(body).not.toContain('### Attempt 1')
 		expect(body).toContain(
