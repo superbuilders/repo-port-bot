@@ -190,17 +190,22 @@ export async function commentOnSourcePr(
 ): Promise<string | undefined> {
 	const logger = options.logger ?? createConsoleLogger('info')
 
-	try {
-		const previousFailedComment =
-			options.outcome === 'failed'
-				? undefined
-				: await findPreviousFailedComment({
-						writer: options.writer,
-						owner: options.context.sourceRepo.owner,
-						repo: options.context.sourceRepo.name,
-						issueNumber: options.pullRequestNumber,
-					})
+	let previousFailedComment: PreviousFailedCommentContext | undefined = undefined
 
+	if (options.outcome !== 'failed') {
+		try {
+			previousFailedComment = await findPreviousFailedComment({
+				writer: options.writer,
+				owner: options.context.sourceRepo.owner,
+				repo: options.context.sourceRepo.name,
+				issueNumber: options.pullRequestNumber,
+			})
+		} catch (lookupError) {
+			logger.warn('[port-bot] Unable to look up prior failed comments.', lookupError)
+		}
+	}
+
+	try {
 		return await options.writer.createComment({
 			owner: options.context.sourceRepo.owner,
 			repo: options.context.sourceRepo.name,
