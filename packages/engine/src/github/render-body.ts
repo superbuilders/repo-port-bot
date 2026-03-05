@@ -188,9 +188,10 @@ function renderAttemptNotes(execution: ExecutionResult): string {
  */
 export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): string {
 	const sourcePullRequest = input.context.sourceChange.pullRequest
+	const sourceRepo = `${input.context.sourceRepo.owner}/${input.context.sourceRepo.name}`
 	const sourceReference = sourcePullRequest
-		? `[#${String(sourcePullRequest.number)}](${sourcePullRequest.url})`
-		: `commit \`${input.context.sourceChange.mergedCommitSha}\``
+		? `Ported from [${sourcePullRequest.title}](${sourcePullRequest.url}) in \`${sourceRepo}\`.`
+		: `Ported from commit \`${input.context.sourceChange.mergedCommitSha}\` in \`${sourceRepo}\`.`
 	const touchedFiles =
 		input.execution.touchedFiles.length > 0
 			? input.execution.touchedFiles.map(path => `- \`${path}\``).join('\n')
@@ -206,11 +207,10 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 
 	return [
 		'## Source',
-		`- ${sourceReference}`,
+		sourceReference,
 		'',
-		'## Decision',
-		`- Kind: \`${input.decision.kind}\``,
-		`- Reason: ${input.decision.reason}`,
+		'## Why this was ported',
+		input.decision.reason,
 		'',
 		'## Files touched',
 		touchedFiles,
