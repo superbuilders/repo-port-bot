@@ -44,7 +44,7 @@ Define what "working" means from a maintainer perspective when a change in one r
     - Fast heuristics run first and can short-circuit the decision:
         - docs-only, config-only → `PORT_NOT_REQUIRED`
         - `no-port` label → `PORT_NOT_REQUIRED`
-        - `auto-port` label → `PORT_NOT_REQUIRED` (loop prevention; commit footer and branch name are additional signals the workflow should check before invoking the engine)
+        - `auto-port` label → `PORT_NOT_REQUIRED` (loop prevention)
     - If no heuristic matches, the LLM classifier makes the call:
         - `PORT_REQUIRED` or `PORT_NOT_REQUIRED`
     - In the happy path, the result is `PORT_REQUIRED`.
