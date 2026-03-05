@@ -219,6 +219,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 		history,
 		touchedFiles: [...touchedFiles],
 		failureReason: `Execution stopped before completing after ${String(history.length)} attempts.`,
+		model: agentModel,
+		durationMs: Date.now() - executionStartedAtMs,
 	}
 }
 

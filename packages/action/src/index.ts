@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { DefaultArtifactClient } from '@actions/artifact'
 import * as core from '@actions/core'
+import { formatDuration } from '@repo-port-bot/engine'
 
 import { runAction } from './run-action.ts'
 
@@ -128,8 +129,6 @@ function buildOutcomeLine(result: Awaited<ReturnType<typeof runAction>>): string
 	}
 }
 
-const MS_PER_SECOND = 1000
-
 /**
  * Format milliseconds for display, returning 'N/A' when undefined.
  *
@@ -141,11 +140,7 @@ function formatMs(ms: number | undefined): string {
 		return 'N/A'
 	}
 
-	if (ms < MS_PER_SECOND) {
-		return `${String(ms)}ms`
-	}
-
-	return `${(ms / MS_PER_SECOND).toFixed(1)}s`
+	return formatDuration(ms)
 }
 
 export { runAction } from './run-action.ts'

@@ -28,7 +28,7 @@ export function formatDuration(ms: number): string {
 	}
 
 	const minutes = Math.floor(ms / MS_PER_MINUTE)
-	const seconds = Math.round((ms % MS_PER_MINUTE) / MS_PER_SECOND)
+	const seconds = Math.floor((ms % MS_PER_MINUTE) / MS_PER_SECOND)
 
 	return `${String(minutes)}m${String(seconds).padStart(2, '0')}s`
 }
