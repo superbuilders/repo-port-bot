@@ -75,7 +75,7 @@ Define what a productive debugging session looks like. The maintainer should be 
 7. **Maintainer downloads the run artifact**
     - Each run uploads `port-bot-run-<runId>/` containing:
         - `run-result.json` — the full `PortRunResult` including decision, execution history, attempt details, and stage timings.
-        - `tool-calls.json` — every `ToolCallEntry` across all attempts: tool name, input summary, output summary, duration.
+        - `tool-calls.json` — every `ToolCallEntry` across all attempts: tool name, raw input, raw output, duration. Note: this contains the full tool payloads (not summaries), so the file can be large.
     - Artifacts are retained for 14 days alongside the Actions run.
 
 8. **Maintainer searches the tool call log**
