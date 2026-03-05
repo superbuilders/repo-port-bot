@@ -1,5 +1,7 @@
 import { joinNonEmptyLines } from '../utils.ts'
 
+const PORT_BOT_REPO_URL = 'https://github.com/superbuilders/repo-port-bot'
+
 import type {
 	ExecutionResult,
 	PortContext,
@@ -134,7 +136,7 @@ function renderValidationSummary(execution: ExecutionResult): string {
  * Render compact execution metrics for PR notes.
  *
  * @param execution - Execution details.
- * @returns Markdown bullet list with key metrics.
+ * @returns One-line metrics string.
  */
 function renderExecutionMetrics(execution: ExecutionResult): string {
 	const toolCallCount = execution.history.reduce(
@@ -142,11 +144,7 @@ function renderExecutionMetrics(execution: ExecutionResult): string {
 		0,
 	)
 
-	return [
-		`- Attempts: ${String(execution.attempts)}`,
-		`- Files touched: ${String(execution.touchedFiles.length)}`,
-		`- Tool calls: ${String(toolCallCount)}`,
-	].join('\n')
+	return `${String(execution.touchedFiles.length)} files changed · ${String(execution.attempts)} attempt${execution.attempts === 1 ? '' : 's'} · ${String(toolCallCount)} tool calls`
 }
 
 /**
@@ -197,16 +195,24 @@ function renderAttemptNotes(execution: ExecutionResult): string {
 export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): string {
 	const sourcePullRequest = input.context.sourceChange.pullRequest
 	const sourceRepo = `${input.context.sourceRepo.owner}/${input.context.sourceRepo.name}`
-	const sourceReference = sourcePullRequest
-		? `Ported from [${sourcePullRequest.title}](${sourcePullRequest.url}) in \`${sourceRepo}\`.`
-		: `Ported from commit \`${input.context.sourceChange.mergedCommitSha}\` in \`${sourceRepo}\`.`
-	const touchedFiles =
-		input.execution.touchedFiles.length > 0
-			? input.execution.touchedFiles.map(path => `- \`${path}\``).join('\n')
-			: '- No files recorded.'
-	const notesSection = renderAttemptNotes(input.execution)
+	const sourceRepoUrl = `https://github.com/${sourceRepo}`
+	const sourceRepoLink = `[\`${sourceRepo}\`](${sourceRepoUrl})`
+	const sourceNarrative = sourcePullRequest
+		? `Ported from [${sourcePullRequest.title}](${sourcePullRequest.url}) in ${sourceRepoLink}.`
+		: `Ported from commit \`${input.context.sourceChange.mergedCommitSha}\` in ${sourceRepoLink}.`
+
+	const atAGlance = renderExecutionMetrics(input.execution)
+
+	const reasonLines = input.decision.reason.split('\n').map(line => `> ${line}`)
+
+	if (input.execution.model) {
+		reasonLines.push('>', `> - ${input.execution.model}`)
+	}
+
+	const reasonBlockquote = reasonLines.join('\n')
+
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
-	const validationSummary = noValidationConfigured
+	const validationLines = noValidationConfigured
 		? '- Validation not run (no validation commands configured).'
 		: renderValidationSummary(input.execution)
 	const failureLine =
@@ -214,29 +220,36 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 			? `- Final status: validation failed after retries.\n- Failure reason: ${input.execution.failureReason ?? 'Unknown failure reason.'}`
 			: undefined
 
-	return [
-		'## Source',
-		sourceReference,
+	const detailsTag = input.execution.success ? '<details>' : '<details open>'
+
+	const diagnosticsBlock = [
+		`${detailsTag}<summary>Validation & diagnostics</summary>`,
 		'',
-		'## Why this was ported',
-		input.decision.reason,
-		'',
-		'## Files touched',
-		touchedFiles,
-		'',
-		'## Validation',
-		validationSummary,
+		validationLines,
 		failureLine,
 		'',
-		'## Notes',
-		renderExecutionMetrics(input.execution),
-		'',
-		notesSection,
-		'',
-		'Ported-By: repo-port-bot',
+		'</details>',
 	]
 		.filter(isDefinedLine)
 		.join('\n')
+
+	return [
+		'## Cross-repo port',
+		'',
+		sourceNarrative,
+		atAGlance,
+		'',
+		reasonBlockquote,
+		'',
+		'### What was ported',
+		'',
+		renderAttemptNotes(input.execution),
+		'',
+		diagnosticsBlock,
+		'',
+		'---',
+		`[Ported-By: repo-port-bot](${PORT_BOT_REPO_URL})`,
+	].join('\n')
 }
 
 /**
@@ -298,11 +311,13 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 		}
 		case 'pr_opened': {
 			const prLink = input.targetPullRequestUrl ?? `a PR in \`${targetRepo}\``
+			const fileCount = input.context.sourceChange.files.length
+			const shape = `${String(fileCount)} file${fileCount === 1 ? '' : 's'}`
 
 			return [
 				supersededFailureLine,
 				supersededFailureLine ? '' : undefined,
-				`Ported to ${prLink}. Validation passed; ready for review.`,
+				`Ported to ${prLink} (${shape}, validation passed). Ready for review.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]
@@ -313,11 +328,13 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			const prLink = input.targetPullRequestUrl
 				? `a draft PR: ${input.targetPullRequestUrl}`
 				: `a draft PR in \`${targetRepo}\``
+			const fileCount = input.context.sourceChange.files.length
+			const shape = `${String(fileCount)} file${fileCount === 1 ? '' : 's'}`
 
 			return [
 				supersededFailureLine,
 				supersededFailureLine ? '' : undefined,
-				`Port attempted but validation failed after retries. Opened ${prLink}.`,
+				`Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]

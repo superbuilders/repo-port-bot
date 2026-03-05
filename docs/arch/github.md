@@ -63,18 +63,47 @@ On first run, a new PR is created. On re-runs where the port branch already has 
 Port: <source PR title> (#<source PR number>)
 ```
 
-**Body includes:**
+**Body layout:**
 
-- Source narrative: `Ported from [<source PR title>](<source PR url>) in <owner>/<repo>`
-- Summary of what was ported
-- "Why this was ported" prose section with classifier/heuristic reason text
-- Files touched
-- Validation commands and results, or explicit "not run" wording when no validation commands are configured
-- Notes section with compact execution metrics (attempts, files touched, tool call count)
-- Per-attempt notes under stable headings (`### Attempt <n>`), containing only the agent's final summary (per-file descriptions of what was ported), not intermediate narration
-- `Ported-By: repo-port-bot` footer (loop prevention signal)
+```md
+## Cross-repo port
 
-**How per-attempt notes are captured:** The agent streams multiple assistant messages during execution. The provider keeps only the text from the _last_ assistant message before the SDK returns a result. In practice, the model's final message is a natural wrap-up summary (per-file descriptions, what was added/changed), but this is emergent behavior — there is no explicit prompt instruction requesting a structured summary. If consistency becomes an issue, a follow-up could add a closing instruction to the system prompt or post-process the notes into a fixed format.
+Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
+
+> <decision reason as blockquote>
+>
+> - claude-sonnet-4-6
+
+2 files changed · 1 attempt · 5 tool calls
+
+### What was ported
+
+<agent summary — per-file descriptions of changes>
+
+<details><summary>Validation & diagnostics</summary>
+
+- [PASS] `bun run check`
+
+</details>
+
+---
+
+[Ported-By: repo-port-bot](<bot repo url>)
+```
+
+Key design choices:
+
+- **`## Cross-repo port`** heading with source narrative immediately below — orients the reader in one glance
+- **Decision reason as blockquote** — reads as context, not a separate section
+- **`### What was ported`** is the main content — the agent's per-file summary gets top billing
+- **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
+- **At-a-glance stats line** (`2 files changed · 1 attempt · 5 tool calls`) between the source narrative and reason blockquote — sets reviewer expectations for diff size before reading details
+- **Decision blockquote** includes the agent model name (e.g. `claude-sonnet-4-6`) as a trailing bullet, keeping "who and why" context together
+- **`Ported-By: repo-port-bot`** footer linking to the bot repository, after a horizontal rule for clean separation (also serves as loop prevention signal)
+
+For **multi-attempt runs** (stalled ports), the "What was ported" section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) with touched-in-attempt lines. Single-attempt runs omit this nesting.
+
+**How agent notes are captured:** The provider keeps only the text from the _last_ assistant message before the SDK returns a result. In practice the model's final message is a natural wrap-up summary (per-file descriptions, what was added/changed), but this is emergent behavior — there is no explicit prompt instruction requesting a structured summary. If consistency becomes an issue, a follow-up could add a closing instruction to the system prompt or post-process the notes into a fixed format.
 
 **PR state:**
 
@@ -137,7 +166,7 @@ Port bot skipped this for `acme/target-repo`.
 `pr_opened` (classifier reason):
 
 ```md
-Ported to https://github.com/acme/target-repo/pull/901. Validation passed; ready for review.
+Ported to https://github.com/acme/target-repo/pull/901 (2 files, validation passed). Ready for review.
 
 **Why:** Source changes affect shared API surface that exists in both repos.
 ```
@@ -145,7 +174,7 @@ Ported to https://github.com/acme/target-repo/pull/901. Validation passed; ready
 `draft_pr_opened` (classifier reason):
 
 ```md
-Port attempted but validation failed after retries. Opened a draft PR: https://github.com/acme/target-repo/pull/333.
+Port attempted (2 files) but validation failed after retries. Opened a draft PR: https://github.com/acme/target-repo/pull/333.
 
 **Why:** Source changes affect shared API surface that exists in both repos.
 ```

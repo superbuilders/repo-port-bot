@@ -412,6 +412,11 @@ export interface AgentOutput {
 	 * used for observability, cost tracking, and post-hoc debugging.
 	 */
 	toolCallLog: ToolCallEntry[]
+
+	/**
+	 * Model identifier used for this attempt (e.g. `claude-sonnet-4-6`).
+	 */
+	model?: string
 }
 
 /**
@@ -767,6 +772,11 @@ export interface ExecutionResult {
 	 * Final failure explanation when `success` is false.
 	 */
 	failureReason?: string
+
+	/**
+	 * Model identifier used by the agent provider (e.g. `claude-sonnet-4-6`).
+	 */
+	model?: string
 }
 
 // ---------------------------------------------------------------------------

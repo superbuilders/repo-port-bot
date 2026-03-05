@@ -62,6 +62,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 
 	const history: ExecutionAttempt[] = []
 	const touchedFiles = new Set<string>()
+	let agentModel: string | undefined = undefined
 
 	for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber += 1) {
 		const attemptStartedAtMs = Date.now()
@@ -87,6 +88,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						})
 					},
 				})
+
+				agentModel ??= agentOutput.model
 
 				for (const path of agentOutput.touchedFiles) {
 					touchedFiles.add(path)
@@ -146,6 +149,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						attempts: history.length,
 						history,
 						touchedFiles: [...touchedFiles],
+						model: agentModel,
 					}
 				}
 
@@ -156,6 +160,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						history,
 						touchedFiles: [...touchedFiles],
 						failureReason: buildValidationFailureReason(validation, history.length),
+						model: agentModel,
 					}
 				}
 			} catch (error) {
@@ -196,6 +201,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 					history,
 					touchedFiles: [...touchedFiles],
 					failureReason: `Agent provider failed on attempt ${String(attemptNumber)}: ${errorMessage}`,
+					model: agentModel,
 				}
 			}
 		} finally {
