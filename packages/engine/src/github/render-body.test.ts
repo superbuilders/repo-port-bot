@@ -53,6 +53,19 @@ function makeContext(): PortContext {
 }
 
 /**
+ * Build test context with validation commands disabled.
+ *
+ * @returns Port context fixture with empty validation command list.
+ */
+function makeContextWithoutValidationCommands(): PortContext {
+	const context = makeContext()
+
+	context.pluginConfig.validationCommands = []
+
+	return context
+}
+
+/**
  * Build a decision fixture for render tests.
  *
  * @param kind - Decision kind.
@@ -117,6 +130,8 @@ describe('render-body', () => {
 		expect(body).toContain('`src/app.ts`')
 		expect(body).toContain('## Validation')
 		expect(body).toContain('[PASS] `bun run check`')
+		expect(body).toContain('- Attempts: 1')
+		expect(body).toContain('- Tool calls: 0')
 		expect(body).toContain('Ported-By: repo-port-bot')
 	})
 
@@ -130,6 +145,16 @@ describe('render-body', () => {
 		expect(body).toContain('[FAIL] `bun run check`')
 		expect(body).toContain('Final status: validation failed after retries.')
 		expect(body).toContain('Failure reason: Validation failed after retries.')
+	})
+
+	test('renders explicit validation-not-run line when no commands are configured', () => {
+		const body = renderPortPullRequestBody({
+			context: makeContextWithoutValidationCommands(),
+			decision: makeDecision('PORT_REQUIRED'),
+			execution: makeExecution(true),
+		})
+
+		expect(body).toContain('Validation not run (no validation commands configured).')
 	})
 
 	test('renders needs-human issue title and body with rationale and signals', () => {
@@ -208,5 +233,22 @@ describe('render-body', () => {
 		expect(body).toContain('failed due to an engine error')
 		expect(body).toContain('**Why:** Decision reason')
 		expect(body).toContain('Run ID: `run-4`')
+	})
+
+	test('renders source comment supersede line when prior failed comment exists', () => {
+		const body = renderSourceComment({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			outcome: 'pr_opened',
+			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
+			runId: 'run-5',
+			supersededFailureCommentUrl:
+				'https://github.com/acme/source-repo/pull/42#issuecomment-0',
+			supersededFailureRunId: 'run-0',
+		})
+
+		expect(body).toContain(
+			'Supersedes prior failed attempt: https://github.com/acme/source-repo/pull/42#issuecomment-0 (run `run-0`).',
+		)
 	})
 })

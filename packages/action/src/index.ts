@@ -17,23 +17,31 @@ async function main(): Promise<void> {
 		const runResultPath = join(artifactDirectory, 'run-result.json')
 		const toolCallsPath = join(artifactDirectory, 'tool-calls.json')
 		const artifactClient = new DefaultArtifactClient()
+		let artifactUploaded = false
 
 		await mkdir(artifactDirectory, { recursive: true })
 		await writeFile(runResultPath, JSON.stringify(result, null, 2))
 		await writeFile(toolCallsPath, JSON.stringify(toolCalls, null, 2))
 
-		try {
-			await artifactClient.uploadArtifact(
-				`port-bot-run-${result.runId}`,
-				[runResultPath, toolCallsPath],
-				artifactDirectory,
-				{ retentionDays: 14 },
-			)
-		} catch (artifactError) {
-			const message =
-				artifactError instanceof Error ? artifactError.message : String(artifactError)
+		if (process.env.ACTIONS_RUNTIME_TOKEN) {
+			try {
+				await artifactClient.uploadArtifact(
+					`port-bot-run-${result.runId}`,
+					[runResultPath, toolCallsPath],
+					artifactDirectory,
+					{ retentionDays: 14 },
+				)
+				artifactUploaded = true
+			} catch (artifactError) {
+				const message =
+					artifactError instanceof Error ? artifactError.message : String(artifactError)
 
-			core.warning(`Failed to upload observability artifact: ${message}`)
+				core.warning(`Failed to upload observability artifact: ${message}`)
+			}
+		} else {
+			core.info(
+				'Skipping observability artifact upload because ACTIONS_RUNTIME_TOKEN is unavailable.',
+			)
 		}
 
 		core.setOutput('run-id', result.runId)
@@ -102,7 +110,11 @@ async function main(): Promise<void> {
 			],
 		])
 		core.summary.addHeading('Artifact', 2)
-		core.summary.addRaw(`- Uploaded: \`port-bot-run-${result.runId}\`\n`)
+		core.summary.addRaw(
+			artifactUploaded
+				? `- Uploaded: \`port-bot-run-${result.runId}\`\n`
+				: '- Uploaded: skipped (runtime token unavailable)\n',
+		)
 		core.summary.addRaw(`- Tool calls: ${String(toolCalls.length)}\n`)
 		await core.summary.write()
 	} catch (error) {

@@ -84,12 +84,12 @@ Note: `decisionMs` varies significantly depending on whether a fast heuristic ma
 
 During execution, the `ClaudeAgentProvider` emits structured `AgentMessage` events via an `onMessage` callback on `AgentInput`. The execution orchestrator routes these to the logger:
 
-| AgentMessage kind | Log level | What it shows                                     |
-| ----------------- | --------- | ------------------------------------------------- |
-| `tool_start`      | **info**  | One line per tool call with file path — progress  |
-| `thinking`        | **debug** | Claude's reasoning — verbose, for troubleshooting |
-| `tool_end`        | **debug** | Tool duration — captured in toolCallLog anyway    |
-| `text`            | **debug** | Agent summary text — already in AgentOutput       |
+| AgentMessage kind | Log level | What it shows                                                           |
+| ----------------- | --------- | ----------------------------------------------------------------------- |
+| `tool_start`      | **info**  | One line per tool call with normalized relative file path when possible |
+| `thinking`        | **debug** | Claude's reasoning — verbose, for troubleshooting                       |
+| `tool_end`        | **debug** | Tool duration — captured in toolCallLog anyway                          |
+| `text`            | **debug** | Agent summary text — already in AgentOutput                             |
 
 This means at `info` level an operator sees real-time progress (which files Claude is reading/editing) without noise. At `debug` level they also see Claude's internal reasoning and tool timing.
 
@@ -139,7 +139,9 @@ port-bot-run-<runId>/
   run-result.json      # Serialized PortRunResult
 ```
 
-Uploaded via `actions/upload-artifact` with a short retention (7–14 days). When a port goes wrong the operator downloads the artifact, searches for the failing tool call, and sees exactly what the agent did.
+Uploaded via the runtime artifact client with a short retention (7–14 days). Upload requires `ACTIONS_RUNTIME_TOKEN`; if the token is unavailable for the runner context, upload is skipped and the run still succeeds.
+
+When a port goes wrong the operator downloads the artifact, searches for the failing tool call, and sees exactly what the agent did.
 
 ## Timing
 
@@ -176,5 +178,5 @@ These are deferred until there's enough run volume to justify the setup.
 ## Error handling philosophy
 
 - **Stage failures** are caught by `runPort`'s error boundary and produce a `failed` outcome with an error summary. The failure is logged at `error` level and surfaced in the job summary and source PR comment.
-- **Best-effort operations** (source PR comment, artifact upload) catch their own errors, log at `warn` level, and never affect the run outcome.
+- **Best-effort operations** (source PR comment, artifact upload) never affect the run outcome. Artifact upload skips at `info` level when runtime token env is unavailable; upload errors still log at `warn` level.
 - **Sensitive data** (tokens, API keys) must never appear in logs. The engine logs repo names, PR numbers, file paths, and outcomes — never credentials or full API response bodies.

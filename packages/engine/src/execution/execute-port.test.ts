@@ -279,7 +279,7 @@ describe('executePort', () => {
 				input.onMessage?.({
 					kind: 'tool_start',
 					toolName: 'Read',
-					toolInput: { file_path: '/tmp/target/src/example.ts' },
+					toolInput: { file_path: join(directory, 'src/example.ts') },
 				})
 				input.onMessage?.({
 					kind: 'tool_end',
@@ -309,7 +309,7 @@ describe('executePort', () => {
 
 		expect(
 			infoMessages.some(message =>
-				message.includes('stage=execute tool=Read file=/tmp/target/src/example.ts'),
+				message.includes('stage=execute tool=Read file=src/example.ts'),
 			),
 		).toBe(true)
 		expect(

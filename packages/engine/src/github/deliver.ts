@@ -48,6 +48,11 @@ interface CommentOnSourcePrOptions {
 	logger?: Logger
 }
 
+interface PreviousFailedCommentContext {
+	url: string
+	runId?: string
+}
+
 const PORT_BOT_FOOTER = 'Ported-By: repo-port-bot'
 const SHORT_SHA_LENGTH = 7
 
@@ -185,6 +190,16 @@ export async function commentOnSourcePr(
 	const logger = options.logger ?? createConsoleLogger('info')
 
 	try {
+		const previousFailedComment =
+			options.outcome === 'failed'
+				? undefined
+				: await findPreviousFailedComment({
+						writer: options.writer,
+						owner: options.context.sourceRepo.owner,
+						repo: options.context.sourceRepo.name,
+						issueNumber: options.pullRequestNumber,
+					})
+
 		return await options.writer.createComment({
 			owner: options.context.sourceRepo.owner,
 			repo: options.context.sourceRepo.name,
@@ -196,12 +211,61 @@ export async function commentOnSourcePr(
 				targetPullRequestUrl: options.targetPullRequestUrl,
 				followUpIssueUrl: options.followUpIssueUrl,
 				runId: options.runId,
+				supersededFailureCommentUrl: previousFailedComment?.url,
+				supersededFailureRunId: previousFailedComment?.runId,
 			}),
 		})
 	} catch (error) {
 		logger.warn('[port-bot] Unable to comment on source pull request.', error)
 
 		return undefined
+	}
+}
+
+/**
+ * Find the most recent engine-failure source comment so follow-up comments can
+ * explicitly supersede it on successful reruns.
+ *
+ * @param input - Lookup options.
+ * @param input.writer - GitHub writer adapter.
+ * @param input.owner - Source repository owner.
+ * @param input.repo - Source repository name.
+ * @param input.issueNumber - Source pull request number.
+ * @returns Latest failed comment context when found.
+ */
+async function findPreviousFailedComment(input: {
+	writer: GitHubWriter
+	owner: string
+	repo: string
+	issueNumber: number
+}): Promise<PreviousFailedCommentContext | undefined> {
+	if (!input.writer.listComments) {
+		return undefined
+	}
+
+	const comments = await input.writer.listComments({
+		owner: input.owner,
+		repo: input.repo,
+		issueNumber: input.issueNumber,
+	})
+	const failedComments = comments
+		.filter(
+			comment =>
+				comment.body.includes('failed due to an engine error') &&
+				comment.body.includes('Run ID: `'),
+		)
+		.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+	const latestFailedComment = failedComments[0]
+
+	if (!latestFailedComment) {
+		return undefined
+	}
+
+	const runIdMatch = /Run ID: `([^`]+)`/u.exec(latestFailedComment.body)
+
+	return {
+		url: latestFailedComment.url,
+		runId: runIdMatch?.[1],
 	}
 }
 

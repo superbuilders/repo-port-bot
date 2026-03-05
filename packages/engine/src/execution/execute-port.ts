@@ -1,3 +1,5 @@
+import { isAbsolute, relative } from 'node:path'
+
 import {
 	createConsoleLogger,
 	formatPortBotExecuteAttemptLine,
@@ -80,6 +82,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 							logger,
 							runId: options.context.runId,
 							message,
+							targetWorkingDirectory: options.targetWorkingDirectory,
+							sourceWorkingDirectory: options.sourceWorkingDirectory,
 						})
 					},
 				})
@@ -215,18 +219,32 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
  * @param input.logger - Logger implementation.
  * @param input.runId - Run identifier for correlation.
  * @param input.message - Streamed agent message.
+ * @param input.targetWorkingDirectory - Optional target repo root for path normalization.
+ * @param input.sourceWorkingDirectory - Optional source repo root for path normalization.
  */
-function logAgentMessage(input: { logger: Logger; runId: string; message: AgentMessage }): void {
+function logAgentMessage(input: {
+	logger: Logger
+	runId: string
+	message: AgentMessage
+	targetWorkingDirectory?: string
+	sourceWorkingDirectory?: string
+}): void {
 	const { logger, runId, message } = input
 
 	if (message.kind === 'tool_start') {
+		const loggedFilePath = normalizeLoggedFilePath({
+			filePath: extractFilePath(message.toolInput),
+			targetWorkingDirectory: input.targetWorkingDirectory,
+			sourceWorkingDirectory: input.sourceWorkingDirectory,
+		})
+
 		logger.info(
 			formatPortBotLine({
 				runId,
 				fields: {
 					stage: 'execute',
 					tool: message.toolName,
-					file: extractFilePath(message.toolInput),
+					file: loggedFilePath,
 				},
 			}),
 		)
@@ -258,4 +276,37 @@ function logAgentMessage(input: { logger: Logger; runId: string; message: AgentM
 			},
 		}),
 	)
+}
+
+/**
+ * Normalize logged file paths to source/target-relative values when possible.
+ *
+ * @param input - Path normalization input.
+ * @param input.filePath - Candidate raw path from tool input.
+ * @param input.targetWorkingDirectory - Optional target repo root.
+ * @param input.sourceWorkingDirectory - Optional source repo root.
+ * @returns Relative path when inside known roots, else original path.
+ */
+function normalizeLoggedFilePath(input: {
+	filePath: string | undefined
+	targetWorkingDirectory?: string
+	sourceWorkingDirectory?: string
+}): string | undefined {
+	const filePath = input.filePath
+
+	if (!filePath || !isAbsolute(filePath)) {
+		return filePath
+	}
+
+	for (const root of [input.targetWorkingDirectory, input.sourceWorkingDirectory]) {
+		if (root) {
+			const relativePath = relative(root, filePath)
+
+			if (relativePath && !relativePath.startsWith('..')) {
+				return relativePath
+			}
+		}
+	}
+
+	return filePath
 }
