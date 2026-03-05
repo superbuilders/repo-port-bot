@@ -129,6 +129,7 @@ The maintainer experiences onboarding as "three required inputs and the bot work
 
 - **Token permissions too narrow**: the PAT needs write access to the target repo for PR creation and git push. A read-only token will fail at the delivery stage. The error appears in the Actions log as a push or API 403.
 - **No validation commands configured**: the bot defaults to no validation. The agent will apply changes and the PR will be opened as ready-for-review even if the code doesn't compile. Adding at least one validation command (type check, lint, test) is strongly recommended.
+- **No validation commands configured**: the bot defaults to no validation. The PR body explicitly says validation was not run (instead of implying pass/fail from command output), but the PR can still be ready-for-review. Adding at least one validation command (type check, lint, test) is strongly recommended.
 - **Wrong `target-repo` format**: must be `owner/name` (e.g., `acme/python-sdk`). A bare repo name without the owner will fail at input parsing.
 - **Source repo is private, target is in a different org**: split tokens are needed because a single PAT may not have cross-org access.
 

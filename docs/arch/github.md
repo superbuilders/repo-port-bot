@@ -66,8 +66,9 @@ Port: <source PR title> (#<source PR number>)
 - Link to source PR
 - Summary of what was ported
 - Files touched
-- Validation commands and results
-- Agent notes / uncertainties (if any)
+- Validation commands and results, or explicit "not run" wording when no validation commands are configured
+- Notes section with compact execution metrics (attempts, files touched, tool call count)
+- Per-attempt notes under stable headings (`### Attempt <n>`)
 - `Ported-By: repo-port-bot` footer (loop prevention signal)
 
 **PR state:**
@@ -115,6 +116,8 @@ The engine posts a best-effort comment on the source PR for every outcome (inclu
 The reason string comes from whichever decision path fired: a hardcoded heuristic message for fast-path skips, or the LLM classifier's free-text explanation when no heuristic matched.
 
 This notification is non-blocking: comment failures never change the terminal run outcome.
+
+On reruns, non-failure comments can include a supersession line that links a prior failed comment (and run ID), for example: `Supersedes prior failed attempt: <comment-url> (run <id>).`
 
 **Example comments:**
 

@@ -26,6 +26,8 @@ interface RenderSourceCommentInput {
 	targetPullRequestUrl?: string
 	followUpIssueUrl?: string
 	runId: string
+	supersededFailureCommentUrl?: string
+	supersededFailureRunId?: string
 }
 
 interface RenderRunSummaryInput {
@@ -118,6 +120,53 @@ function renderValidationSummary(execution: ExecutionResult): string {
 }
 
 /**
+ * Render compact execution metrics for PR notes.
+ *
+ * @param execution - Execution details.
+ * @returns Markdown bullet list with key metrics.
+ */
+function renderExecutionMetrics(execution: ExecutionResult): string {
+	const toolCallCount = execution.history.reduce(
+		(count, attempt) => count + attempt.toolCallLog.length,
+		0,
+	)
+
+	return [
+		`- Attempts: ${String(execution.attempts)}`,
+		`- Files touched: ${String(execution.touchedFiles.length)}`,
+		`- Tool calls: ${String(toolCallCount)}`,
+	].join('\n')
+}
+
+/**
+ * Render attempt notes with stable per-attempt headings.
+ *
+ * @param execution - Execution details.
+ * @returns Markdown sections for each attempt.
+ */
+function renderAttemptNotes(execution: ExecutionResult): string {
+	const renderedAttempts = execution.history
+		.map(attempt => {
+			const touchedInAttempt =
+				attempt.touchedFiles.length > 0
+					? attempt.touchedFiles.map(path => `\`${path}\``).join(', ')
+					: 'none'
+			const notes = attempt.notes?.trim() || '_No notes recorded._'
+
+			return [
+				`### Attempt ${String(attempt.attempt)}`,
+				'',
+				`- Touched in attempt: ${touchedInAttempt}`,
+				'',
+				notes,
+			].join('\n')
+		})
+		.join('\n\n')
+
+	return renderedAttempts.length > 0 ? renderedAttempts : '- None.'
+}
+
+/**
  * Render the markdown body for a target pull request.
  *
  * @param input - Rendering input.
@@ -135,19 +184,14 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		input.execution.touchedFiles.length > 0
 			? input.execution.touchedFiles.map(path => `- \`${path}\``).join('\n')
 			: '- No files recorded.'
-	const attemptNotes = input.execution.history
-		.map((attempt, index) => {
-			if (!attempt.notes) {
-				return undefined
-			}
-
-			return `- Attempt ${String(index + 1)}: ${attempt.notes}`
-		})
-		.filter((value): value is string => value !== undefined)
-	const notesSection = attemptNotes.length > 0 ? attemptNotes.join('\n') : '- None.'
+	const notesSection = renderAttemptNotes(input.execution)
 	const failureLine = input.execution.success
 		? '- Final status: validation passed.'
 		: `- Final status: validation failed after retries.\n- Failure reason: ${input.execution.failureReason ?? 'Unknown failure reason.'}`
+	const validationSummary =
+		input.context.pluginConfig.validationCommands.length === 0
+			? '- Validation not run (no validation commands configured).'
+			: renderValidationSummary(input.execution)
 
 	return [
 		'## Source',
@@ -161,10 +205,12 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		touchedFiles,
 		'',
 		'## Validation',
-		renderValidationSummary(input.execution),
+		validationSummary,
 		failureLine,
 		'',
 		'## Notes',
+		renderExecutionMetrics(input.execution),
+		'',
 		notesSection,
 		'',
 		'Ported-By: repo-port-bot',
@@ -210,10 +256,19 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
  */
 export function renderSourceComment(input: RenderSourceCommentInput): string {
 	const targetRepo = `${input.context.pluginConfig.targetRepo.owner}/${input.context.pluginConfig.targetRepo.name}`
+	const supersededFailureLine = input.supersededFailureCommentUrl
+		? [
+				`Supersedes prior failed attempt: ${input.supersededFailureCommentUrl}${
+					input.supersededFailureRunId ? ` (run \`${input.supersededFailureRunId}\`)` : ''
+				}.`,
+				'',
+			].join('\n')
+		: undefined
 
 	switch (input.outcome) {
 		case 'skipped_not_required': {
 			return [
+				supersededFailureLine,
 				`Port bot skipped this for \`${targetRepo}\`.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
@@ -223,6 +278,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			const prLink = input.targetPullRequestUrl ?? `a PR in \`${targetRepo}\``
 
 			return [
+				supersededFailureLine,
 				`Ported to ${prLink}. Validation passed; ready for review.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
@@ -234,6 +290,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				: `a draft PR in \`${targetRepo}\``
 
 			return [
+				supersededFailureLine,
 				`Port attempted but validation failed after retries. Opened ${prLink}.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
@@ -245,6 +302,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				: `an issue in \`${targetRepo}\``
 
 			return [
+				supersededFailureLine,
 				`Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
 				'',
 				`**Why:** ${input.decision.reason}`,

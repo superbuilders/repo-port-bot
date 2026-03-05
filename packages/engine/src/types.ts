@@ -474,6 +474,31 @@ export interface CreatedIssue {
 }
 
 /**
+ * Minimal shape for existing issue/PR comments used by notification logic.
+ */
+export interface IssueCommentRef {
+	/**
+	 * Canonical HTML URL of the comment.
+	 */
+	url: string
+
+	/**
+	 * Markdown body content.
+	 */
+	body: string
+
+	/**
+	 * ISO timestamp when the comment was created.
+	 */
+	createdAt: string
+
+	/**
+	 * Optional comment author login.
+	 */
+	authorLogin?: string
+}
+
+/**
  * Read-only GitHub operations needed by the engine.
  *
  * The engine depends on this interface; the action layer provides an
@@ -583,6 +608,20 @@ export interface GitHubWriter {
 		issueNumber: number
 		body: string
 	}): Promise<string | undefined>
+
+	/**
+	 * List existing comments on an issue or pull request.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 *
+	 * @param params - List parameters.
+	 * @returns Existing comments ordered by API response order.
+	 */
+	listComments?(params: {
+		owner: string
+		repo: string
+		issueNumber: number
+	}): Promise<IssueCommentRef[]>
 }
 
 // ---------------------------------------------------------------------------

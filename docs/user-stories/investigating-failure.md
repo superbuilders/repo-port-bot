@@ -28,6 +28,7 @@ Define what a productive debugging session looks like. The maintainer should be 
 1. **Maintainer sees the source PR comment**
     - Every outcome (including skips) produces a comment on the merged source PR when a source PR exists. The comment includes the outcome, a link to the target PR/issue (if created), and the decision reason.
     - For `failed` outcomes, the comment includes the run ID for correlation.
+    - On reruns that succeed (or otherwise move past failure), the newer comment can explicitly supersede the prior failed comment and link back to it.
     - This is the fastest signal. The maintainer knows something went wrong and has a reason string to start with.
 
 2. **Maintainer evaluates whether to dig deeper**
@@ -77,6 +78,7 @@ Define what a productive debugging session looks like. The maintainer should be 
         - `run-result.json` — the full `PortRunResult` including decision, execution history, attempt details, and stage timings.
         - `tool-calls.json` — every `ToolCallEntry` across all attempts: tool name, raw input, raw output, duration. Note: this contains the full tool payloads (not summaries), so the file can be large.
     - Artifacts are retained for 14 days alongside the Actions run.
+    - Upload requires the runner-provided runtime token (`ACTIONS_RUNTIME_TOKEN`). If unavailable in a given context, upload is skipped and the run still succeeds.
 
 8. **Maintainer searches the tool call log**
     - For stalled ports: find the last validation failure, trace backward through the agent's edits to see what it tried and where it went wrong.
@@ -111,7 +113,7 @@ The maintainer experiences debugging as "layered and proportional":
     - The Actions log is organized into named, collapsible sections. Expanding a section shows stage-specific detail at the configured log level.
 
 4. **Artifact availability**
-    - `run-result.json` and `tool-calls.json` are uploaded for every run that reaches the action entrypoint's completion path. Upload failures are logged as warnings and do not affect the run outcome.
+    - `run-result.json` and `tool-calls.json` are uploaded when runtime token env is available in the current runner context. If unavailable, upload is skipped (informationally) and does not affect the run outcome.
 
 5. **Run ID correlation**
     - The same `runId` appears in the source PR comment, job summary, log lines, and artifact directory name. The maintainer can use it to cross-reference across all four layers.

@@ -124,11 +124,13 @@ function createWriterFake(): {
 	createIssueCalls: unknown[]
 	addLabelsCalls: unknown[]
 	createCommentCalls: unknown[]
+	listCommentsCalls: unknown[]
 } {
 	const createPrCalls: unknown[] = []
 	const createIssueCalls: unknown[] = []
 	const addLabelsCalls: unknown[] = []
 	const createCommentCalls: unknown[] = []
+	const listCommentsCalls: unknown[] = []
 
 	const writer: GitHubWriter = {
 		async createPullRequest(params): Promise<CreatedPullRequest> {
@@ -149,9 +151,21 @@ function createWriterFake(): {
 
 			return 'https://github.com/acme/source-repo/pull/42#issuecomment-1'
 		},
+		async listComments(params) {
+			listCommentsCalls.push(params)
+
+			return []
+		},
 	}
 
-	return { writer, createPrCalls, createIssueCalls, addLabelsCalls, createCommentCalls }
+	return {
+		writer,
+		createPrCalls,
+		createIssueCalls,
+		addLabelsCalls,
+		createCommentCalls,
+		listCommentsCalls,
+	}
 }
 
 describe('deliverResult', () => {
@@ -317,6 +331,9 @@ describe('commentOnSourcePr', () => {
 			async createComment() {
 				throw new Error('rate limited')
 			},
+			async listComments() {
+				return []
+			},
 		}
 
 		const commentUrl = await commentOnSourcePr({
@@ -329,5 +346,38 @@ describe('commentOnSourcePr', () => {
 		})
 
 		expect(commentUrl).toBeUndefined()
+	})
+
+	test('includes supersedes context when prior failed source comment exists', async () => {
+		const { createCommentCalls, writer } = createWriterFake()
+		const context = makeContext()
+
+		writer.listComments = async () => [
+			{
+				url: 'https://github.com/acme/source-repo/pull/42#issuecomment-0',
+				body: [
+					'Port to `acme/target-repo` failed due to an engine error.',
+					'',
+					'**Why:** something failed',
+					'',
+					'Run ID: `run-old`',
+				].join('\n'),
+				createdAt: '2026-03-05T00:00:00Z',
+			},
+		]
+
+		await commentOnSourcePr({
+			writer,
+			pullRequestNumber: 42,
+			context,
+			decision: makeDecision('PORT_REQUIRED'),
+			outcome: 'pr_opened',
+			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
+			runId: 'run-new',
+		})
+
+		expect(String((createCommentCalls[0] as { body: string }).body)).toContain(
+			'Supersedes prior failed attempt: https://github.com/acme/source-repo/pull/42#issuecomment-0 (run `run-old`).',
+		)
 	})
 })

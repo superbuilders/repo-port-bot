@@ -55,7 +55,8 @@ Define what "good failure" looks like when an automated port is attempted but ca
         - Files touched across all attempts.
         - Validation summary showing which commands passed and which failed (with exit codes).
         - Final status line: "validation failed after retries" with the failure reason.
-        - Per-attempt agent notes (what the agent tried, uncertainty flags).
+        - Compact execution metrics (attempts, files touched, tool call count).
+        - Per-attempt notes in stable sections (for example `### Attempt 1`), including what the agent tried and uncertainty flags.
         - `Ported-By: repo-port-bot` footer (loop prevention).
 
 6. **Source PR receives a notification comment**
