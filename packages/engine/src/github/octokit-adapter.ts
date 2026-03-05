@@ -180,5 +180,31 @@ export function createOctokitWriter(octokit: Octokit): GitHubWriter {
 				authorLogin: comment.user?.login,
 			}))
 		},
+		async findPullRequestForBranch(params) {
+			const response = await octokit.rest.pulls.list({
+				owner: params.owner,
+				repo: params.repo,
+				head: `${params.owner}:${params.head}`,
+				base: params.base,
+				state: 'open',
+				per_page: 1,
+			})
+			const match = response.data[0]
+
+			if (!match) {
+				return undefined
+			}
+
+			return { number: match.number, url: match.html_url }
+		},
+		async updatePullRequest(params) {
+			await octokit.rest.pulls.update({
+				owner: params.owner,
+				repo: params.repo,
+				pull_number: params.pullNumber,
+				title: params.title,
+				body: params.body,
+			})
+		},
 	}
 }

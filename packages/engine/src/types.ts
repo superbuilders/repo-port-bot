@@ -622,6 +622,36 @@ export interface GitHubWriter {
 		repo: string
 		issueNumber: number
 	}): Promise<IssueCommentRef[]>
+
+	/**
+	 * Find an existing open pull request for a given head branch.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 *
+	 * @param params - Search parameters.
+	 * @returns Matching PR metadata, or `undefined` when none exists.
+	 */
+	findPullRequestForBranch?(params: {
+		owner: string
+		repo: string
+		head: string
+		base: string
+	}): Promise<CreatedPullRequest | undefined>
+
+	/**
+	 * Update the title and body of an existing pull request.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 *
+	 * @param params - Update parameters.
+	 */
+	updatePullRequest?(params: {
+		owner: string
+		repo: string
+		pullNumber: number
+		title: string
+		body: string
+	}): Promise<void>
 }
 
 // ---------------------------------------------------------------------------

@@ -272,7 +272,9 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				`Port bot skipped this for \`${targetRepo}\`.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
-			].join('\n')
+			]
+				.filter(Boolean)
+				.join('\n')
 		}
 		case 'pr_opened': {
 			const prLink = input.targetPullRequestUrl ?? `a PR in \`${targetRepo}\``
@@ -282,7 +284,9 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				`Ported to ${prLink}. Validation passed; ready for review.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
-			].join('\n')
+			]
+				.filter(Boolean)
+				.join('\n')
 		}
 		case 'draft_pr_opened': {
 			const prLink = input.targetPullRequestUrl
@@ -294,7 +298,9 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				`Port attempted but validation failed after retries. Opened ${prLink}.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
-			].join('\n')
+			]
+				.filter(Boolean)
+				.join('\n')
 		}
 		case 'needs_human': {
 			const issueLink = input.followUpIssueUrl
@@ -306,7 +312,9 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				`Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
-			].join('\n')
+			]
+				.filter(Boolean)
+				.join('\n')
 		}
 		case 'failed': {
 			return [

@@ -26,6 +26,7 @@ const TARGET_REPO: RepoRef = {
 }
 
 const SOURCE_PULL_REQUEST_NUMBER = 42
+const EXISTING_PORT_PR_NUMBER = 555
 
 /**
  * Build a synthetic port context for delivery tests.
@@ -246,7 +247,7 @@ describe('deliverResult', () => {
 			'git add -A',
 			'git diff --cached --quiet',
 			'git commit -m Port: Sync feature (#42)\n\nSource-PR: https://github.com/acme/source-repo/pull/42\nPorted-By: repo-port-bot',
-			'git push -u origin port/source-repo/42-abc1234',
+			'git push --force -u origin port/source-repo/42-abc1234',
 		])
 	})
 
@@ -274,6 +275,54 @@ describe('deliverResult', () => {
 			'auto-port',
 			'port-stalled',
 		])
+	})
+
+	test('updates existing PR when port branch already has an open PR', async () => {
+		const { writer } = createWriterFake()
+		const updatePrCalls: unknown[] = []
+		let createPrAttempted = false
+
+		writer.createPullRequest = async () => {
+			createPrAttempted = true
+
+			const error = new Error('A pull request already exists for this head branch.')
+
+			;(error as unknown as { status: number }).status = 422
+			throw error
+		}
+
+		writer.findPullRequestForBranch = async () => ({
+			number: EXISTING_PORT_PR_NUMBER,
+			url: `https://github.com/acme/target-repo/pull/${String(EXISTING_PORT_PR_NUMBER)}`,
+		})
+		writer.updatePullRequest = async params => {
+			updatePrCalls.push(params)
+		}
+
+		const result = await deliverResult({
+			writer,
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			execution: makeExecution(true),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git diff --cached --quiet') {
+					return { exitCode: 1, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(createPrAttempted).toBe(true)
+		expect(result.outcome).toBe('pr_opened')
+		expect(result.targetPullRequestUrl).toBe(
+			`https://github.com/acme/target-repo/pull/${String(EXISTING_PORT_PR_NUMBER)}`,
+		)
+		expect(updatePrCalls).toHaveLength(1)
+		expect((updatePrCalls[0] as { pullNumber: number }).pullNumber).toBe(
+			EXISTING_PORT_PR_NUMBER,
+		)
 	})
 
 	test('throws when PORT_REQUIRED is delivered without execution result', async () => {
