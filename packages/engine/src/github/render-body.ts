@@ -43,6 +43,17 @@ const SHORT_SHA_LENGTH = 7
 const MAX_NEEDS_HUMAN_SOURCE_TITLE_LENGTH = 60
 
 /**
+ * Filter predicate that removes `undefined` while preserving empty strings
+ * (used as markdown paragraph separators).
+ *
+ * @param value - Candidate line.
+ * @returns True when the value is a string (including empty).
+ */
+function isDefinedLine(value: string | undefined): value is string {
+	return value !== undefined
+}
+
+/**
  * Truncate text for compact issue titles.
  *
  * @param value - Raw text.
@@ -177,9 +188,10 @@ function renderAttemptNotes(execution: ExecutionResult): string {
  */
 export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): string {
 	const sourcePullRequest = input.context.sourceChange.pullRequest
+	const sourceRepo = `${input.context.sourceRepo.owner}/${input.context.sourceRepo.name}`
 	const sourceReference = sourcePullRequest
-		? `[#${String(sourcePullRequest.number)}](${sourcePullRequest.url})`
-		: `commit \`${input.context.sourceChange.mergedCommitSha}\``
+		? `Ported from [${sourcePullRequest.title}](${sourcePullRequest.url}) in \`${sourceRepo}\`.`
+		: `Ported from commit \`${input.context.sourceChange.mergedCommitSha}\` in \`${sourceRepo}\`.`
 	const touchedFiles =
 		input.execution.touchedFiles.length > 0
 			? input.execution.touchedFiles.map(path => `- \`${path}\``).join('\n')
@@ -195,11 +207,10 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 
 	return [
 		'## Source',
-		`- ${sourceReference}`,
+		sourceReference,
 		'',
-		'## Decision',
-		`- Kind: \`${input.decision.kind}\``,
-		`- Reason: ${input.decision.reason}`,
+		'## Why this was ported',
+		input.decision.reason,
 		'',
 		'## Files touched',
 		touchedFiles,
@@ -257,23 +268,21 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
 export function renderSourceComment(input: RenderSourceCommentInput): string {
 	const targetRepo = `${input.context.pluginConfig.targetRepo.owner}/${input.context.pluginConfig.targetRepo.name}`
 	const supersededFailureLine = input.supersededFailureCommentUrl
-		? [
-				`Supersedes prior failed attempt: ${input.supersededFailureCommentUrl}${
-					input.supersededFailureRunId ? ` (run \`${input.supersededFailureRunId}\`)` : ''
-				}.`,
-				'',
-			].join('\n')
+		? `Supersedes prior failed attempt: ${input.supersededFailureCommentUrl}${
+				input.supersededFailureRunId ? ` (run \`${input.supersededFailureRunId}\`)` : ''
+			}.`
 		: undefined
 
 	switch (input.outcome) {
 		case 'skipped_not_required': {
 			return [
 				supersededFailureLine,
+				supersededFailureLine ? '' : undefined,
 				`Port bot skipped this for \`${targetRepo}\`.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]
-				.filter(Boolean)
+				.filter(isDefinedLine)
 				.join('\n')
 		}
 		case 'pr_opened': {
@@ -281,11 +290,12 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 
 			return [
 				supersededFailureLine,
+				supersededFailureLine ? '' : undefined,
 				`Ported to ${prLink}. Validation passed; ready for review.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]
-				.filter(Boolean)
+				.filter(isDefinedLine)
 				.join('\n')
 		}
 		case 'draft_pr_opened': {
@@ -295,11 +305,12 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 
 			return [
 				supersededFailureLine,
+				supersededFailureLine ? '' : undefined,
 				`Port attempted but validation failed after retries. Opened ${prLink}.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]
-				.filter(Boolean)
+				.filter(isDefinedLine)
 				.join('\n')
 		}
 		case 'needs_human': {
@@ -309,11 +320,12 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 
 			return [
 				supersededFailureLine,
+				supersededFailureLine ? '' : undefined,
 				`Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
 			]
-				.filter(Boolean)
+				.filter(isDefinedLine)
 				.join('\n')
 		}
 		case 'failed': {

@@ -339,6 +339,7 @@ async function upsertPullRequest(params: {
 				pullNumber: existing.number,
 				title: params.title,
 				body: params.body,
+				draft: params.draft,
 			})
 		}
 
@@ -447,6 +448,19 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		issueNumber: pullRequest.number,
 		labels,
 	})
+
+	if (options.execution.success && options.writer.removeLabel) {
+		try {
+			await options.writer.removeLabel({
+				owner: targetRepo.owner,
+				repo: targetRepo.name,
+				issueNumber: pullRequest.number,
+				label: 'port-stalled',
+			})
+		} catch {
+			// best-effort cleanup
+		}
+	}
 
 	return {
 		outcome: options.execution.success ? 'pr_opened' : 'draft_pr_opened',

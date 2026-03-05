@@ -60,11 +60,11 @@ Define what "working" means from a maintainer perspective when a change in one r
     - PR title follows predictable format:
         - `Port: <source PR title> (#<source PR number>)`
     - PR body includes:
-        - link to source PR
-        - decision kind and reason
+        - source narrative: `Ported from [<title>](<url>) in <owner>/<repo>.`
+        - "Why this was ported" prose section with the classifier/heuristic reason
         - files touched
         - validation commands and results
-        - per-attempt agent notes (assumptions, uncertainty flags)
+        - per-attempt agent summary (per-file descriptions, assumptions, uncertainty flags — not intermediate narration)
         - `Ported-By: repo-port-bot` footer (loop prevention signal)
 
 7. **Maintainer reviews a small, traceable PR**

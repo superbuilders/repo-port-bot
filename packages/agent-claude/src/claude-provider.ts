@@ -211,7 +211,13 @@ export class ClaudeAgentProvider implements AgentProvider {
 		for await (const message of this.queryFn({ prompt: userPrompt, options: queryOptions })) {
 			if (message.type === 'assistant') {
 				emitAssistantMessages(message, onMessage)
-				assistantNotes.push(...extractAssistantText(message))
+
+				const textBlocks = extractAssistantText(message)
+
+				if (textBlocks.length > 0) {
+					assistantNotes.length = 0
+					assistantNotes.push(...textBlocks)
+				}
 			} else if (message.type === 'result') {
 				resultMessage = message
 			}

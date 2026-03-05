@@ -125,7 +125,12 @@ describe('render-body', () => {
 			execution: makeExecution(true),
 		})
 
-		expect(body).toContain('[#42](https://github.com/acme/source-repo/pull/42)')
+		expect(body).toContain(
+			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in `acme/source-repo`.',
+		)
+		expect(body).toContain('## Why this was ported')
+		expect(body).toContain('Decision reason')
+		expect(body).not.toContain('Kind:')
 		expect(body).toContain('## Files touched')
 		expect(body).toContain('`src/app.ts`')
 		expect(body).toContain('## Validation')

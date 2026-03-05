@@ -624,6 +624,21 @@ export interface GitHubWriter {
 	}): Promise<IssueCommentRef[]>
 
 	/**
+	 * Remove a label from an issue or pull request.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 * Implementations should treat "label not found" as a no-op.
+	 *
+	 * @param params - Label removal parameters.
+	 */
+	removeLabel?(params: {
+		owner: string
+		repo: string
+		issueNumber: number
+		label: string
+	}): Promise<void>
+
+	/**
 	 * Find an existing open pull request for a given head branch.
 	 *
 	 * Optional so existing adapters/tests can omit this capability.
@@ -651,6 +666,7 @@ export interface GitHubWriter {
 		pullNumber: number
 		title: string
 		body: string
+		draft?: boolean
 	}): Promise<void>
 }
 

@@ -65,12 +65,13 @@ Port: <source PR title> (#<source PR number>)
 
 **Body includes:**
 
-- Link to source PR
+- Source narrative: `Ported from [<source PR title>](<source PR url>) in <owner>/<repo>`
 - Summary of what was ported
+- "Why this was ported" prose section with classifier/heuristic reason text
 - Files touched
 - Validation commands and results, or explicit "not run" wording when no validation commands are configured
 - Notes section with compact execution metrics (attempts, files touched, tool call count)
-- Per-attempt notes under stable headings (`### Attempt <n>`)
+- Per-attempt notes under stable headings (`### Attempt <n>`), containing only the agent's final summary (per-file descriptions of what was ported), not intermediate narration
 - `Ported-By: repo-port-bot` footer (loop prevention signal)
 
 **PR state:**

@@ -180,6 +180,28 @@ export function createOctokitWriter(octokit: Octokit): GitHubWriter {
 				authorLogin: comment.user?.login,
 			}))
 		},
+		async removeLabel(params) {
+			const NOT_FOUND = 404
+
+			try {
+				await octokit.rest.issues.removeLabel({
+					owner: params.owner,
+					repo: params.repo,
+					issue_number: params.issueNumber,
+					name: params.label,
+				})
+			} catch (error) {
+				if (
+					error &&
+					typeof error === 'object' &&
+					(error as { status?: unknown }).status === NOT_FOUND
+				) {
+					return
+				}
+
+				throw error
+			}
+		},
 		async findPullRequestForBranch(params) {
 			const response = await octokit.rest.pulls.list({
 				owner: params.owner,
@@ -205,6 +227,21 @@ export function createOctokitWriter(octokit: Octokit): GitHubWriter {
 				title: params.title,
 				body: params.body,
 			})
+
+			if (params.draft === false) {
+				const { data: pr } = await octokit.rest.pulls.get({
+					owner: params.owner,
+					repo: params.repo,
+					pull_number: params.pullNumber,
+				})
+
+				if (pr.draft) {
+					await octokit.graphql(
+						`mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { id } } }`,
+						{ id: pr.node_id },
+					)
+				}
+			}
 		},
 	}
 }

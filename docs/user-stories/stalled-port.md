@@ -50,13 +50,13 @@ Define what "good failure" looks like when an automated port is attempted but ca
     - A **draft** pull request is created. If one already exists for the same port branch (from a prior attempt), the existing PR is updated with the new body instead of creating a duplicate.
     - Labels applied: `auto-port` + `port-stalled`.
     - PR body includes:
-        - Link to the source PR.
-        - Decision kind and reason.
+        - Source narrative: `Ported from [<title>](<url>) in <owner>/<repo>.`
+        - "Why this was ported" prose section with the classifier/heuristic reason.
         - Files touched across all attempts.
         - Validation summary showing which commands passed and which failed (with exit codes).
         - Final status line: "validation failed after retries" with the failure reason.
         - Compact execution metrics (attempts, files touched, tool call count).
-        - Per-attempt notes in stable sections (for example `### Attempt 1`), including what the agent tried and uncertainty flags.
+        - Per-attempt notes in stable sections (for example `### Attempt 1`), containing the agent's final summary for that attempt (per-file descriptions, uncertainty flags), not intermediate working narration.
         - `Ported-By: repo-port-bot` footer (loop prevention).
 
 6. **Source PR receives a notification comment**
