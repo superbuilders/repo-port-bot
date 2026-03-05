@@ -66,15 +66,53 @@ inputs:
 outputs:
     run-id:
         description: Unique identifier for this port run.
+        value: ${{ steps.run.outputs['run-id'] }}
     outcome:
         description: Final run outcome from the engine.
+        value: ${{ steps.run.outputs.outcome }}
     pr-url:
         description: URL of created target pull request, if any.
+        value: ${{ steps.run.outputs['pr-url'] }}
     issue-url:
         description: URL of created follow-up issue, if any.
+        value: ${{ steps.run.outputs['issue-url'] }}
     summary:
         description: Human-readable run summary.
+        value: ${{ steps.run.outputs.summary }}
 
 runs:
-    using: node20
-    main: packages/action/dist/index.cjs
+    using: composite
+    steps:
+        - name: Install Bun
+          uses: oven-sh/setup-bun@v2
+          with:
+              bun-version: '1.3.6'
+
+        - name: Install dependencies
+          shell: bash
+          run: |
+              cd "${GITHUB_ACTION_PATH}"
+              bun install --production --frozen-lockfile
+
+        - name: Run port bot
+          id: run
+          shell: bash
+          run: |
+              bun run "${GITHUB_ACTION_PATH}/packages/action/src/index.ts"
+          env:
+              INPUT_GITHUB-TOKEN: ${{ inputs.github-token }}
+              INPUT_SOURCE-GITHUB-TOKEN: ${{ inputs.source-github-token }}
+              INPUT_TARGET-GITHUB-TOKEN: ${{ inputs.target-github-token }}
+              INPUT_LLM-API-KEY: ${{ inputs.llm-api-key }}
+              INPUT_TARGET-REPO: ${{ inputs.target-repo }}
+              INPUT_TARGET-DEFAULT-BRANCH: ${{ inputs.target-default-branch }}
+              INPUT_VALIDATION-COMMANDS: ${{ inputs.validation-commands }}
+              INPUT_PATH-MAPPINGS: ${{ inputs.path-mappings }}
+              INPUT_NAMING-CONVENTIONS: ${{ inputs.naming-conventions }}
+              INPUT_PROMPT: ${{ inputs.prompt }}
+              INPUT_SKIP-PORT-BOT-JSON: ${{ inputs.skip-port-bot-json }}
+              INPUT_MODEL: ${{ inputs.model }}
+              INPUT_MAX-ATTEMPTS: ${{ inputs.max-attempts }}
+              INPUT_MAX-TURNS: ${{ inputs.max-turns }}
+              INPUT_MAX-BUDGET-USD: ${{ inputs.max-budget-usd }}
+              INPUT_LOG-LEVEL: ${{ inputs.log-level }}

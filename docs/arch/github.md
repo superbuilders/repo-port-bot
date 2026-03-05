@@ -223,14 +223,15 @@ jobs:
 
 ### Action definition (in this repo)
 
-Lives at repo root `action.yml` as a JavaScript action.
+Lives at repo root `action.yml` as a composite action.
 
 Responsible for:
 
 - Parsing action inputs and token mode
 - Cloning source repo at merge SHA (read-only reference + diff computation)
 - Cloning target repo at default branch (agent working directory)
-- Running the engine entrypoint from `packages/action/dist/index.cjs`
+- Installing Bun and production dependencies at runtime in `${GITHUB_ACTION_PATH}`
+- Running the engine entrypoint from `packages/action/src/index.ts` via `bun run`
 - Publishing action outputs for downstream workflow steps
 
 ### Release workflow
@@ -238,11 +239,9 @@ Responsible for:
 `.github/workflows/release.yml` triggers on push to `main` or manual dispatch:
 
 1. Install, check, test
-2. Build action bundle via esbuild
-3. Force-add `packages/action/dist/index.cjs` and commit (if changed)
-4. Force-update `v1` tag
+2. Force-update `v1` tag to point at current `main`
 
-Users reference `@v1` which always points to the latest release build on `main`.
+Users reference `@v1` which always points to the latest release commit on `main`.
 
 ### workflow_dispatch for port re-runs (v2)
 

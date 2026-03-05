@@ -66,23 +66,34 @@ function getCommitLines(range: string): string[] {
 
 /**
  * Parse a conventional commit one-liner into structured parts.
+ * Supports both `type(scope): desc` and `type: desc` (no scope).
  *
  * @param line - One-line git log entry (hash + message).
  * @returns Parsed commit or undefined if not conventional format.
  */
 function parseCommit(line: string): Commit | undefined {
 	const withoutHash = line.replace(/^[a-f0-9]+ /, '')
-	const match = withoutHash.match(/^(\w+)\(([^)]+)\):\s*(.+)$/)
+	const withScope = withoutHash.match(/^(\w+)\(([^)]+)\):\s*(.+)$/)
 
-	if (!match) {
-		return undefined
+	if (withScope) {
+		return {
+			type: withScope[1]!,
+			scope: withScope[2]!,
+			description: withScope[3]!,
+		}
 	}
 
-	return {
-		type: match[1]!,
-		scope: match[2]!,
-		description: match[3]!,
+	const withoutScope = withoutHash.match(/^(\w+):\s*(.+)$/)
+
+	if (withoutScope) {
+		return {
+			type: withoutScope[1]!,
+			scope: 'general',
+			description: withoutScope[2]!,
+		}
 	}
+
+	return undefined
 }
 
 /**

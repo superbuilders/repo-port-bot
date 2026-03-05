@@ -34,21 +34,19 @@ gh pr merge --merge
 
 ## Why a PR instead of local merge
 
-The release workflow commits the built action bundle (`packages/action/dist/index.cjs`) directly to `main`. This means `origin/main` diverges from any local `main` checkout after every release. A PR merges server-side, avoiding local/remote conflicts entirely.
+The release workflow updates the `v1` tag from CI after checks/tests pass on `main`. A PR merge keeps release flow deterministic and avoids local merge drift.
 
 ## What happens automatically
 
 The release workflow (`.github/workflows/release.yml`) triggers on push to `main`:
 
 1. Install, check, test
-2. Build the action bundle (`packages/action/dist/index.cjs`)
-3. Commit the bundle if changed
-4. Force-update the `v1` tag
+2. Force-update the `v1` tag
 
-Users reference `@v1` which always points to the latest release build on `main`.
+Users reference `@v1` which always points to the latest release commit on `main`.
 
 ## Notes
 
 - There are no version bumps or npm publishing — this repo ships a GitHub Action, not a package
-- The `v1` tag is force-updated on every release, so users always get the latest
+- The `v1` tag is force-updated on every release, so users always get the latest `main` release commit
 - If the workflow has already created a `v1` tag, you don't need to create one manually
