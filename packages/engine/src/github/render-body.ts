@@ -268,18 +268,16 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
 export function renderSourceComment(input: RenderSourceCommentInput): string {
 	const targetRepo = `${input.context.pluginConfig.targetRepo.owner}/${input.context.pluginConfig.targetRepo.name}`
 	const supersededFailureLine = input.supersededFailureCommentUrl
-		? [
-				`Supersedes prior failed attempt: ${input.supersededFailureCommentUrl}${
-					input.supersededFailureRunId ? ` (run \`${input.supersededFailureRunId}\`)` : ''
-				}.`,
-				'',
-			].join('\n')
+		? `Supersedes prior failed attempt: ${input.supersededFailureCommentUrl}${
+				input.supersededFailureRunId ? ` (run \`${input.supersededFailureRunId}\`)` : ''
+			}.`
 		: undefined
 
 	switch (input.outcome) {
 		case 'skipped_not_required': {
 			return [
 				supersededFailureLine,
+				supersededFailureLine ? '' : undefined,
 				`Port bot skipped this for \`${targetRepo}\`.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
@@ -292,6 +290,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 
 			return [
 				supersededFailureLine,
+				supersededFailureLine ? '' : undefined,
 				`Ported to ${prLink}. Validation passed; ready for review.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
@@ -306,6 +305,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 
 			return [
 				supersededFailureLine,
+				supersededFailureLine ? '' : undefined,
 				`Port attempted but validation failed after retries. Opened ${prLink}.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
@@ -320,6 +320,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 
 			return [
 				supersededFailureLine,
+				supersededFailureLine ? '' : undefined,
 				`Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
 				'',
 				`**Why:** ${input.decision.reason}`,
