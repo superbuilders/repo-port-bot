@@ -132,7 +132,7 @@ Called by the decision stage when no fast heuristic matches. Determines whether 
 - `required: boolean` — proceed to execution or skip
 - `reason: string` — human-readable rationale for logs and issues
 
-The decision stage runs fast heuristics first (docs-only, config-only, label checks). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
+The decision stage runs fast heuristics first (missing PR, loop prevention via `auto-port` label, `no-port` label, docs-only, config-only). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
 
 ### `executePort` — editing
 

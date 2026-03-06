@@ -138,7 +138,7 @@ port-bot-run-<runId>/
   run-result.json      # Serialized PortRunResult
 ```
 
-Uploaded via the runtime artifact client with a short retention (7–14 days). Upload requires `ACTIONS_RUNTIME_TOKEN`; if the token is unavailable for the runner context, upload is skipped and the run still succeeds.
+Uploaded via the runtime artifact client with 14-day retention. Upload requires `ACTIONS_RUNTIME_TOKEN`; if the token is unavailable for the runner context, upload is skipped and the run still succeeds.
 
 When a port goes wrong the operator downloads the artifact, searches for the failing tool call, and sees exactly what the agent did.
 

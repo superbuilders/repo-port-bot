@@ -171,14 +171,14 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the 
 
 ### Labels
 
-Labels the engine expects to exist (or creates on first use):
+Labels are created on first use via the GitHub API (no manual pre-creation needed):
 
-| Label          | Purpose                                               |
-| -------------- | ----------------------------------------------------- |
-| `auto-port`    | Marks bot-created PRs; used for loop prevention       |
-| `port-stalled` | Marks draft PRs where validation failed after retries |
-| `needs-human`  | Marks issues requiring manual decision                |
-| `no-port`      | User-applied to source PRs to skip porting            |
+| Label          | Purpose                                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `auto-port`    | Marks bot-created PRs; used for loop prevention                                                             |
+| `port-stalled` | Marks draft PRs where validation failed after retries; removed on successful re-runs when the PR is updated |
+| `needs-human`  | Marks issues requiring manual decision                                                                      |
+| `no-port`      | User-applied to source PRs to skip porting                                                                  |
 
 ### Source PR notification
 
@@ -215,13 +215,14 @@ Source changes affect shared API surface that exists in both repos.
 
 ## Loop prevention
 
-Three signals prevent TS→Py→TS echo loops. At least two must be checked:
+The engine prevents TS→Py→TS echo loops by checking the `auto-port` label during the decision heuristics phase. Bot-created port PRs are always labeled `auto-port`, so when a port PR is merged and triggers the reverse workflow, the heuristic skips it.
 
-1. **Label**: source PR has `auto-port` label → skip
-2. **Commit footer**: merge commit contains `Ported-By: repo-port-bot` → skip
-3. **Branch name**: branch matches `port/…` pattern → skip
+Two additional signals are written but not yet checked by the engine:
 
-The workflow should check these before invoking the engine. The engine also checks during the decision heuristics phase as a safety net.
+- **Commit footer**: `Ported-By: repo-port-bot` is added to every port commit (useful for manual inspection or future workflow-level checks).
+- **Branch name**: port branches follow the `port/…` naming convention (useful for branch protection rules or future checks).
+
+These are available for workflows to check before invoking the engine, but the engine itself relies solely on the `auto-port` label.
 
 ## Authentication
 
@@ -312,6 +313,5 @@ Future work to support plain pushes:
 
 ## Open questions
 
-- Should the engine create labels automatically if they don't exist, or require pre-setup?
 - Do we need rate-limit handling for GitHub API calls?
 - Should PR body rendering be configurable per plugin or is a single format enough?

@@ -23,7 +23,7 @@ Define what "working" means from a maintainer perspective when a change in one r
     - `PORT_BOT_LLM_API_KEY`
     - `PORT_BOT_GITHUB_TOKEN` (or split `PORT_BOT_SOURCE_GITHUB_TOKEN` / `PORT_BOT_TARGET_GITHUB_TOKEN`)
 - Repo pairing config exists (built-in plugin and/or source repo `port-bot.json`).
-- Loop prevention signals are enabled (`auto-port` label and at least one additional signal).
+- Loop prevention is enabled (the `auto-port` label applied to bot-created PRs prevents echo loops).
 
 ## Success narrative (happy path)
 
