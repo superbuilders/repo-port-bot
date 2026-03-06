@@ -460,20 +460,27 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
  */
 export function renderSourceComment(input: RenderSourceCommentInput): string {
 	const targetRepo = `${input.context.pluginConfig.targetRepo.owner}/${input.context.pluginConfig.targetRepo.name}`
-	const supersededFailureLine = input.supersededFailureCommentUrl
-		? `Supersedes prior failed attempt: ${input.supersededFailureCommentUrl}${
+	const supersededNote = input.supersededFailureCommentUrl
+		? `> [!NOTE]\n> Supersedes [prior attempt](${input.supersededFailureCommentUrl})${
 				input.supersededFailureRunId ? ` (run \`${input.supersededFailureRunId}\`)` : ''
 			}.`
 		: undefined
+	const reasonDetails = [
+		'<details><summary>Why</summary>',
+		'',
+		input.decision.reason,
+		'',
+		'</details>',
+	].join('\n')
 
 	switch (input.outcome) {
 		case 'skipped_not_required': {
 			return [
-				supersededFailureLine,
-				supersededFailureLine ? '' : undefined,
-				`Port bot skipped this for \`${targetRepo}\`.`,
+				supersededNote,
+				supersededNote ? '' : undefined,
+				`> [!NOTE]\n> Port bot skipped this for \`${targetRepo}\`.`,
 				'',
-				`**Why:** ${input.decision.reason}`,
+				reasonDetails,
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -484,11 +491,11 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			const shape = `${String(fileCount)} file${fileCount === 1 ? '' : 's'}`
 
 			return [
-				supersededFailureLine,
-				supersededFailureLine ? '' : undefined,
-				`Ported to ${prLink} (${shape}, validation passed). Ready for review.`,
+				supersededNote,
+				supersededNote ? '' : undefined,
+				`> [!TIP]\n> Ported to ${prLink} (${shape}, validation passed).`,
 				'',
-				`**Why:** ${input.decision.reason}`,
+				reasonDetails,
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -501,11 +508,11 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			const shape = `${String(fileCount)} file${fileCount === 1 ? '' : 's'}`
 
 			return [
-				supersededFailureLine,
-				supersededFailureLine ? '' : undefined,
-				`Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
+				supersededNote,
+				supersededNote ? '' : undefined,
+				`> [!WARNING]\n> Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
 				'',
-				`**Why:** ${input.decision.reason}`,
+				reasonDetails,
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -516,30 +523,26 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				: `an issue in \`${targetRepo}\``
 
 			return [
-				supersededFailureLine,
-				supersededFailureLine ? '' : undefined,
-				`Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
+				supersededNote,
+				supersededNote ? '' : undefined,
+				`> [!WARNING]\n> Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
 				'',
-				`**Why:** ${input.decision.reason}`,
+				reasonDetails,
 			]
 				.filter(isDefinedLine)
 				.join('\n')
 		}
 		case 'failed': {
 			return [
-				`Port to \`${targetRepo}\` failed due to an engine error.`,
+				`> [!CAUTION]\n> Port to \`${targetRepo}\` failed due to an engine error. Run ID: \`${input.runId}\``,
 				'',
-				`**Why:** ${input.decision.reason}`,
-				'',
-				`Run ID: \`${input.runId}\``,
+				reasonDetails,
 			].join('\n')
 		}
 		default: {
-			return [
-				`Port bot ran for \`${targetRepo}\`.`,
-				'',
-				`**Why:** ${input.decision.reason}`,
-			].join('\n')
+			return [`> [!NOTE]\n> Port bot ran for \`${targetRepo}\`.`, '', reasonDetails].join(
+				'\n',
+			)
 		}
 	}
 }

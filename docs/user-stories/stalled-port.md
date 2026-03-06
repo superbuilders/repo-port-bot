@@ -58,7 +58,7 @@ Define what "good failure" looks like when an automated port is attempted but ca
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention remains the git trailer `Ported-By: repo-port-bot`)
 
 6. **Source PR receives a notification comment**
-    - Best-effort comment on the merged source PR: "Port attempted (N files) but validation failed after retries. Opened a draft PR: `<url>`."
+    - Best-effort `[!WARNING]` admonition comment on the merged source PR indicating validation failed and a draft PR was opened, with a collapsible reason.
     - This is how the maintainer discovers the stall without having to check the target repo.
 
 7. **Maintainer triages the draft PR**

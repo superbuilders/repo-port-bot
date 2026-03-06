@@ -427,7 +427,7 @@ describe('commentOnSourcePr', () => {
 		})
 
 		expect(String((createCommentCalls[0] as { body: string }).body)).toContain(
-			'Supersedes prior failed attempt: https://github.com/acme/source-repo/pull/42#issuecomment-0 (run `run-old`).',
+			'Supersedes [prior attempt](https://github.com/acme/source-repo/pull/42#issuecomment-0) (run `run-old`).',
 		)
 	})
 })
