@@ -83,7 +83,7 @@ export function renderPortPullRequestTitle(context: PortContext): string {
 		return `Port: source change (${context.sourceChange.mergedCommitSha.slice(0, SHORT_SHA_LENGTH)})`
 	}
 
-	return `Port: ${sourcePullRequest.title} (#${String(sourcePullRequest.number)})`
+	return `Port: ${sourcePullRequest.title}`
 }
 
 /**
@@ -130,6 +130,31 @@ function renderValidationSummary(execution: ExecutionResult): string {
 	}
 
 	return latestAttempt.validation.map(renderValidationLine).join('\n')
+}
+
+/**
+ * Render the collapsible validation & diagnostics block.
+ *
+ * @param execution - Execution details.
+ * @returns HTML details block with validation results.
+ */
+function renderDiagnosticsBlock(execution: ExecutionResult): string {
+	const validationLines = renderValidationSummary(execution)
+	const failureLine = !execution.success
+		? `- Final status: validation failed after retries.\n- Failure reason: ${execution.failureReason ?? 'Unknown failure reason.'}`
+		: undefined
+	const detailsTag = execution.success ? '<details>' : '<details open>'
+
+	return [
+		`${detailsTag}<summary>Validation & diagnostics</summary>`,
+		'',
+		validationLines,
+		failureLine,
+		'',
+		'</details>',
+	]
+		.filter(isDefinedLine)
+		.join('\n')
 }
 
 /**
@@ -211,41 +236,27 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	const reasonLines = input.decision.reason.split('\n').map(line => `> ${line}`)
 
 	if (input.execution.model) {
-		reasonLines.push('>', `> - ${input.execution.model}`)
+		const modelUrl = `https://models.dev/?search=${encodeURIComponent(input.execution.model)}`
+
+		reasonLines.push('>', `> — [${input.execution.model}](${modelUrl})`)
 	}
 
 	const reasonBlockquote = reasonLines.join('\n')
 
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
-	const validationLines = noValidationConfigured
-		? '- Validation not run (no validation commands configured).'
-		: renderValidationSummary(input.execution)
-	const failureLine =
-		!input.execution.success && !noValidationConfigured
-			? `- Final status: validation failed after retries.\n- Failure reason: ${input.execution.failureReason ?? 'Unknown failure reason.'}`
-			: undefined
 
-	const detailsTag = input.execution.success ? '<details>' : '<details open>'
-
-	const diagnosticsBlock = [
-		`${detailsTag}<summary>Validation & diagnostics</summary>`,
-		'',
-		validationLines,
-		failureLine,
-		'',
-		'</details>',
-	]
-		.filter(isDefinedLine)
-		.join('\n')
+	const diagnosticsBlock = noValidationConfigured
+		? undefined
+		: renderDiagnosticsBlock(input.execution)
 
 	return [
 		'## Cross-repo port',
 		'',
 		sourceNarrative,
 		'',
-		atAGlance,
-		'',
 		reasonBlockquote,
+		'',
+		atAGlance,
 		'',
 		'### What was ported',
 		'',
@@ -254,8 +265,10 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		diagnosticsBlock,
 		'',
 		'---',
-		`[Ported-By: repo-port-bot](${PORT_BOT_REPO_URL})`,
-	].join('\n')
+		`Ported by: [Repo Port Bot](${PORT_BOT_REPO_URL})`,
+	]
+		.filter(isDefinedLine)
+		.join('\n')
 }
 
 /**

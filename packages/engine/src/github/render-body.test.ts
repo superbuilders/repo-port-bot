@@ -115,7 +115,7 @@ describe('render-body', () => {
 	test('renders canonical pull request title', () => {
 		const title = renderPortPullRequestTitle(makeContext())
 
-		expect(title).toBe('Port: Add execution orchestration (#42)')
+		expect(title).toBe('Port: Add execution orchestration')
 	})
 
 	test('renders compact PR body with cross-repo heading, blockquote reason, and collapsible diagnostics', () => {
@@ -138,7 +138,7 @@ describe('render-body', () => {
 		expect(body).not.toContain('Final status')
 		expect(body).not.toContain('### Attempt 1')
 		expect(body).toContain(
-			'[Ported-By: repo-port-bot](https://github.com/superbuilders/repo-port-bot)',
+			'Ported by: [Repo Port Bot](https://github.com/superbuilders/repo-port-bot)',
 		)
 	})
 
@@ -155,15 +155,15 @@ describe('render-body', () => {
 		expect(body).toContain('Failure reason: Validation failed after retries.')
 	})
 
-	test('renders validation-not-run in diagnostics when no commands configured', () => {
+	test('omits diagnostics block when no validation commands configured', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContextWithoutValidationCommands(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(true),
 		})
 
-		expect(body).toContain('Validation not run (no validation commands configured).')
-		expect(body).not.toContain('Final status')
+		expect(body).not.toContain('Validation')
+		expect(body).not.toContain('<details')
 	})
 
 	test('renders needs-human issue title and body with rationale and signals', () => {
