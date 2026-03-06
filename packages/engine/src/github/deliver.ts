@@ -14,7 +14,6 @@ import type { Logger } from '@repo-port-bot/logger'
 
 import type {
 	CreatedPullRequest,
-	DecisionTrace,
 	DeliveryResult,
 	ExecutePortResult,
 	GitHubWriter,
@@ -32,7 +31,6 @@ interface DeliverResultOptions {
 	writer: GitHubWriter
 	context: PortContext
 	decision: PortDecision
-	decisionTrace: DecisionTrace
 	execution?: ExecutePortResult
 	targetWorkingDirectory: string
 	runCommand?: CommandRunner
@@ -400,7 +398,6 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 			body: renderNeedsHumanIssueBody({
 				context: options.context,
 				decision: options.decision,
-				decisionTrace: options.decisionTrace,
 			}),
 			labels: ['needs-human'],
 		})
@@ -436,7 +433,6 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	const prBody = renderPortPullRequestBody({
 		context: options.context,
 		decision: options.decision,
-		decisionTrace: options.decisionTrace,
 		execution: options.execution,
 	})
 	const pullRequest = await upsertPullRequest({

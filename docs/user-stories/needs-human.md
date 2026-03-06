@@ -70,7 +70,6 @@ Regardless of which path produces the `NEEDS_HUMAN` decision, no agent execution
     - Issue body includes:
         - Opening sentence linking to the source PR: "[title](url) was merged in `source-repo` but could not be automatically ported."
         - **Why**: the classifier's or engine's reason for the decision.
-        - When the decision came from the LLM classifier, a collapsible **Decision Log** showing what the classifier inspected (tool calls, reasoning) with a provenance line (model, tool call count, duration). This is particularly valuable here since the whole point is explaining why the bot couldn't decide.
         - **Changed files**: count of files in the source change.
     - No branch is pushed. No PR is created.
 

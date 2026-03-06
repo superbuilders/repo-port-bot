@@ -38,7 +38,6 @@ export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<Por
 				writer: input.writer,
 				context: input.context,
 				decision: input.decision.outcome,
-				decisionTrace: input.decision.trace,
 				targetWorkingDirectory: input.targetWorkingDirectory,
 			})
 

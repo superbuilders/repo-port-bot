@@ -18,14 +18,12 @@ import type {
 interface RenderPullRequestBodyInput {
 	context: PortContext
 	decision: PortDecision
-	decisionTrace: DecisionTrace
 	execution: ExecutePortResult
 }
 
 interface RenderNeedsHumanIssueBodyInput {
 	context: PortContext
 	decision: PortDecision
-	decisionTrace: DecisionTrace
 }
 
 interface RenderSourceCommentInput {
@@ -354,15 +352,15 @@ function readStringField(
 }
 
 /**
- * Render a collapsed, humanized agent work log section.
+ * Build humanized per-attempt work log sections from execution trace.
  *
  * @param execution - Execution details.
- * @returns HTML details block with per-attempt narrative.
+ * @returns Array of rendered attempt sections.
  */
-function renderAgentWorkLog(execution: ExecutePortResult): string {
+function buildAttemptSections(execution: ExecutePortResult): string[] {
 	const lastAttemptNumber = execution.trace.attempts.at(-1)?.attempt
 
-	const attemptSections = execution.trace.attempts.map(attempt => {
+	return execution.trace.attempts.map(attempt => {
 		const isLastAttempt = attempt.attempt === lastAttemptNumber
 		const body = renderAttemptWorkLogBody(attempt, isLastAttempt)
 
@@ -370,45 +368,20 @@ function renderAgentWorkLog(execution: ExecutePortResult): string {
 			? [`### Attempt ${String(attempt.attempt)}`, '', body].join('\n')
 			: body
 	})
-
-	return [
-		'<details><summary>Agent Work Log</summary>',
-		'',
-		...attemptSections,
-		'',
-		'</details>',
-	].join('\n\n')
 }
 
 /**
- * Render the Decision Log section when the decision came from the LLM classifier.
+ * Render a collapsed, humanized work log section.
  *
- * @param trace - Decision trace with source, events, model, and duration.
- * @returns Decision Log markdown or undefined for heuristic/fallback decisions.
+ * @param execution - Execution details.
+ * @returns HTML details block with per-attempt narrative.
  */
-function renderDecisionLog(trace: DecisionTrace): string | undefined {
-	if (trace.source !== 'classifier') {
-		return undefined
-	}
+function renderAgentWorkLog(execution: ExecutePortResult): string {
+	const attemptSections = buildAttemptSections(execution)
 
-	const body = renderEventBlocks(trace.events)
-	const toolCallCount = trace.toolCallLog.length
-	const modelPart = trace.model
-		? `[${trace.model}](https://models.dev/?search=${encodeURIComponent(trace.model)})`
-		: 'classifier'
-	const durationPart =
-		trace.durationMs !== undefined ? ` · ${formatDuration(trace.durationMs)}` : ''
-	const provenance = `Classified by ${modelPart} · ${String(toolCallCount)} tool call${toolCallCount === 1 ? '' : 's'}${durationPart}`
-
-	return [
-		'<details><summary>Decision Log</summary>',
-		'',
-		body,
-		'',
-		'</details>',
-		'',
-		provenance,
-	].join('\n')
+	return ['<details><summary>Work Log</summary>', '', ...attemptSections, '', '</details>'].join(
+		'\n\n',
+	)
 }
 
 /**
@@ -417,7 +390,6 @@ function renderDecisionLog(trace: DecisionTrace): string | undefined {
  * @param input - Rendering input.
  * @param input.context - Port context.
  * @param input.decision - Decision that led to execution.
- * @param input.decisionTrace - Decision trace for Decision Log rendering.
  * @param input.execution - Execution result with diagnostics.
  * @returns Pull request body markdown.
  */
@@ -444,8 +416,6 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 
 	const reasonBlockquote = reasonLines.join('\n')
 
-	const decisionLog = renderDecisionLog(input.decisionTrace)
-
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
 
 	const diagnosticsBlock = noValidationConfigured
@@ -458,8 +428,6 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'',
 		reasonBlockquote,
 		'',
-		decisionLog,
-		decisionLog ? '' : undefined,
 		sourceNarrative,
 		'',
 		'## What was ported',
@@ -492,15 +460,12 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
 		? `[${sourcePullRequest.title}](${sourcePullRequest.url}) was merged in \`${sourceRepo}\` but could not be automatically ported.`
 		: `Commit \`${input.context.sourceChange.mergedCommitSha}\` was pushed to \`${sourceRepo}\` but could not be automatically ported.`
 	const fileCount = String(input.context.sourceChange.files.length)
-	const decisionLog = renderDecisionLog(input.decisionTrace)
 
 	return [
 		openingSentence,
 		'',
 		`**Why:** ${input.decision.reason}`,
 		'',
-		decisionLog,
-		decisionLog ? '' : undefined,
 		`**Changed files:** ${fileCount}`,
 	]
 		.filter(isDefinedLine)
@@ -526,13 +491,21 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				input.supersededFailureRunId ? ` (run \`${input.supersededFailureRunId}\`)` : ''
 			}.`
 		: undefined
-	const reasonDetails = [
-		'<details><summary>Why</summary>',
-		'',
-		input.decision.reason,
-		'',
-		'</details>',
-	].join('\n')
+	const reasonLines = input.decision.reason.split('\n').map(line => `> ${line}`)
+
+	/**
+	 * @param summary - Collapsible summary label.
+	 * @returns Blockquote-nested details markdown.
+	 */
+	function buildReasonDetails(summary: string): string {
+		return [
+			`> <details><summary>${summary}</summary>`,
+			'>',
+			...reasonLines,
+			'>',
+			'> </details>',
+		].join('\n')
+	}
 
 	switch (input.outcome) {
 		case 'skipped_not_required': {
@@ -540,8 +513,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!NOTE]\n> Port bot skipped this for \`${targetRepo}\`.`,
-				'',
-				reasonDetails,
+				'>',
+				buildReasonDetails('Why was this skipped?'),
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -555,8 +528,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!TIP]\n> Ported to ${prLink} (${shape}, validation passed).`,
-				'',
-				reasonDetails,
+				'>',
+				buildReasonDetails('Why was this ported?'),
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -572,8 +545,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!WARNING]\n> Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
-				'',
-				reasonDetails,
+				'>',
+				buildReasonDetails('Why was this ported?'),
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -587,8 +560,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!WARNING]\n> Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
-				'',
-				reasonDetails,
+				'>',
+				buildReasonDetails('Why does this need review?'),
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -596,14 +569,16 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 		case 'failed': {
 			return [
 				`> [!CAUTION]\n> Port to \`${targetRepo}\` failed due to an engine error. Run ID: \`${input.runId}\``,
-				'',
-				reasonDetails,
+				'>',
+				buildReasonDetails('What went wrong?'),
 			].join('\n')
 		}
 		default: {
-			return [`> [!NOTE]\n> Port bot ran for \`${targetRepo}\`.`, '', reasonDetails].join(
-				'\n',
-			)
+			return [
+				`> [!NOTE]\n> Port bot ran for \`${targetRepo}\`.`,
+				'>',
+				buildReasonDetails('Details'),
+			].join('\n')
 		}
 	}
 }
@@ -662,4 +637,35 @@ export function renderRunSummary(input: RenderRunSummaryInput): string {
 			return 'Port run completed.'
 		}
 	}
+}
+
+/**
+ * Render the decision event log body for the action job summary.
+ *
+ * Only produces output when the decision came from the LLM classifier.
+ * Heuristic/fallback decisions return `undefined`.
+ *
+ * @param trace - Decision trace from the run result.
+ * @returns Humanized event markdown or undefined.
+ */
+export function renderDecisionLogSummary(trace: DecisionTrace): string | undefined {
+	if (trace.source !== 'classifier' || trace.events.length === 0) {
+		return undefined
+	}
+
+	return renderEventBlocks(trace.events)
+}
+
+/**
+ * Render the execution event log body for the action job summary.
+ *
+ * @param execution - Execution result from the run.
+ * @returns Humanized event markdown or undefined when no execution happened.
+ */
+export function renderExecutionLogSummary(execution: ExecutePortResult): string | undefined {
+	if (execution.trace.attempts.length === 0) {
+		return undefined
+	}
+
+	return buildAttemptSections(execution).join('\n\n')
 }

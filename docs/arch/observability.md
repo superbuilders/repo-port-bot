@@ -120,40 +120,23 @@ Notes:
 The action writes a summary via `core.summary` with a clean layout:
 
 - **H1**: source PR title (e.g. `# Port: Add formatting/date helpers`)
-- **One-liner**: outcome with linked target PR and total duration (e.g. `Ported to [target-repo#6](url) · 39.5s`)
+- **One-liner**: outcome with linked target PR (e.g. `Ported to [target-repo#6](url)`)
 - **Timing table**: horizontal stage breakdown showing where time was spent
-- **Collapsible details**: decision kind/reason plus decision provenance (`heuristic`/`classifier`/`fallback`), heuristic name when present, decision model when classifier runs, execution model, artifact, execution tool call count, decision tool call count, run ID
+- **Collapsible Decision** (`<n> tool calls · <duration>`): decision kind, reason, heuristic name when applicable. When the classifier ran, a nested collapsible **Log** shows the humanized event trace.
+- **Collapsible Execution** (`<n> tool calls · <duration>`): model, artifact name, run ID. A nested collapsible **Log** shows the humanized execution event trace. For multi-attempt runs, per-attempt headings (`### Attempt 1`, etc.) inside the log.
 
-This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log.
+The Decision and Execution sections are grouped by stage so the summary reads top-to-bottom: decision facts + decision log, then execution facts + execution log. Tool call counts and duration appear on the parent label; the nested log just contains the event narrative.
 
-## Decision Log (PR and issue bodies)
-
-When the decision came from the LLM classifier (not a heuristic), the target PR body and needs-human issue body include a collapsible **Decision Log** showing what the classifier inspected. It appears directly below the decision reason blockquote.
-
-The Decision Log uses the same humanization as the execution Agent Work Log:
+Both logs use the same humanization:
 
 - assistant reasoning rendered as `_italic text_`
 - tool events grouped into fenced code blocks
 - `Glob` and `Grep` filtered out as low-signal
-- capped at the same per-section line limit
+- capped at a per-section block limit
 
-Below the collapsible log, a one-line provenance summary shows:
+The Decision log is only shown when the classifier ran (not for heuristic decisions). The Execution section is omitted entirely when no execution happened (skipped or needs-human outcomes).
 
-- classifier model (linked to models.dev)
-- tool call count
-- classifier duration
-
-Heuristic decisions do not produce a Decision Log — the reason blockquote alone is sufficient since heuristics are deterministic and fast.
-
-### Where the Decision Log appears
-
-| Surface               | Classifier decision                        | Heuristic decision |
-| --------------------- | ------------------------------------------ | ------------------ |
-| **Target PR body**    | Collapsible Decision Log + provenance line | No Decision Log    |
-| **Needs-human issue** | Collapsible Decision Log + provenance line | No Decision Log    |
-| **Source PR comment** | No Decision Log (comments stay minimal)    | No Decision Log    |
-
-The Decision Log is particularly valuable in the needs-human issue, where the whole point is explaining why the bot couldn't decide — the maintainer can see exactly which files the classifier inspected and how it reasoned.
+This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log, while keeping the target PR body focused on what a reviewer needs (the decision reason + change summary).
 
 ## Tool call artifact
 
