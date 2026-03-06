@@ -104,7 +104,7 @@ Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
 
 ---
 
-[Ported-By: repo-port-bot](<bot repo url>)
+Ported by: [Repo Port Bot](<bot repo url>)
 ```
 
 Key design choices:
@@ -115,7 +115,7 @@ Key design choices:
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
 - **At-a-glance stats line** (`2 files changed · 1 attempt · 5 tool calls · 18.6s`) between the source narrative and reason blockquote — sets reviewer expectations for diff size and shows how fast the agent worked
 - **Decision blockquote** includes the agent model name (e.g. `claude-sonnet-4-6`) as a trailing bullet, keeping "who and why" context together
-- **`Ported-By: repo-port-bot`** footer linking to the bot repository, after a horizontal rule for clean separation (also serves as loop prevention signal)
+- **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
 
 For **multi-attempt runs** (stalled ports), the "What was ported" section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) with touched-in-attempt lines. Single-attempt runs omit this nesting.
 

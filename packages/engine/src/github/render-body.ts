@@ -263,7 +263,7 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		diagnosticsBlock,
 		'',
 		'---',
-		`[Ported-By: repo-port-bot](${PORT_BOT_REPO_URL})`,
+		`Ported by: [Repo Port Bot](${PORT_BOT_REPO_URL})`,
 	]
 		.filter(isDefinedLine)
 		.join('\n')

@@ -138,7 +138,7 @@ describe('render-body', () => {
 		expect(body).not.toContain('Final status')
 		expect(body).not.toContain('### Attempt 1')
 		expect(body).toContain(
-			'[Ported-By: repo-port-bot](https://github.com/superbuilders/repo-port-bot)',
+			'Ported by: [Repo Port Bot](https://github.com/superbuilders/repo-port-bot)',
 		)
 	})
 
