@@ -1,4 +1,4 @@
-import { createConsoleLogger, formatPortBotLine } from '@repo-port-bot/logger'
+import { createConsoleLogger } from '@repo-port-bot/logger'
 
 import { fetchPortBotJson } from '../config/fetch-port-bot-json.ts'
 import { resolvePluginConfig } from '../config/resolve-plugin-config.ts'
@@ -7,12 +7,7 @@ import { executePort } from '../execution/execute-port.ts'
 import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
 import { renderRunSummary } from '../github/render-body.ts'
-import {
-	extractFilePath,
-	getDurationMs,
-	normalizeLoggedFilePath,
-	toErrorMessage,
-} from '../utils.ts'
+import { getDurationMs, logAgentMessage, toErrorMessage } from '../utils.ts'
 import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
 import { runNeedsHumanFlow } from './needs-human.ts'
 import { runPortRequiredFlow } from './port-required.ts'
@@ -22,7 +17,6 @@ import type { Logger } from '@repo-port-bot/logger'
 import type { PortBotJsonConfig } from '../config/types.ts'
 import type {
 	AgentProvider,
-	AgentMessage,
 	GitHubReader,
 	GitHubWriter,
 	PartialPluginConfig,
@@ -170,9 +164,10 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 				sourceWorkingDirectory: options.sourceWorkingDirectory,
 				diffFilePath: options.diffFilePath,
 				onMessage: message => {
-					logDecisionMessage({
+					logAgentMessage({
 						logger,
 						runId,
+						stage: 'decision',
 						message,
 						targetWorkingDirectory: options.targetWorkingDirectory,
 						sourceWorkingDirectory: options.sourceWorkingDirectory,
@@ -300,71 +295,4 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			stageTimings,
 		}
 	}
-}
-
-/**
- * Log one streamed decision-stage agent message using structured formatting.
- *
- * @param input - Message logging input.
- * @param input.logger - Logger implementation.
- * @param input.runId - Run identifier for correlation.
- * @param input.message - Streamed agent message.
- * @param input.targetWorkingDirectory - Optional target repo root for path normalization.
- * @param input.sourceWorkingDirectory - Optional source repo root for path normalization.
- */
-function logDecisionMessage(input: {
-	logger: Logger
-	runId: string
-	message: AgentMessage
-	targetWorkingDirectory?: string
-	sourceWorkingDirectory?: string
-}): void {
-	const { logger, runId, message } = input
-
-	if (message.kind === 'tool_start') {
-		const filePath = extractFilePath(message.toolInput)
-		const loggedFilePath = normalizeLoggedFilePath({
-			filePath,
-			targetWorkingDirectory: input.targetWorkingDirectory,
-			sourceWorkingDirectory: input.sourceWorkingDirectory,
-		})
-
-		logger.info(
-			formatPortBotLine({
-				runId,
-				fields: {
-					stage: 'decision',
-					tool: message.toolName,
-					file: loggedFilePath,
-				},
-			}),
-		)
-
-		return
-	}
-
-	if (message.kind === 'tool_end') {
-		logger.debug(
-			formatPortBotLine({
-				runId,
-				fields: {
-					stage: 'decision',
-					tool: message.toolName,
-					toolDurationMs: message.durationMs,
-				},
-			}),
-		)
-
-		return
-	}
-
-	logger.debug(
-		formatPortBotLine({
-			runId,
-			fields: {
-				stage: 'decision',
-				[message.kind]: message.text,
-			},
-		}),
-	)
 }

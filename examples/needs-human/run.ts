@@ -127,11 +127,11 @@ const result = await runPort({
 	logger: createConsoleLogger('info'),
 	stageOverrides: {
 		decide: async () => ({
-			decision: {
+			outcome: {
 				kind: 'NEEDS_HUMAN',
 				reason: 'Forced NEEDS_HUMAN for local example.',
 			},
-			session: {
+			trace: {
 				source: 'heuristic',
 				heuristicName: 'exampleOverride',
 				toolCallLog: [],

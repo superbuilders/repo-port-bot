@@ -1,5 +1,11 @@
 import { isAbsolute, relative } from 'node:path'
 
+import { formatPortBotLine } from '@repo-port-bot/logger'
+
+import type { Logger } from '@repo-port-bot/logger'
+
+import type { AgentMessage } from './types.ts'
+
 const MIN_DURATION_MS = 1
 const MS_PER_SECOND = 1000
 const MS_PER_TENTH_SECOND = 100
@@ -81,9 +87,7 @@ export function joinNonEmptyLines(
  * @param toolInput - Tool input payload from streamed event.
  * @returns File path when present.
  */
-export function extractFilePath(
-	toolInput: Record<string, unknown> | undefined,
-): string | undefined {
+function extractFilePath(toolInput: Record<string, unknown> | undefined): string | undefined {
 	if (!toolInput) {
 		return undefined
 	}
@@ -108,7 +112,7 @@ export function extractFilePath(
  * @param input.sourceWorkingDirectory - Optional source repo root.
  * @returns Relative path when inside known roots, else original path.
  */
-export function normalizeLoggedFilePath(input: {
+function normalizeLoggedFilePath(input: {
 	filePath: string | undefined
 	targetWorkingDirectory?: string
 	sourceWorkingDirectory?: string
@@ -141,7 +145,7 @@ const DEFAULT_MAX_LOG_TEXT_LENGTH = 240
  * @param maxLength - Maximum length before truncation. Defaults to 240.
  * @returns Truncated text with ellipsis when needed.
  */
-export function truncateLogText(
+function truncateLogText(
 	value: string | undefined,
 	maxLength = DEFAULT_MAX_LOG_TEXT_LENGTH,
 ): string | undefined {
@@ -154,4 +158,74 @@ export function truncateLogText(
 	}
 
 	return `${value.slice(0, maxLength - 3)}...`
+}
+
+/**
+ * Log one streamed agent message using structured line formatting.
+ *
+ * Shared by both decision and execution stages to avoid drift.
+ *
+ * @param input - Message logging input.
+ * @param input.logger - Logger implementation.
+ * @param input.runId - Run identifier for correlation.
+ * @param input.stage - Pipeline stage name for log lines.
+ * @param input.message - Streamed agent message.
+ * @param input.targetWorkingDirectory - Optional target repo root for path normalization.
+ * @param input.sourceWorkingDirectory - Optional source repo root for path normalization.
+ */
+export function logAgentMessage(input: {
+	logger: Logger
+	runId: string
+	stage: string
+	message: AgentMessage
+	targetWorkingDirectory?: string
+	sourceWorkingDirectory?: string
+}): void {
+	const { logger, runId, stage, message } = input
+
+	if (message.kind === 'tool_start') {
+		const loggedFilePath = normalizeLoggedFilePath({
+			filePath: extractFilePath(message.toolInput),
+			targetWorkingDirectory: input.targetWorkingDirectory,
+			sourceWorkingDirectory: input.sourceWorkingDirectory,
+		})
+
+		logger.info(
+			formatPortBotLine({
+				runId,
+				fields: {
+					stage,
+					tool: message.toolName,
+					file: loggedFilePath,
+				},
+			}),
+		)
+
+		return
+	}
+
+	if (message.kind === 'tool_end') {
+		logger.debug(
+			formatPortBotLine({
+				runId,
+				fields: {
+					stage,
+					tool: message.toolName,
+					toolDurationMs: message.durationMs,
+				},
+			}),
+		)
+
+		return
+	}
+
+	logger.debug(
+		formatPortBotLine({
+			runId,
+			fields: {
+				stage,
+				[message.kind]: truncateLogText(message.text),
+			},
+		}),
+	)
 }

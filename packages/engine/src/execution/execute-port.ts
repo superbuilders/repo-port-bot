@@ -4,20 +4,13 @@ import {
 	formatPortBotLine,
 } from '@repo-port-bot/logger'
 
-import {
-	extractFilePath,
-	joinNonEmptyLines,
-	normalizeLoggedFilePath,
-	toErrorMessage,
-	truncateLogText,
-} from '../utils.ts'
+import { joinNonEmptyLines, logAgentMessage, toErrorMessage } from '../utils.ts'
 import { runValidationCommands } from './run-validation.ts'
 import { buildValidationFailureReason } from './utils.ts'
 
 import type { Logger } from '@repo-port-bot/logger'
 
 import type {
-	AgentMessage,
 	AgentProvider,
 	ExecutePortAttemptResult,
 	ExecutePortResult,
@@ -87,6 +80,7 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 						logAgentMessage({
 							logger,
 							runId: options.context.runId,
+							stage: 'execute',
 							message,
 							targetWorkingDirectory: options.targetWorkingDirectory,
 							sourceWorkingDirectory: options.sourceWorkingDirectory,
@@ -266,70 +260,4 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 			attempts,
 		},
 	}
-}
-
-/**
- * Log one streamed agent message using structured line formatting.
- *
- * @param input - Message logging input.
- * @param input.logger - Logger implementation.
- * @param input.runId - Run identifier for correlation.
- * @param input.message - Streamed agent message.
- * @param input.targetWorkingDirectory - Optional target repo root for path normalization.
- * @param input.sourceWorkingDirectory - Optional source repo root for path normalization.
- */
-function logAgentMessage(input: {
-	logger: Logger
-	runId: string
-	message: AgentMessage
-	targetWorkingDirectory?: string
-	sourceWorkingDirectory?: string
-}): void {
-	const { logger, runId, message } = input
-
-	if (message.kind === 'tool_start') {
-		const loggedFilePath = normalizeLoggedFilePath({
-			filePath: extractFilePath(message.toolInput),
-			targetWorkingDirectory: input.targetWorkingDirectory,
-			sourceWorkingDirectory: input.sourceWorkingDirectory,
-		})
-
-		logger.info(
-			formatPortBotLine({
-				runId,
-				fields: {
-					stage: 'execute',
-					tool: message.toolName,
-					file: loggedFilePath,
-				},
-			}),
-		)
-
-		return
-	}
-
-	if (message.kind === 'tool_end') {
-		logger.debug(
-			formatPortBotLine({
-				runId,
-				fields: {
-					stage: 'execute',
-					tool: message.toolName,
-					toolDurationMs: message.durationMs,
-				},
-			}),
-		)
-
-		return
-	}
-
-	logger.debug(
-		formatPortBotLine({
-			runId,
-			fields: {
-				stage: 'execute',
-				[message.kind]: truncateLogText(message.text),
-			},
-		}),
-	)
 }
