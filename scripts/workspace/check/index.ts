@@ -14,7 +14,8 @@ const config: TaskRunnerConfig = {
 			{
 				id: 'typecheck',
 				name: 'Typecheck',
-				command: 'bunx -p @typescript/native-preview tsgo --build --noEmit',
+				command:
+					'rm -f tsconfig.tsbuildinfo packages/*/tsconfig.tsbuildinfo && bunx -p @typescript/native-preview tsgo --build --noEmit',
 			},
 			{
 				id: 'knip',
