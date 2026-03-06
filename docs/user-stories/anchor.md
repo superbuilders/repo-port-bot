@@ -23,7 +23,7 @@ Define what "working" means from a maintainer perspective when a change in one r
     - `PORT_BOT_LLM_API_KEY`
     - `PORT_BOT_GITHUB_TOKEN` (or split `PORT_BOT_SOURCE_GITHUB_TOKEN` / `PORT_BOT_TARGET_GITHUB_TOKEN`)
 - Repo pairing config exists (built-in plugin and/or source repo `port-bot.json`).
-- Loop prevention signals are enabled (`auto-port` label and at least one additional signal).
+- Loop prevention is enabled (the `auto-port` label applied to bot-created PRs prevents echo loops).
 
 ## Success narrative (happy path)
 
@@ -60,11 +60,12 @@ Define what "working" means from a maintainer perspective when a change in one r
     - PR title follows predictable format:
         - `Port: <source PR title>`
     - PR body follows a compact layout:
-        - `## Cross-repo port` heading with source narrative (`Ported from [<title>](<url>) in <repo>`)
-        - at-a-glance stats line (`2 files changed · 1 attempt · 5 tool calls · 18.6s`)
-        - decision reason as blockquote with model name (classifier or heuristic explanation)
-        - `### What was ported` — the agent's per-file summary of changes (the main content)
-        - collapsed `Agent Work Log` with chronological assistant notes and humanized tool actions (for retries, grouped by attempt)
+        - `## Cross-repo port` heading with decision blockquote immediately below (the "why" is the first thing a reviewer reads)
+        - decision blockquote includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`)
+        - when the decision came from the LLM classifier, a collapsible `Decision Log` appears below the blockquote showing what the classifier inspected (tool calls in code blocks, assistant reasoning in italics) with a provenance line (model, tool call count, duration). Heuristic decisions do not produce a Decision Log.
+        - source narrative below the decision section (`Ported from [<title>](<url>) in <repo>`)
+        - `## What was ported` — the agent's per-file summary of changes (the main content)
+        - collapsed `Agent Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (only shown in "What was ported", not repeated in the log)
         - collapsible `Validation & diagnostics` section with pass/fail results
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention signal remains the git trailer `Ported-By: repo-port-bot`)
 
@@ -89,8 +90,8 @@ The maintainer experiences porting as "automatic and reviewable":
 
 2. **Traceability**
     - Target PR contains a link to source PR in the body and source PR title in the PR title.
-    - For non-skipped outcomes (`pr_opened`, `draft_pr_opened`, `needs_human`, `failed`), source PR receives a bot comment linking to the target PR/issue or run status.
-    - On reruns, newer non-failure comments can explicitly supersede prior failed comments (with link + run id) so maintainers can follow the latest state.
+    - For all outcomes (including skips), source PR receives a bot comment using GitHub admonitions (`[!TIP]` for success, `[!WARNING]` for stalled/needs-human, `[!CAUTION]` for failures) with a collapsible reason.
+    - On reruns, newer comments include a `[!NOTE]` supersede line linking the prior failed comment so maintainers can follow the latest state.
 
 3. **Correctness gate**
     - Target PR is only marked "ready" when configured validation commands pass.

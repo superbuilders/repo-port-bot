@@ -1,8 +1,8 @@
 import type {
-	AgentInput,
 	DecidePortInput,
+	ExecutePortAttemptInput,
+	ExecutePortAttemptResult,
 	PluginConfig,
-	ExecutionAttempt,
 	ValidationCommandResult,
 } from '@repo-port-bot/engine'
 
@@ -109,7 +109,7 @@ export function buildDecideSystemPrompt(input: {
  * @param input - Agent attempt input.
  * @returns User prompt text.
  */
-export function buildUserPrompt(input: AgentInput): string {
+export function buildUserPrompt(input: ExecutePortAttemptInput): string {
 	const changedFilesSection = renderChangedFilesSection(input)
 	const retrySection = renderRetrySection(input.previousAttempts)
 	const retryInstruction =
@@ -160,7 +160,7 @@ export function buildDecideUserPrompt(input: DecidePortInput): string {
  */
 function renderChangedFilesSection(
 	input: Pick<
-		AgentInput,
+		DecidePortInput,
 		'files' | 'sourceWorkingDirectory' | 'diffFilePath' | 'targetWorkingDirectory'
 	>,
 ): string {
@@ -194,7 +194,7 @@ function renderChangedFilesSection(
  * @param attempts - Prior attempts.
  * @returns Retry section or undefined for first attempt.
  */
-function renderRetrySection(attempts: ExecutionAttempt[]): string | undefined {
+function renderRetrySection(attempts: ExecutePortAttemptResult[]): string | undefined {
 	if (attempts.length === 0) {
 		return undefined
 	}
@@ -204,13 +204,13 @@ function renderRetrySection(attempts: ExecutionAttempt[]): string | undefined {
 		const touchedFiles =
 			attempt.touchedFiles.length === 0
 				? 'none'
-				: attempt.touchedFiles.map(path => `\`${path}\``).join(', ')
+				: attempt.touchedFiles.map((path: string) => `\`${path}\``).join(', ')
 
 		return joinNonEmptyLines([
 			`Attempt ${String(attempt.attempt)}:`,
 			`- Touched files: ${touchedFiles}`,
 			failure && `- Validation failure: ${failure}`,
-			attempt.notes && `- Notes: ${attempt.notes}`,
+			attempt.trace.notes && `- Notes: ${attempt.trace.notes}`,
 		])
 	})
 

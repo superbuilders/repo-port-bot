@@ -88,16 +88,14 @@ The agent uses absolute paths to read source files and the diff, and relative pa
 - Each attempt: agent receives `previousAttempts` feedback (validation errors, touched files), applies targeted fix, reruns.
 - Conversation model: fresh per attempt (new `query()` call each retry).
 - Working directory: incremental (no reset between attempts; each builds on previous edits).
-- On exhaustion: execution returns `success: false` with `failureReason`.
+- On exhaustion: execution returns an outcome status plus a final reason in the execution outcome payload.
 
 ### Output
 
-An `ExecutionResult` containing:
+An `ExecutePortResult` containing:
 
-- `success` boolean
-- Per-attempt history (files touched, validation results, notes)
-- Final touched files list
-- Failure reason if applicable
+- `outcome`: final execution status, attempt count, touched files, and optional failure reason
+- `trace`: stage observability including model, duration, aggregate tool calls/events, and per-attempt diagnostics
 
 ## Provider interface
 
@@ -105,8 +103,8 @@ The engine does not call an agent framework directly. Instead, it depends on an 
 
 ```typescript
 interface AgentProvider {
-	decidePort(input: DecidePortInput): Promise<DecidePortOutput>
-	executePort(input: AgentInput): Promise<AgentOutput>
+	decidePort(input: DecidePortInput): Promise<DecidePortResult>
+	executePort(input: ExecutePortAttemptInput): Promise<ExecutePortAttemptOutput>
 }
 ```
 
@@ -127,30 +125,30 @@ Called by the decision stage when no fast heuristic matches. Determines whether 
 - Optional source repo checkout and diff file paths
 - Resolved plugin config
 
-**`DecidePortOutput`** — structured classifier result:
+**`DecidePortResult`** — classification outcome plus trace:
 
-- `required: boolean` — proceed to execution or skip
-- `reason: string` — human-readable rationale for logs and issues
+- `outcome.kind` / `outcome.reason` — proceed, skip, or needs-human with rationale
+- `trace.source` — `heuristic`, `classifier`, or `fallback`
+- `trace.toolCallLog` / `trace.events` / `trace.model` — observability when classification uses the LLM path
 
-The decision stage runs fast heuristics first (docs-only, config-only, label checks). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
+The decision stage runs fast heuristics first (missing PR, loop prevention via `auto-port` label, `no-port` label, docs-only, config-only). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
 
 ### `executePort` — editing
 
 Called by the execution stage for each attempt.
 
-**`AgentInput`** — everything the provider needs to do one attempt:
+**`ExecutePortAttemptInput`** — everything the provider needs to do one attempt:
 
 - Source diff and changed files
 - Target repo working directory path
 - Resolved plugin config (path mappings, conventions, prompt)
 - Previous attempt context on retries (validation errors, what was already tried)
 
-**`AgentOutput`** — what the provider returns per attempt:
+**`ExecutePortAttemptOutput`** — what the provider returns per attempt:
 
 - Files touched
 - Whether the agent believes edits are complete
-- Optional notes / uncertainty flags
-- Raw tool call log (for observability)
+- `trace` payload with notes, tool calls, events, and optional model
 
 The orchestrator (`execute-port.ts`) calls the provider, runs validation itself, and decides whether to retry based on the retry policy. The provider never runs validation commands — it only produces edits.
 
@@ -170,7 +168,7 @@ Uses `@anthropic-ai/claude-agent-sdk` via the `ClaudeAgentProvider` class.
 - **Conversation model**: fresh per attempt (new `query()` call each retry).
 - **Tools**: `Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash` — built-in SDK tools.
 - **Permissions**: runs in `bypassPermissions` mode for non-interactive CI usage.
-- **Observability**: `ToolCallEntry[]` collected via SDK `PreToolUse`/`PostToolUse` hooks; touched files tracked from `Edit`/`Write` tool inputs.
+- **Observability**: both decision and execution return a shared trace shape (`notes`, `model`, `toolCallLog`, `events`), while execution also aggregates per-attempt traces under the stage trace.
 - **Default model**: `claude-sonnet-4-6` (configurable via action input).
 - **Budget**: `maxTurns` (default 50) and optional `maxBudgetUsd` per attempt.
 
@@ -253,7 +251,7 @@ Record decisions here as they're made.
 ### 2026-03-03 — Agent-backed decision classifier
 
 - **Question**: What happens when no fast heuristic matches in the decision stage?
-- **Decision**: Add `decidePort(input: DecidePortInput): Promise<DecidePortOutput>` to `AgentProvider`. The decision stage calls it as a fallback when heuristics are inconclusive.
+- **Decision**: Add `decidePort(input: DecidePortInput): Promise<DecidePortResult>` to `AgentProvider`. The decision stage calls it as a fallback when heuristics are inconclusive.
 - **Rationale**: Pure heuristics (docs-only, config-only, label checks) handle clear-cut cases but cannot reason about whether target code needs updating. An LLM-backed classifier with read-only tools and target repo access can inspect both sides and make an informed call. Two-phase agent interaction (`decidePort` then `executePort`) avoids wasting execution budget on changes that don't need porting.
 
 ### 2026-03-03 — Structured outputs for decidePort

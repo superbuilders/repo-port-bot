@@ -8,7 +8,13 @@ import {
 	renderSourceComment,
 } from './render-body.ts'
 
-import type { ExecutionResult, PortContext, PortDecision, RepoRef } from '../types.ts'
+import type {
+	DecisionTrace,
+	ExecutePortResult,
+	PortContext,
+	PortDecision,
+	RepoRef,
+} from '../types.ts'
 
 const SOURCE_REPO: RepoRef = {
 	owner: 'acme',
@@ -79,77 +85,143 @@ function makeDecision(kind: PortDecision['kind']): PortDecision {
 }
 
 /**
+ * Build a heuristic decision trace fixture.
+ *
+ * @returns Decision trace fixture with no classifier events.
+ */
+function makeHeuristicTrace(): DecisionTrace {
+	return {
+		source: 'heuristic',
+		heuristicName: 'checkDocsOnly',
+		toolCallLog: [],
+		events: [],
+	}
+}
+
+/**
+ * Build a classifier decision trace fixture with events.
+ *
+ * @returns Decision trace fixture with classifier events and model.
+ */
+function makeClassifierTrace(): DecisionTrace {
+	return {
+		source: 'classifier',
+		model: 'claude-sonnet-4-6',
+		durationMs: 1800,
+		toolCallLog: [
+			{ toolName: 'Read', input: { file_path: 'src/app.ts' }, output: { ok: true } },
+		],
+		events: [
+			{
+				kind: 'assistant_note',
+				text: 'Checking for equivalent target files.',
+			},
+			{
+				kind: 'tool_start',
+				toolName: 'Read',
+				toolUseId: 'read-1',
+				toolInput: { file_path: 'src/app.ts' },
+			},
+			{
+				kind: 'tool_end',
+				toolName: 'Read',
+				toolUseId: 'read-1',
+				durationMs: 42,
+			},
+			{
+				kind: 'assistant_note',
+				text: 'Target file exists. Port required.',
+			},
+		],
+	}
+}
+
+/**
  * Build execution fixture for success/failure render paths.
  *
  * @param success - Whether execution succeeded.
  * @returns Execution fixture.
  */
-function makeExecution(success: boolean): ExecutionResult {
+function makeExecution(success: boolean): ExecutePortResult {
 	return {
-		success,
-		attempts: success ? 1 : 2,
-		history: [
-			{
-				attempt: success ? 1 : 2,
-				touchedFiles: ['src/app.ts'],
-				validation: [
-					{
-						command: 'bun run check',
-						ok: success,
-						exitCode: success ? 0 : 1,
-						stdout: success ? 'ok' : '',
-						stderr: success ? '' : 'failed',
-						durationMs: 123,
+		outcome: {
+			status: success ? 'SUCCEEDED' : 'VALIDATION_FAILED',
+			attempts: success ? 1 : 2,
+			touchedFiles: ['src/app.ts'],
+			reason: success ? undefined : 'Validation failed after retries.',
+		},
+		trace: {
+			notes: success ? 'Looks good.' : 'Still failing checks.',
+			toolCallLog: [],
+			events: [],
+			attempts: [
+				{
+					attempt: success ? 1 : 2,
+					status: success ? 'VALIDATED' : 'VALIDATION_FAILED',
+					touchedFiles: ['src/app.ts'],
+					validation: [
+						{
+							command: 'bun run check',
+							ok: success,
+							exitCode: success ? 0 : 1,
+							stdout: success ? 'ok' : '',
+							stderr: success ? '' : 'failed',
+							durationMs: 123,
+						},
+					],
+					trace: {
+						notes: success ? 'Looks good.' : 'Still failing checks.',
+						toolCallLog: [],
+						events: [
+							{
+								kind: 'assistant_note',
+								text: 'Starting out the port...',
+							},
+							{
+								kind: 'tool_start',
+								toolName: 'Read',
+								toolUseId: 'read-1',
+								toolInput: { file_path: 'src/app.ts' },
+							},
+							{
+								kind: 'tool_end',
+								toolName: 'Read',
+								toolUseId: 'read-1',
+								durationMs: 42,
+							},
+							{
+								kind: 'tool_start',
+								toolName: 'Edit',
+								toolUseId: 'edit-1',
+								toolInput: { file_path: 'src/app.ts' },
+							},
+							{
+								kind: 'tool_end',
+								toolName: 'Edit',
+								toolUseId: 'edit-1',
+								durationMs: 55,
+							},
+							{
+								kind: 'tool_start',
+								toolName: 'Bash',
+								toolUseId: 'bash-1',
+								toolInput: { command: 'bun run check' },
+							},
+							{
+								kind: 'tool_end',
+								toolName: 'Bash',
+								toolUseId: 'bash-1',
+								durationMs: 18_601,
+							},
+							{
+								kind: 'assistant_note',
+								text: success ? 'Looks good.' : 'Still failing checks.',
+							},
+						],
 					},
-				],
-				notes: success ? 'Looks good.' : 'Still failing checks.',
-				toolCallLog: [],
-				events: [
-					{
-						kind: 'assistant_note',
-						text: 'Starting out the port...',
-					},
-					{
-						kind: 'tool_start',
-						toolName: 'Read',
-						toolUseId: 'read-1',
-						toolInput: { file_path: 'src/app.ts' },
-					},
-					{
-						kind: 'tool_end',
-						toolName: 'Read',
-						toolUseId: 'read-1',
-						durationMs: 42,
-					},
-					{
-						kind: 'tool_start',
-						toolName: 'Edit',
-						toolUseId: 'edit-1',
-						toolInput: { file_path: 'src/app.ts' },
-					},
-					{
-						kind: 'tool_end',
-						toolName: 'Edit',
-						toolUseId: 'edit-1',
-						durationMs: 55,
-					},
-					{
-						kind: 'tool_start',
-						toolName: 'Bash',
-						toolUseId: 'bash-1',
-						toolInput: { command: 'bun run check' },
-					},
-					{
-						kind: 'tool_end',
-						toolName: 'Bash',
-						toolUseId: 'bash-1',
-						durationMs: 18_601,
-					},
-				],
-			},
-		],
-		touchedFiles: ['src/app.ts'],
-		failureReason: success ? undefined : 'Validation failed after retries.',
+				},
+			],
+		},
 	}
 }
 
@@ -164,21 +236,35 @@ describe('render-body', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: makeHeuristicTrace(),
 			execution: makeExecution(true),
 		})
 
 		expect(body).toContain('## Cross-repo port')
+		expect(body).toContain('> Decision reason')
 		expect(body).toContain(
 			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in [`acme/source-repo`](https://github.com/acme/source-repo).',
 		)
-		expect(body).toContain('> Decision reason')
-		expect(body).toContain('### What was ported')
+		expect(body).toContain('## What was ported')
+
+		const blockquoteIndex = body.indexOf('> Decision reason')
+		const sourceIndex = body.indexOf('Ported from')
+
+		expect(blockquoteIndex).toBeLessThan(sourceIndex)
 		expect(body).toContain('Looks good.')
 		expect(body).toContain('<details><summary>Agent Work Log</summary>')
-		expect(body).toContain('Starting out the port...')
+		expect(body).toContain('_Starting out the port..._')
 		expect(body).toContain('Read `src/app.ts`')
 		expect(body).toContain('Edited `src/app.ts`')
 		expect(body).toContain('Ran `bun run check` (18.6s)')
+		expect(body).toContain('```\nRead')
+
+		const workLogSection = body.slice(
+			body.indexOf('Agent Work Log'),
+			body.indexOf('</details>'),
+		)
+
+		expect(workLogSection).not.toContain('Looks good.')
 		expect(body).toContain('<details><summary>Validation & diagnostics</summary>')
 		expect(body).toContain('[PASS] `bun run check`')
 		expect(body).toContain('1 file changed · 1 attempt · 0 tool calls')
@@ -189,10 +275,48 @@ describe('render-body', () => {
 		)
 	})
 
+	test('renders Decision Log for classifier decisions', () => {
+		const body = renderPortPullRequestBody({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: makeClassifierTrace(),
+			execution: makeExecution(true),
+		})
+
+		expect(body).toContain('<details><summary>Decision Log</summary>')
+		expect(body).toContain('_Checking for equivalent target files._')
+		expect(body).toContain('Read `src/app.ts`')
+		expect(body).toContain('_Target file exists. Port required._')
+		expect(body).toContain('Classified by')
+		expect(body).toContain('claude-sonnet-4-6')
+		expect(body).toContain('1 tool call')
+		expect(body).toContain('1.8s')
+
+		const decisionLogIndex = body.indexOf('Decision Log')
+		const sourceNarrativeIndex = body.indexOf('Ported from')
+		const whatWasPortedIndex = body.indexOf('## What was ported')
+
+		expect(decisionLogIndex).toBeLessThan(sourceNarrativeIndex)
+		expect(sourceNarrativeIndex).toBeLessThan(whatWasPortedIndex)
+	})
+
+	test('omits Decision Log for heuristic decisions', () => {
+		const body = renderPortPullRequestBody({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: makeHeuristicTrace(),
+			execution: makeExecution(true),
+		})
+
+		expect(body).not.toContain('Decision Log')
+		expect(body).not.toContain('Classified by')
+	})
+
 	test('renders draft/stalled PR with details open and failure info', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: makeHeuristicTrace(),
 			execution: makeExecution(false),
 		})
 
@@ -206,6 +330,7 @@ describe('render-body', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContextWithoutValidationCommands(),
 			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: makeHeuristicTrace(),
 			execution: makeExecution(true),
 		})
 
@@ -216,43 +341,73 @@ describe('render-body', () => {
 	test('renders per-attempt sections in Agent Work Log on retries', () => {
 		const execution = makeExecution(false)
 
-		execution.history = [
+		execution.trace.attempts = [
 			{
-				...execution.history[0]!,
+				...execution.trace.attempts[0]!,
 				attempt: 1,
-				notes: 'First attempt notes.',
-				events: [
-					{
-						kind: 'assistant_note',
-						text: 'First attempt.',
-					},
-				],
+				trace: {
+					...execution.trace.attempts[0]!.trace,
+					notes: 'First attempt notes.',
+					events: [
+						{
+							kind: 'assistant_note',
+							text: 'First attempt.',
+						},
+					],
+				},
 			},
 			{
-				...execution.history[0]!,
+				...execution.trace.attempts[0]!,
 				attempt: 2,
-				notes: 'Final attempt summary.',
-				events: [
-					{
-						kind: 'assistant_note',
-						text: 'Second attempt.',
-					},
-				],
+				trace: {
+					...execution.trace.attempts[0]!.trace,
+					notes: 'Final attempt summary.',
+					events: [
+						{
+							kind: 'assistant_note',
+							text: 'Retrying the port...',
+						},
+						{
+							kind: 'tool_start',
+							toolName: 'Edit',
+							toolUseId: 'edit-2',
+							toolInput: { file_path: 'src/app.ts' },
+						},
+						{
+							kind: 'tool_end',
+							toolName: 'Edit',
+							toolUseId: 'edit-2',
+							durationMs: 10,
+						},
+						{
+							kind: 'assistant_note',
+							text: 'Final attempt summary.',
+						},
+					],
+				},
 			},
 		]
 
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: makeHeuristicTrace(),
 			execution,
 		})
 
 		expect(body).toContain('### Attempt 1')
 		expect(body).toContain('First attempt.')
 		expect(body).toContain('### Attempt 2')
-		expect(body).toContain('Second attempt.')
+		expect(body).toContain('Retrying the port...')
 
-		const whatWasPortedIndex = body.indexOf('### What was ported')
+		const workLogSection = body.slice(
+			body.indexOf('Agent Work Log'),
+			body.indexOf('</details>'),
+		)
+
+		expect(workLogSection).not.toContain('Final attempt summary.')
+
+		const whatWasPortedIndex = body.indexOf('## What was ported')
 		const workLogIndex = body.indexOf('Agent Work Log')
 		const sectionBetween = body.slice(whatWasPortedIndex, workLogIndex)
 
@@ -264,7 +419,11 @@ describe('render-body', () => {
 		const context = makeContext()
 		const decision = makeDecision('NEEDS_HUMAN')
 		const title = renderNeedsHumanIssueTitle(context)
-		const body = renderNeedsHumanIssueBody({ context, decision })
+		const body = renderNeedsHumanIssueBody({
+			context,
+			decision,
+			decisionTrace: makeHeuristicTrace(),
+		})
 
 		expect(title).toBe('Needs review: Add execution orchestration')
 		expect(body).toContain(
@@ -274,7 +433,22 @@ describe('render-body', () => {
 		expect(body).toContain('**Changed files:** 1')
 	})
 
-	test('renders source comment for skipped outcome as narrative with reason', () => {
+	test('renders Decision Log in needs-human issue for classifier decisions', () => {
+		const context = makeContext()
+		const decision = makeDecision('NEEDS_HUMAN')
+		const body = renderNeedsHumanIssueBody({
+			context,
+			decision,
+			decisionTrace: makeClassifierTrace(),
+		})
+
+		expect(body).toContain('<details><summary>Decision Log</summary>')
+		expect(body).toContain('Classified by')
+		expect(body).toContain('claude-sonnet-4-6')
+		expect(body).toContain('**Changed files:** 1')
+	})
+
+	test('renders source comment for skipped outcome with note admonition', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
 			decision: makeDecision('PORT_NOT_REQUIRED'),
@@ -282,11 +456,13 @@ describe('render-body', () => {
 			runId: 'run-0',
 		})
 
+		expect(body).toContain('[!NOTE]')
 		expect(body).toContain('skipped this for `acme/target-repo`')
-		expect(body).toContain('**Why:** Decision reason')
+		expect(body).toContain('<details><summary>Why</summary>')
+		expect(body).toContain('Decision reason')
 	})
 
-	test('renders source comment for pr_opened as narrative with target link', () => {
+	test('renders source comment for pr_opened with tip admonition', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
@@ -295,13 +471,14 @@ describe('render-body', () => {
 			runId: 'run-1',
 		})
 
+		expect(body).toContain('[!TIP]')
 		expect(body).toContain(
 			'Ported to https://github.com/acme/target-repo/pull/901 (1 file, validation passed)',
 		)
-		expect(body).toContain('**Why:** Decision reason')
+		expect(body).toContain('<details><summary>Why</summary>')
 	})
 
-	test('renders source comment for draft_pr_opened and needs_human as narratives', () => {
+	test('renders source comment for draft_pr_opened and needs_human with warning admonition', () => {
 		const draftBody = renderSourceComment({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
@@ -317,15 +494,15 @@ describe('render-body', () => {
 			runId: 'run-3',
 		})
 
+		expect(draftBody).toContain('[!WARNING]')
 		expect(draftBody).toContain('validation failed after retries')
 		expect(draftBody).toContain('draft PR: https://github.com/acme/target-repo/pull/333')
-		expect(draftBody).toContain('**Why:** Decision reason')
+		expect(needsHumanBody).toContain('[!WARNING]')
 		expect(needsHumanBody).toContain('issue: https://github.com/acme/target-repo/issues/55')
 		expect(needsHumanBody).toContain('manual review')
-		expect(needsHumanBody).toContain('**Why:** Decision reason')
 	})
 
-	test('renders source comment for failed outcome with run ID', () => {
+	test('renders source comment for failed outcome with caution admonition', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
 			decision: makeDecision('NEEDS_HUMAN'),
@@ -333,12 +510,12 @@ describe('render-body', () => {
 			runId: 'run-4',
 		})
 
+		expect(body).toContain('[!CAUTION]')
 		expect(body).toContain('failed due to an engine error')
-		expect(body).toContain('**Why:** Decision reason')
 		expect(body).toContain('Run ID: `run-4`')
 	})
 
-	test('renders source comment supersede line when prior failed comment exists', () => {
+	test('renders source comment supersede as note admonition with link', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
@@ -351,7 +528,9 @@ describe('render-body', () => {
 		})
 
 		expect(body).toContain(
-			'Supersedes prior failed attempt: https://github.com/acme/source-repo/pull/42#issuecomment-0 (run `run-0`).',
+			'Supersedes [prior attempt](https://github.com/acme/source-repo/pull/42#issuecomment-0) (run `run-0`).',
 		)
+		expect(body).toContain('[!NOTE]')
+		expect(body).toContain('[!TIP]')
 	})
 })

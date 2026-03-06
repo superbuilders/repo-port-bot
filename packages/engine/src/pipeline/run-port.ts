@@ -7,7 +7,7 @@ import { executePort } from '../execution/execute-port.ts'
 import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
 import { renderRunSummary } from '../github/render-body.ts'
-import { getDurationMs, toErrorMessage } from '../utils.ts'
+import { getDurationMs, logAgentMessage, toErrorMessage } from '../utils.ts'
 import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
 import { runNeedsHumanFlow } from './needs-human.ts'
 import { runPortRequiredFlow } from './port-required.ts'
@@ -158,22 +158,34 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		logger.group('Decision: classify source change')
 
 		try {
-			decision = await stages.decide(context, {
+			const decisionResult = await stages.decide(context, {
 				agentProvider: options.agentProvider,
 				targetWorkingDirectory: options.targetWorkingDirectory,
 				sourceWorkingDirectory: options.sourceWorkingDirectory,
 				diffFilePath: options.diffFilePath,
+				onMessage: message => {
+					logAgentMessage({
+						logger,
+						runId,
+						stage: 'decision',
+						message,
+						targetWorkingDirectory: options.targetWorkingDirectory,
+						sourceWorkingDirectory: options.sourceWorkingDirectory,
+					})
+				},
 			})
+
+			decision = decisionResult
 			logStage(logger, runId, 'decision', {
-				kind: decision.kind,
-				reason: decision.reason,
+				kind: decision.outcome.kind,
+				reason: decision.outcome.reason,
 				decisionMs: (stageTimings.decisionMs = getDurationMs(startedAtMs)),
 			})
 		} finally {
 			logger.groupEnd()
 		}
 
-		if (decision.kind === 'PORT_NOT_REQUIRED') {
+		if (decision.outcome.kind === 'PORT_NOT_REQUIRED') {
 			const sourcePrNumber = context.sourceChange.pullRequest?.number
 
 			if (sourcePrNumber) {
@@ -182,7 +194,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 						writer: options.writer,
 						pullRequestNumber: sourcePrNumber,
 						context,
-						decision,
+						decision: decision.outcome,
 						outcome: 'skipped_not_required',
 						runId,
 						logger,
@@ -208,7 +220,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			}
 		}
 
-		if (decision.kind === 'NEEDS_HUMAN') {
+		if (decision.outcome.kind === 'NEEDS_HUMAN') {
 			return runNeedsHumanFlow({
 				writer: options.writer,
 				context,
@@ -244,7 +256,8 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		})
 	} catch (error) {
 		const errorMessage = toErrorMessage(error)
-		const failureDecision = decision ?? buildEngineFailureDecision(errorMessage)
+		const failureDecision = buildEngineFailureDecision(errorMessage)
+		const failureDecisionValue = decision ?? failureDecision
 		const sourcePullRequestNumber = context?.sourceChange.pullRequest?.number
 
 		if (context && sourcePullRequestNumber) {
@@ -253,7 +266,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 					writer: options.writer,
 					pullRequestNumber: sourcePullRequestNumber,
 					context,
-					decision: failureDecision,
+					decision: failureDecisionValue.outcome,
 					outcome: 'failed',
 					runId,
 					logger,
@@ -272,10 +285,10 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			runId,
 			sourceTitle,
 			outcome: 'failed',
-			decision: failureDecision,
+			decision: failureDecisionValue,
 			summary: renderRunSummary({
 				outcome: 'failed',
-				decision: failureDecision,
+				decision: failureDecisionValue,
 				errorMessage,
 			}),
 			durationMs: getDurationMs(startedAtMs),

@@ -1,22 +1,19 @@
-import { isAbsolute, relative } from 'node:path'
-
 import {
 	createConsoleLogger,
 	formatPortBotExecuteAttemptLine,
 	formatPortBotLine,
 } from '@repo-port-bot/logger'
 
-import { extractFilePath, joinNonEmptyLines, toErrorMessage, truncateLogText } from '../utils.ts'
+import { joinNonEmptyLines, logAgentMessage, toErrorMessage } from '../utils.ts'
 import { runValidationCommands } from './run-validation.ts'
 import { buildValidationFailureReason } from './utils.ts'
 
 import type { Logger } from '@repo-port-bot/logger'
 
 import type {
-	AgentMessage,
 	AgentProvider,
-	ExecutionAttempt,
-	ExecutionResult,
+	ExecutePortAttemptResult,
+	ExecutePortResult,
 	PortContext,
 	ValidationCommandResult,
 } from '../types.ts'
@@ -51,7 +48,7 @@ const DEFAULT_MAX_ATTEMPTS = 3
  * @param options.diffFilePath - Optional source diff file path.
  * @returns Execution result with history and success/failure state.
  */
-export async function executePort(options: ExecutePortOptions): Promise<ExecutionResult> {
+export async function executePort(options: ExecutePortOptions): Promise<ExecutePortResult> {
 	const maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
 	const logger = options.logger ?? createConsoleLogger('info')
 	const validate = options.validate ?? runValidationCommands
@@ -61,7 +58,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 	}
 
 	const executionStartedAtMs = Date.now()
-	const history: ExecutionAttempt[] = []
+	const attempts: ExecutePortAttemptResult[] = []
 	const touchedFiles = new Set<string>()
 	let agentModel: string | undefined = undefined
 
@@ -78,11 +75,12 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 					sourceWorkingDirectory: options.sourceWorkingDirectory,
 					diffFilePath: options.diffFilePath,
 					pluginConfig: options.context.pluginConfig,
-					previousAttempts: history,
+					previousAttempts: attempts,
 					onMessage: message => {
 						logAgentMessage({
 							logger,
 							runId: options.context.runId,
+							stage: 'execute',
 							message,
 							targetWorkingDirectory: options.targetWorkingDirectory,
 							sourceWorkingDirectory: options.sourceWorkingDirectory,
@@ -90,7 +88,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 					},
 				})
 
-				agentModel ??= agentOutput.model
+				agentModel ??= agentOutput.trace.model
 
 				for (const path of agentOutput.touchedFiles) {
 					touchedFiles.add(path)
@@ -102,26 +100,30 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 				})
 
 				const attemptNotes = joinNonEmptyLines([
-					agentOutput.notes,
+					agentOutput.trace.notes,
 					agentOutput.complete ? undefined : 'Agent marked attempt as incomplete.',
 				])
+				const attemptDurationMs = Math.max(1, Date.now() - attemptStartedAtMs)
+				const allValidationPassed = validation.every(result => result.ok)
 
-				const attempt: ExecutionAttempt = {
+				const attempt: ExecutePortAttemptResult = {
 					attempt: attemptNumber,
+					status: allValidationPassed ? 'VALIDATED' : 'VALIDATION_FAILED',
 					touchedFiles: agentOutput.touchedFiles,
 					validation,
-					notes: attemptNotes,
-					toolCallLog: agentOutput.toolCallLog,
-					events: agentOutput.events,
+					trace: {
+						notes: attemptNotes,
+						durationMs: attemptDurationMs,
+						toolCallLog: agentOutput.trace.toolCallLog,
+						events: agentOutput.trace.events,
+					},
 				}
 
-				history.push(attempt)
-
-				const allValidationPassed = validation.every(result => result.ok)
+				attempts.push(attempt)
 
 				logger.debug(JSON.stringify(validation, null, 2))
 
-				for (const toolCall of attempt.toolCallLog) {
+				for (const toolCall of attempt.trace.toolCallLog) {
 					logger.debug(
 						formatPortBotLine({
 							runId: options.context.runId,
@@ -141,44 +143,65 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						maxAttempts,
 						touched: attempt.touchedFiles.length,
 						validation: allValidationPassed ? 'pass' : 'fail',
-						durationMs: Math.max(1, Date.now() - attemptStartedAtMs),
+						durationMs: attemptDurationMs,
 					}),
 				)
 
 				if (allValidationPassed) {
 					return {
-						success: true,
-						attempts: history.length,
-						history,
-						touchedFiles: [...touchedFiles],
-						model: agentModel,
-						durationMs: Date.now() - executionStartedAtMs,
+						outcome: {
+							status: 'SUCCEEDED',
+							attempts: attempts.length,
+							touchedFiles: [...touchedFiles],
+						},
+						trace: {
+							model: agentModel,
+							durationMs: Date.now() - executionStartedAtMs,
+							notes: attemptNotes,
+							toolCallLog: attempts.flatMap(entry => entry.trace.toolCallLog),
+							events: attempts.flatMap(entry => entry.trace.events),
+							attempts,
+						},
 					}
 				}
 
 				if (attemptNumber === maxAttempts) {
+					const reason = buildValidationFailureReason(validation, attempts.length)
+
 					return {
-						success: false,
-						attempts: history.length,
-						history,
-						touchedFiles: [...touchedFiles],
-						failureReason: buildValidationFailureReason(validation, history.length),
-						model: agentModel,
-						durationMs: Date.now() - executionStartedAtMs,
+						outcome: {
+							status: 'VALIDATION_FAILED',
+							attempts: attempts.length,
+							touchedFiles: [...touchedFiles],
+							reason,
+						},
+						trace: {
+							model: agentModel,
+							durationMs: Date.now() - executionStartedAtMs,
+							notes: attemptNotes,
+							toolCallLog: attempts.flatMap(entry => entry.trace.toolCallLog),
+							events: attempts.flatMap(entry => entry.trace.events),
+							attempts,
+						},
 					}
 				}
 			} catch (error) {
 				const errorMessage = toErrorMessage(error)
-				const attempt: ExecutionAttempt = {
+				const attemptDurationMs = Math.max(1, Date.now() - attemptStartedAtMs)
+				const attempt: ExecutePortAttemptResult = {
 					attempt: attemptNumber,
+					status: 'PROVIDER_ERROR',
 					touchedFiles: [],
 					validation: [],
-					notes: `Agent provider error: ${errorMessage}`,
-					toolCallLog: [],
-					events: [],
+					trace: {
+						notes: `Agent provider error: ${errorMessage}`,
+						durationMs: attemptDurationMs,
+						toolCallLog: [],
+						events: [],
+					},
 				}
 
-				history.push(attempt)
+				attempts.push(attempt)
 
 				logger.info(
 					formatPortBotExecuteAttemptLine({
@@ -187,7 +210,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						maxAttempts,
 						touched: 0,
 						validation: 'error',
-						durationMs: Math.max(1, Date.now() - attemptStartedAtMs),
+						durationMs: attemptDurationMs,
 					}),
 				)
 				logger.warn(
@@ -201,13 +224,20 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 				)
 
 				return {
-					success: false,
-					attempts: history.length,
-					history,
-					touchedFiles: [...touchedFiles],
-					failureReason: `Agent provider failed on attempt ${String(attemptNumber)}: ${errorMessage}`,
-					model: agentModel,
-					durationMs: Date.now() - executionStartedAtMs,
+					outcome: {
+						status: 'PROVIDER_ERROR',
+						attempts: attempts.length,
+						touchedFiles: [...touchedFiles],
+						reason: `Agent provider failed on attempt ${String(attemptNumber)}: ${errorMessage}`,
+					},
+					trace: {
+						model: agentModel,
+						durationMs: Date.now() - executionStartedAtMs,
+						notes: attempt.trace.notes,
+						toolCallLog: attempts.flatMap(entry => entry.trace.toolCallLog),
+						events: attempts.flatMap(entry => entry.trace.events),
+						attempts,
+					},
 				}
 			}
 		} finally {
@@ -216,111 +246,19 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 	}
 
 	return {
-		success: false,
-		attempts: history.length,
-		history,
-		touchedFiles: [...touchedFiles],
-		failureReason: `Execution stopped before completing after ${String(history.length)} attempts.`,
-		model: agentModel,
-		durationMs: Date.now() - executionStartedAtMs,
+		outcome: {
+			status: 'PROVIDER_ERROR',
+			attempts: attempts.length,
+			touchedFiles: [...touchedFiles],
+			reason: `Execution stopped before completing after ${String(attempts.length)} attempts.`,
+		},
+		trace: {
+			model: agentModel,
+			durationMs: Date.now() - executionStartedAtMs,
+			notes: attempts.at(-1)?.trace.notes,
+			toolCallLog: attempts.flatMap(entry => entry.trace.toolCallLog),
+			events: attempts.flatMap(entry => entry.trace.events),
+			attempts,
+		},
 	}
-}
-
-/**
- * Log one streamed agent message using structured line formatting.
- *
- * @param input - Message logging input.
- * @param input.logger - Logger implementation.
- * @param input.runId - Run identifier for correlation.
- * @param input.message - Streamed agent message.
- * @param input.targetWorkingDirectory - Optional target repo root for path normalization.
- * @param input.sourceWorkingDirectory - Optional source repo root for path normalization.
- */
-function logAgentMessage(input: {
-	logger: Logger
-	runId: string
-	message: AgentMessage
-	targetWorkingDirectory?: string
-	sourceWorkingDirectory?: string
-}): void {
-	const { logger, runId, message } = input
-
-	if (message.kind === 'tool_start') {
-		const loggedFilePath = normalizeLoggedFilePath({
-			filePath: extractFilePath(message.toolInput),
-			targetWorkingDirectory: input.targetWorkingDirectory,
-			sourceWorkingDirectory: input.sourceWorkingDirectory,
-		})
-
-		logger.info(
-			formatPortBotLine({
-				runId,
-				fields: {
-					stage: 'execute',
-					tool: message.toolName,
-					file: loggedFilePath,
-				},
-			}),
-		)
-
-		return
-	}
-
-	if (message.kind === 'tool_end') {
-		logger.debug(
-			formatPortBotLine({
-				runId,
-				fields: {
-					stage: 'execute',
-					tool: message.toolName,
-					toolDurationMs: message.durationMs,
-				},
-			}),
-		)
-
-		return
-	}
-
-	logger.debug(
-		formatPortBotLine({
-			runId,
-			fields: {
-				stage: 'execute',
-				[message.kind]: truncateLogText(message.text),
-			},
-		}),
-	)
-}
-
-/**
- * Normalize logged file paths to source/target-relative values when possible.
- *
- * @param input - Path normalization input.
- * @param input.filePath - Candidate raw path from tool input.
- * @param input.targetWorkingDirectory - Optional target repo root.
- * @param input.sourceWorkingDirectory - Optional source repo root.
- * @returns Relative path when inside known roots, else original path.
- */
-function normalizeLoggedFilePath(input: {
-	filePath: string | undefined
-	targetWorkingDirectory?: string
-	sourceWorkingDirectory?: string
-}): string | undefined {
-	const filePath = input.filePath
-
-	if (!filePath || !isAbsolute(filePath)) {
-		return filePath
-	}
-
-	for (const root of [input.targetWorkingDirectory, input.sourceWorkingDirectory]) {
-		if (root) {
-			const relativePath = relative(root, filePath)
-
-			if (relativePath && !relativePath.startsWith('..')) {
-				return relativePath
-			}
-		}
-	}
-
-	return filePath
 }

@@ -6,12 +6,12 @@ import { postSourcePrCommentBestEffort } from './notify-source.ts'
 import type { Logger } from '@repo-port-bot/logger'
 
 import type { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
-import type { GitHubWriter, PortContext, PortDecision, PortRunResult } from '../types.ts'
+import type { DecidePortResult, GitHubWriter, PortContext, PortRunResult } from '../types.ts'
 
 interface NeedsHumanFlowInput {
 	writer: GitHubWriter
 	context: PortContext
-	decision: PortDecision
+	decision: DecidePortResult
 	targetWorkingDirectory: string
 	deliverStage: typeof deliverResult
 	commentStage: typeof commentOnSourcePr
@@ -37,7 +37,8 @@ export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<Por
 			const stageDelivery = await input.deliverStage({
 				writer: input.writer,
 				context: input.context,
-				decision: input.decision,
+				decision: input.decision.outcome,
+				decisionTrace: input.decision.trace,
 				targetWorkingDirectory: input.targetWorkingDirectory,
 			})
 
@@ -59,7 +60,7 @@ export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<Por
 			return await postSourcePrCommentBestEffort({
 				commentStage: input.commentStage,
 				context: input.context,
-				decision: input.decision,
+				decision: input.decision.outcome,
 				writer: input.writer,
 				outcome: 'needs_human',
 				followUpIssueUrl: delivery.followUpIssueUrl,

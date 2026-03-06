@@ -10,13 +10,13 @@ import {
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import type {
-	AgentInput,
-	AgentOutput,
 	AgentMessage,
 	AgentProvider,
 	AttemptEvent,
 	DecidePortInput,
-	DecidePortOutput,
+	DecidePortResult,
+	ExecutePortAttemptInput,
+	ExecutePortAttemptOutput,
 	ToolCallEntry,
 } from '@repo-port-bot/engine'
 
@@ -65,7 +65,8 @@ export class ClaudeAgentProvider implements AgentProvider {
 	 * @param input - Decision input from the engine decision stage.
 	 * @returns Structured classifier response.
 	 */
-	public async decidePort(input: DecidePortInput): Promise<DecidePortOutput> {
+	public async decidePort(input: DecidePortInput): Promise<DecidePortResult> {
+		const startedAtMs = Date.now()
 		const onMessage = input.onMessage
 		const systemPrompt = buildDecideSystemPrompt({
 			pluginConfig: input.pluginConfig,
@@ -73,6 +74,11 @@ export class ClaudeAgentProvider implements AgentProvider {
 			diffFilePath: input.diffFilePath,
 		})
 		const userPrompt = buildDecideUserPrompt(input)
+		const toolCallLog: ToolCallEntry[] = []
+		const events: AttemptEvent[] = []
+		const assistantNotes: string[] = []
+		const startTimesByToolUseId = new Map<string, number>()
+
 		let resultMessage: SDKResultMessage | undefined = undefined
 
 		const queryOptions: Options = {
@@ -92,11 +98,96 @@ export class ClaudeAgentProvider implements AgentProvider {
 			env: this.options.apiKey
 				? { ...process.env, ANTHROPIC_API_KEY: this.options.apiKey }
 				: undefined,
+			hooks: {
+				PreToolUse: [
+					{
+						hooks: [
+							async hookInput => {
+								if (hookInput.hook_event_name !== 'PreToolUse') {
+									return {}
+								}
+
+								startTimesByToolUseId.set(hookInput.tool_use_id, Date.now())
+
+								const toolInput = normalizeToolInputForEvent(
+									hookInput.tool_input,
+									input.targetWorkingDirectory,
+								)
+
+								events.push({
+									kind: 'tool_start',
+									toolName: hookInput.tool_name,
+									toolUseId: hookInput.tool_use_id,
+									toolInput,
+								})
+								onMessage?.({
+									kind: 'tool_start',
+									toolName: hookInput.tool_name,
+									toolInput,
+								})
+
+								return {}
+							},
+						],
+					},
+				],
+				PostToolUse: [
+					{
+						hooks: [
+							async hookInput => {
+								if (hookInput.hook_event_name !== 'PostToolUse') {
+									return {}
+								}
+
+								const durationMs = getDurationMs(
+									startTimesByToolUseId.get(hookInput.tool_use_id),
+								)
+
+								toolCallLog.push({
+									toolName: hookInput.tool_name,
+									input: hookInput.tool_input,
+									output: hookInput.tool_response,
+									durationMs,
+								})
+								events.push({
+									kind: 'tool_end',
+									toolName: hookInput.tool_name,
+									toolUseId: hookInput.tool_use_id,
+									durationMs,
+								})
+								onMessage?.({
+									kind: 'tool_end',
+									toolName: hookInput.tool_name,
+									durationMs,
+								})
+
+								return {}
+							},
+						],
+					},
+				],
+			},
 		}
 
 		for await (const message of this.queryFn({ prompt: userPrompt, options: queryOptions })) {
 			if (message.type === 'assistant') {
 				emitAssistantMessages(message, onMessage)
+
+				const textBlocks = extractAssistantText(message)
+
+				if (textBlocks.length > 0) {
+					for (const textBlock of textBlocks) {
+						if (textBlock.trim().length > 0) {
+							events.push({
+								kind: 'assistant_note',
+								text: textBlock.trim(),
+							})
+						}
+					}
+
+					assistantNotes.length = 0
+					assistantNotes.push(...textBlocks)
+				}
 			} else if (message.type === 'result') {
 				resultMessage = message
 			}
@@ -106,7 +197,25 @@ export class ClaudeAgentProvider implements AgentProvider {
 			throw new Error('Claude provider finished without a result message.')
 		}
 
-		return readStructuredDecideOutput(resultMessage)
+		const structured = readStructuredDecideOutput(resultMessage)
+		const resultNotes =
+			resultMessage.subtype === 'success' ? undefined : resultMessage.errors.join('\n')
+		const notes = joinNonEmptyLines([
+			assistantNotes.length === 0 ? undefined : assistantNotes.join('\n'),
+			resultNotes,
+		])
+
+		return {
+			outcome: structured,
+			trace: {
+				source: 'classifier',
+				notes,
+				durationMs: Date.now() - startedAtMs,
+				toolCallLog,
+				events,
+				model: this.options.model ?? DEFAULT_MODEL,
+			},
+		}
 	}
 
 	/**
@@ -115,7 +224,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 	 * @param input - Agent input from the execution orchestrator.
 	 * @returns Agent output with touched files and tool-call observability.
 	 */
-	public async executePort(input: AgentInput): Promise<AgentOutput> {
+	public async executePort(input: ExecutePortAttemptInput): Promise<ExecutePortAttemptOutput> {
 		const touchedFiles = new Set<string>()
 		const toolCallLog: ToolCallEntry[] = []
 		const events: AttemptEvent[] = []
@@ -266,10 +375,12 @@ export class ClaudeAgentProvider implements AgentProvider {
 		return {
 			touchedFiles: [...touchedFiles],
 			complete: resultMessage.subtype === 'success',
-			notes,
-			toolCallLog,
-			events,
-			model: this.options.model ?? DEFAULT_MODEL,
+			trace: {
+				notes,
+				model: this.options.model ?? DEFAULT_MODEL,
+				toolCallLog,
+				events,
+			},
 		}
 	}
 }
@@ -440,7 +551,10 @@ function normalizeToolInputForEvent(
  * @param message - SDK result message with potential structured_output.
  * @returns Validated decide port output.
  */
-function readStructuredDecideOutput(message: SDKResultMessage): DecidePortOutput {
+function readStructuredDecideOutput(message: SDKResultMessage): {
+	kind: 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED'
+	reason: string
+} {
 	if (message.subtype !== 'success') {
 		throw new Error(`Claude decidePort failed with subtype: ${message.subtype}`)
 	}
@@ -458,5 +572,5 @@ function readStructuredDecideOutput(message: SDKResultMessage): DecidePortOutput
 		throw new Error('Claude decidePort structured_output has invalid shape.')
 	}
 
-	return { required, reason }
+	return { kind: required ? 'PORT_REQUIRED' : 'PORT_NOT_REQUIRED', reason }
 }

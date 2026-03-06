@@ -7,7 +7,7 @@ import {
 	buildUserPrompt,
 } from './build-prompt.ts'
 
-import type { AgentInput, PluginConfig } from '@repo-port-bot/engine'
+import type { ExecutePortAttemptInput, PluginConfig } from '@repo-port-bot/engine'
 
 /**
  * Build a plugin config fixture for prompt tests.
@@ -35,7 +35,7 @@ function makePluginConfig(overrides?: Partial<PluginConfig>): PluginConfig {
  * @param overrides - Partial overrides.
  * @returns Agent input fixture.
  */
-function makeInput(overrides?: Partial<AgentInput>): AgentInput {
+function makeInput(overrides?: Partial<ExecutePortAttemptInput>): ExecutePortAttemptInput {
 	return {
 		files: [
 			{
@@ -148,9 +148,12 @@ describe('buildUserPrompt', () => {
 								durationMs: 1000,
 							},
 						],
-						notes: 'Updated the main function but missed an import.',
-						toolCallLog: [],
-						events: [],
+						status: 'VALIDATION_FAILED',
+						trace: {
+							notes: 'Updated the main function but missed an import.',
+							toolCallLog: [],
+							events: [],
+						},
 					},
 				],
 			}),

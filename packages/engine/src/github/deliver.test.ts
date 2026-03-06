@@ -5,7 +5,8 @@ import { commentOnSourcePr, deliverResult } from './deliver.ts'
 import type {
 	CreatedIssue,
 	CreatedPullRequest,
-	ExecutionResult,
+	DecisionTrace,
+	ExecutePortResult,
 	GitHubWriter,
 	PortContext,
 	PortDecision,
@@ -71,6 +72,13 @@ function makeDecision(kind: PortDecision['kind']): PortDecision {
 	}
 }
 
+const HEURISTIC_TRACE: DecisionTrace = {
+	source: 'heuristic',
+	heuristicName: 'checkDocsOnly',
+	toolCallLog: [],
+	events: [],
+}
+
 /**
  * Build validation fixture list.
  *
@@ -96,22 +104,32 @@ function makeValidation(ok: boolean): ValidationCommandResult[] {
  * @param success - Whether execution succeeded.
  * @returns Execution fixture.
  */
-function makeExecution(success: boolean): ExecutionResult {
+function makeExecution(success: boolean): ExecutePortResult {
 	return {
-		success,
-		attempts: success ? 1 : 2,
-		history: [
-			{
-				attempt: success ? 1 : 2,
-				touchedFiles: ['src/file.ts'],
-				validation: makeValidation(success),
-				notes: success ? 'done' : 'failed',
-				toolCallLog: [],
-				events: [],
-			},
-		],
-		touchedFiles: ['src/file.ts'],
-		failureReason: success ? undefined : 'Validation failed after retries.',
+		outcome: {
+			status: success ? 'SUCCEEDED' : 'VALIDATION_FAILED',
+			attempts: success ? 1 : 2,
+			touchedFiles: ['src/file.ts'],
+			reason: success ? undefined : 'Validation failed after retries.',
+		},
+		trace: {
+			notes: success ? 'done' : 'failed',
+			toolCallLog: [],
+			events: [],
+			attempts: [
+				{
+					attempt: success ? 1 : 2,
+					status: success ? 'VALIDATED' : 'VALIDATION_FAILED',
+					touchedFiles: ['src/file.ts'],
+					validation: makeValidation(success),
+					trace: {
+						notes: success ? 'done' : 'failed',
+						toolCallLog: [],
+						events: [],
+					},
+				},
+			],
+		},
 	}
 }
 
@@ -179,6 +197,7 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decisionTrace: HEURISTIC_TRACE,
 			targetWorkingDirectory: '/tmp/unused',
 			runCommand: async ({ command }) => {
 				commandCalls.push(command)
@@ -202,6 +221,7 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('NEEDS_HUMAN'),
+			decisionTrace: HEURISTIC_TRACE,
 			targetWorkingDirectory: '/tmp/unused',
 			runCommand: async () => {
 				commandInvoked = true
@@ -226,6 +246,7 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: HEURISTIC_TRACE,
 			execution: makeExecution(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -259,6 +280,7 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: HEURISTIC_TRACE,
 			execution: makeExecution(false),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -304,6 +326,7 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: HEURISTIC_TRACE,
 			execution: makeExecution(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -334,6 +357,7 @@ describe('deliverResult', () => {
 				writer,
 				context: makeContext(),
 				decision: makeDecision('PORT_REQUIRED'),
+				decisionTrace: HEURISTIC_TRACE,
 				targetWorkingDirectory: '/tmp/target-repo',
 				runCommand: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
 			}),
@@ -427,7 +451,7 @@ describe('commentOnSourcePr', () => {
 		})
 
 		expect(String((createCommentCalls[0] as { body: string }).body)).toContain(
-			'Supersedes prior failed attempt: https://github.com/acme/source-repo/pull/42#issuecomment-0 (run `run-old`).',
+			'Supersedes [prior attempt](https://github.com/acme/source-repo/pull/42#issuecomment-0) (run `run-old`).',
 		)
 	})
 })

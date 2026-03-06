@@ -175,8 +175,16 @@ const result = await runPort({
 	logger: createConsoleLogger('debug'),
 	stageOverrides: {
 		decide: async () => ({
-			kind: 'PORT_REQUIRED',
-			reason: 'Forced PORT_REQUIRED for local example.',
+			outcome: {
+				kind: 'PORT_REQUIRED',
+				reason: 'Forced PORT_REQUIRED for local example.',
+			},
+			trace: {
+				source: 'heuristic',
+				heuristicName: 'exampleOverride',
+				toolCallLog: [],
+				events: [],
+			},
 		}),
 		deliverResult: options =>
 			deliverResult({

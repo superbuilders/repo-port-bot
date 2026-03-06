@@ -14,21 +14,25 @@ async function main(): Promise<void> {
 	try {
 		const result = await runAction()
 		const artifactDirectory = join(process.cwd(), `port-bot-run-${result.runId}`)
-		const toolCalls = result.execution?.history.flatMap(attempt => attempt.toolCallLog) ?? []
+		const toolCalls =
+			result.execution?.trace.attempts.flatMap(attempt => attempt.trace.toolCallLog) ?? []
+		const decisionToolCalls = result.decision.trace.toolCallLog
 		const runResultPath = join(artifactDirectory, 'run-result.json')
 		const toolCallsPath = join(artifactDirectory, 'tool-calls.json')
+		const decisionToolCallsPath = join(artifactDirectory, 'decision-tool-calls.json')
 		const artifactClient = new DefaultArtifactClient()
 		let artifactUploaded = false
 
 		await mkdir(artifactDirectory, { recursive: true })
 		await writeFile(runResultPath, JSON.stringify(result, null, 2))
 		await writeFile(toolCallsPath, JSON.stringify(toolCalls, null, 2))
+		await writeFile(decisionToolCallsPath, JSON.stringify(decisionToolCalls, null, 2))
 
 		if (process.env.ACTIONS_RUNTIME_TOKEN) {
 			try {
 				await artifactClient.uploadArtifact(
 					`port-bot-run-${result.runId}`,
-					[runResultPath, toolCallsPath],
+					[runResultPath, toolCallsPath, decisionToolCallsPath],
 					artifactDirectory,
 					{ retentionDays: 14 },
 				)
@@ -64,7 +68,7 @@ async function main(): Promise<void> {
 				{ data: 'execute', header: true },
 				{ data: 'deliver', header: true },
 				{ data: 'notify', header: true },
-				{ data: '**total**', header: true },
+				{ data: '<b>total</b>', header: true },
 			],
 			[
 				formatMs(result.stageTimings?.contextMs),
@@ -73,26 +77,37 @@ async function main(): Promise<void> {
 				formatMs(result.stageTimings?.executeMs),
 				formatMs(result.stageTimings?.deliverMs),
 				formatMs(result.stageTimings?.notifyMs),
-				`**${formatMs(result.durationMs)}**`,
+				`<b>${formatMs(result.durationMs)}</b>`,
 			],
 		])
 		core.summary.addRaw(
 			[
+				'',
 				'<details><summary>Decision & diagnostics</summary>',
 				'',
-				`- Kind: \`${result.decision.kind}\``,
-				`- Reason: ${result.decision.reason}`,
-				result.execution?.model ? `- Model: ${result.execution.model}` : undefined,
+				`- Kind: \`${result.decision.outcome.kind}\``,
+				`- Reason: ${result.decision.outcome.reason}`,
+				`- Decision source: \`${result.decision.trace.source}\``,
+				result.decision.trace.heuristicName
+					? `- Heuristic: \`${result.decision.trace.heuristicName}\``
+					: undefined,
+				result.decision.trace.model
+					? `- Decision model: \`${result.decision.trace.model}\``
+					: undefined,
+				result.execution?.trace.model
+					? `- Model: ${result.execution.trace.model}`
+					: undefined,
 				artifactUploaded
 					? `- Artifact: \`port-bot-run-${result.runId}\``
 					: '- Artifact: skipped (runtime token unavailable)',
 				`- Tool calls: ${String(toolCalls.length)}`,
+				`- Decision tool calls: ${String(decisionToolCalls.length)}`,
 				`- Run ID: \`${result.runId}\``,
 				'',
 				'</details>',
 				'',
 			]
-				.filter(Boolean)
+				.filter(line => line !== undefined)
 				.join('\n'),
 		)
 		await core.summary.write()

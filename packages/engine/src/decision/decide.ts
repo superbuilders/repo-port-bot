@@ -1,6 +1,6 @@
 import { DECISION_HEURISTICS } from './heuristics.ts'
 
-import type { AgentProvider, PortContext, PortDecision } from '../types.ts'
+import type { AgentMessage, AgentProvider, DecidePortResult, PortContext } from '../types.ts'
 
 /**
  * Build a fallback decision when pipeline fails before decision output exists.
@@ -8,10 +8,18 @@ import type { AgentProvider, PortContext, PortDecision } from '../types.ts'
  * @param message - Error message.
  * @returns Decision describing engine failure.
  */
-export function buildEngineFailureDecision(message: string): PortDecision {
+export function buildEngineFailureDecision(message: string): DecidePortResult {
 	return {
-		kind: 'NEEDS_HUMAN',
-		reason: `Engine failure before decision completed: ${message}`,
+		outcome: {
+			kind: 'NEEDS_HUMAN',
+			reason: `Engine failure before decision completed: ${message}`,
+		},
+		trace: {
+			source: 'fallback',
+			notes: `Engine failure before decision completed: ${message}`,
+			toolCallLog: [],
+			events: [],
+		},
 	}
 }
 
@@ -20,10 +28,18 @@ export function buildEngineFailureDecision(message: string): PortDecision {
  *
  * @returns Conservative fallback.
  */
-function classifyWithStub(): PortDecision {
+function classifyWithStub(): DecidePortResult {
 	return {
-		kind: 'PORT_REQUIRED',
-		reason: 'No heuristic matched and no classifier was configured; defaulting to port required.',
+		outcome: {
+			kind: 'PORT_REQUIRED',
+			reason: 'No heuristic matched and no classifier was configured; defaulting to port required.',
+		},
+		trace: {
+			source: 'fallback',
+			notes: 'No heuristic matched and no classifier was configured; defaulting to port required.',
+			toolCallLog: [],
+			events: [],
+		},
 	}
 }
 
@@ -36,6 +52,7 @@ function classifyWithStub(): PortDecision {
  * @param options.targetWorkingDirectory - Target repo working directory for classifier context.
  * @param options.sourceWorkingDirectory - Optional source repo checkout path for classifier context.
  * @param options.diffFilePath - Optional full source diff file path for classifier context.
+ * @param options.onMessage - Optional callback for streamed classifier messages.
  * @returns Decision result from heuristics or classifier fallback.
  */
 export async function decide(
@@ -45,13 +62,23 @@ export async function decide(
 		targetWorkingDirectory?: string
 		sourceWorkingDirectory?: string
 		diffFilePath?: string
+		onMessage?: (message: AgentMessage) => void
 	} = {},
-): Promise<PortDecision> {
+): Promise<DecidePortResult> {
 	for (const heuristic of DECISION_HEURISTICS) {
 		const decision = heuristic(context)
 
 		if (decision) {
-			return decision
+			return {
+				outcome: decision,
+				trace: {
+					source: 'heuristic',
+					heuristicName: heuristic.name,
+					notes: decision.reason,
+					toolCallLog: [],
+					events: [],
+				},
+			}
 		}
 	}
 
@@ -59,16 +86,12 @@ export async function decide(
 		return classifyWithStub()
 	}
 
-	const classifierDecision = await options.agentProvider.decidePort({
+	return options.agentProvider.decidePort({
 		files: context.sourceChange.files,
 		targetWorkingDirectory: options.targetWorkingDirectory ?? process.cwd(),
 		sourceWorkingDirectory: options.sourceWorkingDirectory,
 		diffFilePath: options.diffFilePath,
 		pluginConfig: context.pluginConfig,
+		onMessage: options.onMessage,
 	})
-
-	return {
-		kind: classifierDecision.required ? 'PORT_REQUIRED' : 'PORT_NOT_REQUIRED',
-		reason: classifierDecision.reason,
-	}
 }

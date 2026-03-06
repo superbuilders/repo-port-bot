@@ -50,16 +50,15 @@ Define what "good failure" looks like when an automated port is attempted but ca
     - A **draft** pull request is created. If one already exists for the same port branch (from a prior attempt), the existing PR is updated with the new body instead of creating a duplicate.
     - Labels applied: `auto-port` + `port-stalled`.
     - PR body follows the same compact layout as successful ports, but with key differences:
-        - `## Cross-repo port` heading with source narrative
-        - at-a-glance stats line (files, attempts, tool calls, duration)
-        - decision reason as blockquote with model name
+        - `## Cross-repo port` heading with decision blockquote immediately below (model + stats on the attribution line)
+        - source narrative below the blockquote
         - `### What was ported` — polished summary of what changed
-        - collapsed `Agent Work Log` showing chronological assistant notes and humanized tool actions; for retries this section includes per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.)
+        - collapsed `Agent Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (not repeated in the log). For retries, per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.)
         - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes and failure reason
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention remains the git trailer `Ported-By: repo-port-bot`)
 
 6. **Source PR receives a notification comment**
-    - Best-effort comment on the merged source PR: "Port attempted (N files) but validation failed after retries. Opened a draft PR: `<url>`."
+    - Best-effort `[!WARNING]` admonition comment on the merged source PR indicating validation failed and a draft PR was opened, with a collapsible reason.
     - This is how the maintainer discovers the stall without having to check the target repo.
 
 7. **Maintainer triages the draft PR**

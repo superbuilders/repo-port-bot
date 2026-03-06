@@ -84,24 +84,52 @@ Port: <source PR title>
 ```md
 ## Cross-repo port
 
-Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
-
 > <decision reason as blockquote>
 >
-> — [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6)
+> — [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) (2 files changed · 1 attempt · 5 tool calls · 18.6s)
 
-2 files changed · 1 attempt · 5 tool calls · 18.6s
+<details><summary>Decision Log</summary>
 
-### What was ported
+_Checking for equivalent target files._
+```
+
+Read `src/date.ts`
+Read `src/string.ts`
+
+```
+
+_Both files exist in the target repo. Port required._
+
+</details>
+
+Classified by [claude-sonnet-4-6](https://models.dev/...) · 3 tool calls · 1.8s
+
+Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
+
+## What was ported
 
 <agent summary — per-file descriptions of changes>
 
 <details><summary>Agent Work Log</summary>
+_I'll start by reading the source diff and target files._
+```
 
-Read `src/date.ts`
-Edited `src/date.ts`
+Read port-diff.patch
+Read src/date.ts
+
+```
+
+_The target file matches the pre-patch state. I'll apply the addition now._
+
+
+```
+
+Edited src/date.ts
 Ran `bun run check` (18.6s)
-Both changes have been applied successfully.
+
+```
+
+_Both changes have been applied successfully._
 
 </details>
 
@@ -118,13 +146,13 @@ Ported by: [Repo Port Bot](<bot repo url>)
 
 Key design choices:
 
-- **`## Cross-repo port`** heading with source narrative immediately below — orients the reader in one glance
-- **Decision reason as blockquote** — reads as context, not a separate section
-- **`### What was ported`** is the main content — the agent's per-file summary gets top billing
-- **`Agent Work Log` as a collapsed details block** — preserves chronological assistant notes + humanized tool steps without overwhelming the default PR view
+- **`## Cross-repo port`** heading with decision blockquote immediately below — the "why" is the first thing a reviewer reads
+- **Decision blockquote** includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`), keeping "who, why, and how much" together
+- **Decision Log** appears below the blockquote when the decision came from the LLM classifier (not shown for heuristic decisions). Uses the same humanized format as the Agent Work Log: assistant reasoning in _italics_, tool calls in fenced code blocks, low-signal tools filtered, line-capped. A provenance line below shows the classifier model, tool call count, and duration.
+- **Source narrative** follows the decision section — links back to the source PR and repo for traceability
+- **`## What was ported`** is the main content — the agent's per-file summary gets top billing
+- **`Agent Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks. The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
-- **At-a-glance stats line** (`2 files changed · 1 attempt · 5 tool calls · 18.6s`) between the source narrative and reason blockquote — sets reviewer expectations for diff size and shows how fast the agent worked
-- **Decision blockquote** includes the agent model name (e.g. `claude-sonnet-4-6`) as a trailing bullet, keeping "who and why" context together
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
 
 For **multi-attempt runs** (stalled ports), the `Agent Work Log` section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) so retries are easy to follow.
@@ -146,7 +174,7 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the 
 
 - Tagged `needs-human`
 - Compact title: `Needs review: <source PR title (truncated to 60 chars)>`
-- Body is a short narrative with the source PR link, reason, and file count
+- Body is a short narrative with the source PR link, reason, file count, and (when the classifier ran) a Decision Log
 
 **Example body:**
 
@@ -155,83 +183,78 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the 
 
 **Why:** Classifier could not determine a safe automatic port target.
 
+<details><summary>Decision Log</summary>
+
+_Inspecting target repo structure._
+```
+
+Read `src/date.ts`
+
+```
+
+_No equivalent module exists. Escalating to human review._
+
+</details>
+
+Classified by [claude-sonnet-4-6](https://models.dev/...) · 2 tool calls · 1.2s
+
 **Changed files:** 2
 ```
 
 ### Labels
 
-Labels the engine expects to exist (or creates on first use):
+Labels are created on first use via the GitHub API (no manual pre-creation needed):
 
-| Label          | Purpose                                               |
-| -------------- | ----------------------------------------------------- |
-| `auto-port`    | Marks bot-created PRs; used for loop prevention       |
-| `port-stalled` | Marks draft PRs where validation failed after retries |
-| `needs-human`  | Marks issues requiring manual decision                |
-| `no-port`      | User-applied to source PRs to skip porting            |
+| Label          | Purpose                                                                                                     |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `auto-port`    | Marks bot-created PRs; used for loop prevention                                                             |
+| `port-stalled` | Marks draft PRs where validation failed after retries; removed on successful re-runs when the PR is updated |
+| `needs-human`  | Marks issues requiring manual decision                                                                      |
+| `no-port`      | User-applied to source PRs to skip porting                                                                  |
 
 ### Source PR notification
 
-The engine posts a best-effort comment on the source PR for every outcome (including skips) to close the traceability loop. Each comment includes the `decision.reason` so the maintainer understands what happened without leaving the source repo.
-
-The reason string comes from whichever decision path fired: a hardcoded heuristic message for fast-path skips, or the LLM classifier's free-text explanation when no heuristic matched.
+The engine posts a best-effort comment on the source PR for every outcome (including skips) to close the traceability loop. Comments use GitHub admonitions for visual clarity and include a collapsible reason section.
 
 This notification is non-blocking: comment failures never change the terminal run outcome.
 
-On reruns, non-failure comments can include a supersession line that links a prior failed comment (and run ID), for example: `Supersedes prior failed attempt: <comment-url> (run <id>).`
+On reruns, non-failure comments include a `[!NOTE]` admonition linking the prior failed comment, for example: `Supersedes [prior attempt](url) (run <id>).`
 
-**Example comments:**
+**Admonition mapping:**
 
-`skipped_not_required` (heuristic reason):
+| Outcome                | Admonition   | Tone                       |
+| ---------------------- | ------------ | -------------------------- |
+| `pr_opened`            | `[!TIP]`     | Success — ready for review |
+| `skipped_not_required` | `[!NOTE]`    | Informational — no action  |
+| `draft_pr_opened`      | `[!WARNING]` | Needs attention — stalled  |
+| `needs_human`          | `[!WARNING]` | Needs attention — manual   |
+| `failed`               | `[!CAUTION]` | Engine error               |
 
-```md
-Port bot skipped this for `acme/target-repo`.
+The decision reason is rendered in a collapsible `<details><summary>Why</summary>` block so comments stay compact while the full rationale remains accessible.
 
-**Why:** Skipping because all changed files are documentation-only.
-```
-
-`pr_opened` (classifier reason):
-
-```md
-Ported to https://github.com/acme/target-repo/pull/901 (2 files, validation passed). Ready for review.
-
-**Why:** Source changes affect shared API surface that exists in both repos.
-```
-
-`draft_pr_opened` (classifier reason):
+**Example comment** (`pr_opened`):
 
 ```md
-Port attempted (2 files) but validation failed after retries. Opened a draft PR: https://github.com/acme/target-repo/pull/333.
+> [!TIP]
+> Ported to https://github.com/acme/target-repo/pull/901 (2 files, validation passed).
 
-**Why:** Source changes affect shared API surface that exists in both repos.
-```
+<details><summary>Why</summary>
 
-`needs_human` (classifier reason):
+Source changes affect shared API surface that exists in both repos.
 
-```md
-Could not automatically port to `acme/target-repo`. Opened an issue: https://github.com/acme/target-repo/issues/55 for manual review.
-
-**Why:** Classifier could not determine a safe automatic port target.
-```
-
-`failed` (engine fallback reason):
-
-```md
-Port to `acme/target-repo` failed due to an engine error.
-
-**Why:** Engine failure before decision completed: GitHub API returned 403
-
-Run ID: `run-abc123`
+</details>
 ```
 
 ## Loop prevention
 
-Three signals prevent TS→Py→TS echo loops. At least two must be checked:
+The engine prevents TS→Py→TS echo loops by checking the `auto-port` label during the decision heuristics phase. Bot-created port PRs are always labeled `auto-port`, so when a port PR is merged and triggers the reverse workflow, the heuristic skips it.
 
-1. **Label**: source PR has `auto-port` label → skip
-2. **Commit footer**: merge commit contains `Ported-By: repo-port-bot` → skip
-3. **Branch name**: branch matches `port/…` pattern → skip
+Two additional signals are written but not yet checked by the engine:
 
-The workflow should check these before invoking the engine. The engine also checks during the decision heuristics phase as a safety net.
+- **Commit footer**: `Ported-By: repo-port-bot` is added to every port commit (useful for manual inspection or future workflow-level checks).
+- **Branch name**: port branches follow the `port/…` naming convention (useful for branch protection rules or future checks).
+
+These are available for workflows to check before invoking the engine, but the engine itself relies solely on the `auto-port` label.
 
 ## Authentication
 
@@ -322,6 +345,5 @@ Future work to support plain pushes:
 
 ## Open questions
 
-- Should the engine create labels automatically if they don't exist, or require pre-setup?
 - Do we need rate-limit handling for GitHub API calls?
 - Should PR body rendering be configurable per plugin or is a single format enough?
