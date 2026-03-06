@@ -502,7 +502,6 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			`> <details><summary>${summary}</summary>`,
 			'>',
 			...reasonLines,
-			'>',
 			'> </details>',
 		].join('\n')
 	}
