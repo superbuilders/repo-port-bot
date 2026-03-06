@@ -352,15 +352,15 @@ function readStringField(
 }
 
 /**
- * Render a collapsed, humanized work log section.
+ * Build humanized per-attempt work log sections from execution trace.
  *
  * @param execution - Execution details.
- * @returns HTML details block with per-attempt narrative.
+ * @returns Array of rendered attempt sections.
  */
-function renderAgentWorkLog(execution: ExecutePortResult): string {
+function buildAttemptSections(execution: ExecutePortResult): string[] {
 	const lastAttemptNumber = execution.trace.attempts.at(-1)?.attempt
 
-	const attemptSections = execution.trace.attempts.map(attempt => {
+	return execution.trace.attempts.map(attempt => {
 		const isLastAttempt = attempt.attempt === lastAttemptNumber
 		const body = renderAttemptWorkLogBody(attempt, isLastAttempt)
 
@@ -368,6 +368,16 @@ function renderAgentWorkLog(execution: ExecutePortResult): string {
 			? [`### Attempt ${String(attempt.attempt)}`, '', body].join('\n')
 			: body
 	})
+}
+
+/**
+ * Render a collapsed, humanized work log section.
+ *
+ * @param execution - Execution details.
+ * @returns HTML details block with per-attempt narrative.
+ */
+function renderAgentWorkLog(execution: ExecutePortResult): string {
+	const attemptSections = buildAttemptSections(execution)
 
 	return ['<details><summary>Work Log</summary>', '', ...attemptSections, '', '</details>'].join(
 		'\n\n',
@@ -657,17 +667,5 @@ export function renderExecutionLogSummary(execution: ExecutePortResult): string 
 		return undefined
 	}
 
-	const lastAttemptNumber = execution.trace.attempts.at(-1)?.attempt
-	const attemptSections = execution.trace.attempts.map(attempt => {
-		const isLastAttempt = attempt.attempt === lastAttemptNumber
-		const body = renderEventBlocks(attempt.trace.events, {
-			stripLastAssistantNote: isLastAttempt,
-		})
-
-		return execution.trace.attempts.length > 1
-			? [`### Attempt ${String(attempt.attempt)}`, '', body].join('\n')
-			: body
-	})
-
-	return attemptSections.join('\n\n')
+	return buildAttemptSections(execution).join('\n\n')
 }
