@@ -88,7 +88,7 @@ Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
 
 > <decision reason as blockquote>
 >
-> - claude-sonnet-4-6
+> — [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6)
 
 2 files changed · 1 attempt · 5 tool calls · 18.6s
 

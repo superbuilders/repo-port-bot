@@ -236,7 +236,9 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	const reasonLines = input.decision.reason.split('\n').map(line => `> ${line}`)
 
 	if (input.execution.model) {
-		reasonLines.push('>', `> - ${input.execution.model}`)
+		const modelUrl = `https://models.dev/?search=${encodeURIComponent(input.execution.model)}`
+
+		reasonLines.push('>', `> — [${input.execution.model}](${modelUrl})`)
 	}
 
 	const reasonBlockquote = reasonLines.join('\n')
