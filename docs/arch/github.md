@@ -54,7 +54,7 @@ These happen after the agent has produced edits and validation has passed (or re
 **Commit message** uses the PR title with git trailers for machine-parseable auditing:
 
 ```
-Port: Add formatting/date helpers (#1)
+Port: Add formatting/date helpers
 
 Source-PR: https://github.com/acme/source-repo/pull/1
 Source-Commit: 9d67a0487cd618b92aea581294cebf26bf770484
@@ -76,7 +76,7 @@ On first run, a new PR is created. On re-runs where the port branch already has 
 **Title format:**
 
 ```
-Port: <source PR title> (#<source PR number>)
+Port: <source PR title>
 ```
 
 **Body layout:**

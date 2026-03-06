@@ -83,7 +83,7 @@ export function renderPortPullRequestTitle(context: PortContext): string {
 		return `Port: source change (${context.sourceChange.mergedCommitSha.slice(0, SHORT_SHA_LENGTH)})`
 	}
 
-	return `Port: ${sourcePullRequest.title} (#${String(sourcePullRequest.number)})`
+	return `Port: ${sourcePullRequest.title}`
 }
 
 /**

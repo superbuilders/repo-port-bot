@@ -58,7 +58,7 @@ Define what "working" means from a maintainer perspective when a change in one r
 6. **PR is opened (or updated) in target repo**
     - On first run, a new PR is created. On re-runs where the port branch already has an open PR, the existing PR is updated with fresh output rather than failing.
     - PR title follows predictable format:
-        - `Port: <source PR title> (#<source PR number>)`
+        - `Port: <source PR title>`
     - PR body follows a compact layout:
         - `## Cross-repo port` heading with source narrative (`Ported from [<title>](<url>) in <repo>`)
         - at-a-glance stats line (`2 files changed · 1 attempt · 5 tool calls · 18.6s`)
@@ -87,7 +87,7 @@ The maintainer experiences porting as "automatic and reviewable":
     - Given a qualifying merged source PR, bot opens exactly one target PR without manual intervention. Re-runs update the existing PR rather than creating duplicates.
 
 2. **Traceability**
-    - Target PR contains a link to source PR and source PR number in title/body.
+    - Target PR contains a link to source PR in the body and source PR title in the PR title.
     - For non-skipped outcomes (`pr_opened`, `draft_pr_opened`, `needs_human`, `failed`), source PR receives a bot comment linking to the target PR/issue or run status.
     - On reruns, newer non-failure comments can explicitly supersede prior failed comments (with link + run id) so maintainers can follow the latest state.
 

@@ -115,7 +115,7 @@ describe('render-body', () => {
 	test('renders canonical pull request title', () => {
 		const title = renderPortPullRequestTitle(makeContext())
 
-		expect(title).toBe('Port: Add execution orchestration (#42)')
+		expect(title).toBe('Port: Add execution orchestration')
 	})
 
 	test('renders compact PR body with cross-repo heading, blockquote reason, and collapsible diagnostics', () => {
