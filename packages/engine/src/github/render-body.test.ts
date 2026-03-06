@@ -337,7 +337,7 @@ describe('render-body', () => {
 
 		expect(body).toContain('[!NOTE]')
 		expect(body).toContain('skipped this for `acme/target-repo`')
-		expect(body).toContain('> <details><summary>Why was this ported?</summary>')
+		expect(body).toContain('> <details><summary>Why was this skipped?</summary>')
 		expect(body).toContain('> Decision reason')
 	})
 
@@ -380,7 +380,7 @@ describe('render-body', () => {
 		expect(needsHumanBody).toContain('[!WARNING]')
 		expect(needsHumanBody).toContain('issue: https://github.com/acme/target-repo/issues/55')
 		expect(needsHumanBody).toContain('manual review')
-		expect(needsHumanBody).toContain('> <details><summary>Why was this ported?</summary>')
+		expect(needsHumanBody).toContain('> <details><summary>Why does this need review?</summary>')
 	})
 
 	test('renders source comment for failed outcome with caution admonition', () => {
@@ -394,7 +394,7 @@ describe('render-body', () => {
 		expect(body).toContain('[!CAUTION]')
 		expect(body).toContain('failed due to an engine error')
 		expect(body).toContain('Run ID: `run-4`')
-		expect(body).toContain('> <details><summary>Why was this ported?</summary>')
+		expect(body).toContain('> <details><summary>What went wrong?</summary>')
 	})
 
 	test('renders source comment supersede as note admonition with link', () => {

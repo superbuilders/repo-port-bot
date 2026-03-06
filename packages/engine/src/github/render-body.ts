@@ -481,13 +481,21 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				input.supersededFailureRunId ? ` (run \`${input.supersededFailureRunId}\`)` : ''
 			}.`
 		: undefined
-	const reasonDetails = [
-		'> <details><summary>Why was this ported?</summary>',
-		'>',
-		`> ${input.decision.reason}`,
-		'>',
-		'> </details>',
-	].join('\n')
+	const reasonLines = input.decision.reason.split('\n').map(line => `> ${line}`)
+
+	/**
+	 * @param summary - Collapsible summary label.
+	 * @returns Blockquote-nested details markdown.
+	 */
+	function buildReasonDetails(summary: string): string {
+		return [
+			`> <details><summary>${summary}</summary>`,
+			'>',
+			...reasonLines,
+			'>',
+			'> </details>',
+		].join('\n')
+	}
 
 	switch (input.outcome) {
 		case 'skipped_not_required': {
@@ -496,7 +504,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote ? '' : undefined,
 				`> [!NOTE]\n> Port bot skipped this for \`${targetRepo}\`.`,
 				'>',
-				reasonDetails,
+				buildReasonDetails('Why was this skipped?'),
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -511,7 +519,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote ? '' : undefined,
 				`> [!TIP]\n> Ported to ${prLink} (${shape}, validation passed).`,
 				'>',
-				reasonDetails,
+				buildReasonDetails('Why was this ported?'),
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -528,7 +536,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote ? '' : undefined,
 				`> [!WARNING]\n> Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
 				'>',
-				reasonDetails,
+				buildReasonDetails('Why was this ported?'),
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -543,7 +551,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote ? '' : undefined,
 				`> [!WARNING]\n> Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
 				'>',
-				reasonDetails,
+				buildReasonDetails('Why does this need review?'),
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -552,13 +560,15 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			return [
 				`> [!CAUTION]\n> Port to \`${targetRepo}\` failed due to an engine error. Run ID: \`${input.runId}\``,
 				'>',
-				reasonDetails,
+				buildReasonDetails('What went wrong?'),
 			].join('\n')
 		}
 		default: {
-			return [`> [!NOTE]\n> Port bot ran for \`${targetRepo}\`.`, '>', reasonDetails].join(
-				'\n',
-			)
+			return [
+				`> [!NOTE]\n> Port bot ran for \`${targetRepo}\`.`,
+				'>',
+				buildReasonDetails('Details'),
+			].join('\n')
 		}
 	}
 }
