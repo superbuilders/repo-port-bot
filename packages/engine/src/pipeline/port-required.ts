@@ -67,6 +67,7 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 				writer: input.writer,
 				context: input.context,
 				decision: input.decision.outcome,
+				decisionTrace: input.decision.trace,
 				execution,
 				targetWorkingDirectory: input.targetWorkingDirectory,
 				logger: input.logger,

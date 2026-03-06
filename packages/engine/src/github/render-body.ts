@@ -3,8 +3,10 @@ import { formatDuration, joinNonEmptyLines } from '../utils.ts'
 const PORT_BOT_REPO_URL = 'https://github.com/superbuilders/repo-port-bot'
 
 import type {
+	AgentSessionEvent,
 	AttemptEvent,
 	DecidePortResult,
+	DecisionTrace,
 	ExecutePortAttemptResult,
 	ExecutePortResult,
 	PortContext,
@@ -16,12 +18,14 @@ import type {
 interface RenderPullRequestBodyInput {
 	context: PortContext
 	decision: PortDecision
+	decisionTrace: DecisionTrace
 	execution: ExecutePortResult
 }
 
 interface RenderNeedsHumanIssueBodyInput {
 	context: PortContext
 	decision: PortDecision
+	decisionTrace: DecisionTrace
 }
 
 interface RenderSourceCommentInput {
@@ -203,22 +207,23 @@ function renderAttemptNotes(execution: ExecutePortResult): string {
 }
 
 /**
- * Render one attempt's humanized work-log as markdown blocks.
+ * Render a list of agent session events as humanized markdown blocks.
  *
  * Groups consecutive tool events into fenced code blocks and wraps
  * assistant notes in italics, separated by blank lines.
  *
- * @param attempt - Attempt details.
- * @param stripLastAssistantNote - When true, drop the final assistant note (already shown in "What was ported").
- * @returns Markdown string for this attempt's work log.
+ * @param events - Ordered agent session events.
+ * @param options - Rendering options.
+ * @param options.stripLastAssistantNote - Drop the final assistant note when it duplicates surrounding context.
+ * @returns Markdown string for the event sequence.
  */
-function renderAttemptWorkLogBody(
-	attempt: ExecutePortAttemptResult,
-	stripLastAssistantNote: boolean,
+function renderEventBlocks(
+	events: AgentSessionEvent[],
+	options: { stripLastAssistantNote?: boolean } = {},
 ): string {
 	const toolDurations = new Map<string, number | undefined>()
 
-	for (const event of attempt.trace.events) {
+	for (const event of events) {
 		if (event.kind === 'tool_end') {
 			toolDurations.set(event.toolUseId, event.durationMs)
 		}
@@ -229,7 +234,7 @@ function renderAttemptWorkLogBody(
 	const blocks: Block[] = []
 	let eventCount = 0
 
-	for (const event of attempt.trace.events) {
+	for (const event of events) {
 		if (event.kind === 'tool_end') {
 			// skip: duration already captured in toolDurations map
 		} else if (event.kind === 'assistant_note') {
@@ -256,7 +261,7 @@ function renderAttemptWorkLogBody(
 		}
 	}
 
-	if (stripLastAssistantNote && blocks.at(-1)?.kind === 'assistant') {
+	if (options.stripLastAssistantNote && blocks.at(-1)?.kind === 'assistant') {
 		blocks.pop()
 	}
 
@@ -279,6 +284,20 @@ function renderAttemptWorkLogBody(
 	}
 
 	return rendered.join('\n\n')
+}
+
+/**
+ * Render one execution attempt's humanized work-log.
+ *
+ * @param attempt - Attempt details.
+ * @param stripLastAssistantNote - When true, drop the final assistant note.
+ * @returns Markdown string for this attempt's work log.
+ */
+function renderAttemptWorkLogBody(
+	attempt: ExecutePortAttemptResult,
+	stripLastAssistantNote: boolean,
+): string {
+	return renderEventBlocks(attempt.trace.events, { stripLastAssistantNote })
 }
 
 /**
@@ -365,11 +384,43 @@ function renderAgentWorkLog(execution: ExecutePortResult): string {
 }
 
 /**
+ * Render the Decision Log section when the decision came from the LLM classifier.
+ *
+ * @param trace - Decision trace with source, events, model, and duration.
+ * @returns Decision Log markdown or undefined for heuristic/fallback decisions.
+ */
+function renderDecisionLog(trace: DecisionTrace): string | undefined {
+	if (trace.source !== 'classifier') {
+		return undefined
+	}
+
+	const body = renderEventBlocks(trace.events)
+	const toolCallCount = trace.toolCallLog.length
+	const modelPart = trace.model
+		? `[${trace.model}](https://models.dev/?search=${encodeURIComponent(trace.model)})`
+		: 'classifier'
+	const durationPart =
+		trace.durationMs !== undefined ? ` · ${formatDuration(trace.durationMs)}` : ''
+	const provenance = `Classified by ${modelPart} · ${String(toolCallCount)} tool call${toolCallCount === 1 ? '' : 's'}${durationPart}`
+
+	return [
+		'<details><summary>Decision Log</summary>',
+		'',
+		body,
+		'',
+		'</details>',
+		'',
+		provenance,
+	].join('\n')
+}
+
+/**
  * Render the markdown body for a target pull request.
  *
  * @param input - Rendering input.
  * @param input.context - Port context.
  * @param input.decision - Decision that led to execution.
+ * @param input.decisionTrace - Decision trace for Decision Log rendering.
  * @param input.execution - Execution result with diagnostics.
  * @returns Pull request body markdown.
  */
@@ -396,6 +447,8 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 
 	const reasonBlockquote = reasonLines.join('\n')
 
+	const decisionLog = renderDecisionLog(input.decisionTrace)
+
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
 
 	const diagnosticsBlock = noValidationConfigured
@@ -408,9 +461,11 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'',
 		reasonBlockquote,
 		'',
+		decisionLog,
+		decisionLog ? '' : undefined,
 		sourceNarrative,
 		'',
-		'### What was ported',
+		'## What was ported',
 		'',
 		renderAttemptNotes(input.execution),
 		'',
@@ -440,14 +495,19 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
 		? `[${sourcePullRequest.title}](${sourcePullRequest.url}) was merged in \`${sourceRepo}\` but could not be automatically ported.`
 		: `Commit \`${input.context.sourceChange.mergedCommitSha}\` was pushed to \`${sourceRepo}\` but could not be automatically ported.`
 	const fileCount = String(input.context.sourceChange.files.length)
+	const decisionLog = renderDecisionLog(input.decisionTrace)
 
 	return [
 		openingSentence,
 		'',
 		`**Why:** ${input.decision.reason}`,
 		'',
+		decisionLog,
+		decisionLog ? '' : undefined,
 		`**Changed files:** ${fileCount}`,
-	].join('\n')
+	]
+		.filter(isDefinedLine)
+		.join('\n')
 }
 
 /**

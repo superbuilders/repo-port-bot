@@ -88,9 +88,25 @@ Port: <source PR title>
 >
 > — [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) (2 files changed · 1 attempt · 5 tool calls · 18.6s)
 
+<details><summary>Decision Log</summary>
+
+_Checking for equivalent target files._
+```
+
+Read `src/date.ts`
+Read `src/string.ts`
+
+```
+
+_Both files exist in the target repo. Port required._
+
+</details>
+
+Classified by [claude-sonnet-4-6](https://models.dev/...) · 3 tool calls · 1.8s
+
 Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
 
-### What was ported
+## What was ported
 
 <agent summary — per-file descriptions of changes>
 
@@ -132,8 +148,9 @@ Key design choices:
 
 - **`## Cross-repo port`** heading with decision blockquote immediately below — the "why" is the first thing a reviewer reads
 - **Decision blockquote** includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`), keeping "who, why, and how much" together
-- **Source narrative** follows the blockquote — links back to the source PR and repo for traceability
-- **`### What was ported`** is the main content — the agent's per-file summary gets top billing
+- **Decision Log** appears below the blockquote when the decision came from the LLM classifier (not shown for heuristic decisions). Uses the same humanized format as the Agent Work Log: assistant reasoning in _italics_, tool calls in fenced code blocks, low-signal tools filtered, line-capped. A provenance line below shows the classifier model, tool call count, and duration.
+- **Source narrative** follows the decision section — links back to the source PR and repo for traceability
+- **`## What was ported`** is the main content — the agent's per-file summary gets top billing
 - **`Agent Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks. The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
@@ -157,7 +174,7 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the 
 
 - Tagged `needs-human`
 - Compact title: `Needs review: <source PR title (truncated to 60 chars)>`
-- Body is a short narrative with the source PR link, reason, and file count
+- Body is a short narrative with the source PR link, reason, file count, and (when the classifier ran) a Decision Log
 
 **Example body:**
 
@@ -165,6 +182,21 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the 
 [Add formatting/date helpers](https://github.com/handlebauer/port-bot-test-source/pull/1) was merged in `port-bot-test-source` but could not be automatically ported.
 
 **Why:** Classifier could not determine a safe automatic port target.
+
+<details><summary>Decision Log</summary>
+
+_Inspecting target repo structure._
+```
+
+Read `src/date.ts`
+
+```
+
+_No equivalent module exists. Escalating to human review._
+
+</details>
+
+Classified by [claude-sonnet-4-6](https://models.dev/...) · 2 tool calls · 1.2s
 
 **Changed files:** 2
 ```

@@ -74,8 +74,9 @@ Define what a productive debugging session looks like. The maintainer should be 
 
 7. **Maintainer downloads the run artifact**
     - Each run uploads `port-bot-run-<runId>/` containing:
-        - `run-result.json` — the full `PortRunResult` including decision, execution history, attempt details, and stage timings.
-        - `tool-calls.json` — every `ToolCallEntry` across all attempts: tool name, raw input, raw output, duration. Note: this contains the full tool payloads (not summaries), so the file can be large.
+        - `run-result.json` — the full `PortRunResult` including decision (with trace), execution (with trace), attempt details, and stage timings.
+        - `tool-calls.json` — every `ToolCallEntry` across all execution attempts: tool name, raw input, raw output, duration. Note: this contains the full tool payloads (not summaries), so the file can be large.
+        - `decision-tool-calls.json` — every `ToolCallEntry` from the decision classifier session (empty for heuristic decisions).
     - Artifacts are retained for 14 days alongside the Actions run.
     - Upload requires the runner-provided runtime token (`ACTIONS_RUNTIME_TOKEN`). If unavailable in a given context, upload is skipped and the run still succeeds.
 
@@ -122,14 +123,14 @@ The maintainer experiences debugging as "layered and proportional":
 
 ## Common investigation patterns
 
-| Symptom                                 | Where to look                                  | What to check                                                                                      |
-| --------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `failed` outcome, no PR/issue           | Source comment → job summary                   | Stage timings show which stage crashed. Error message in summary.                                  |
-| Draft PR, unclear why validation failed | PR body → Actions log (expand Attempt groups)  | Validation results in PR body. Per-attempt tool calls in log.                                      |
-| Unexpected skip                         | Source comment reason                          | Decision reason shows which heuristic fired. Check if ignore patterns or labels are misconfigured. |
-| Port touched wrong files                | Target PR diff → artifact                      | `tool-calls.json` shows which files the agent read and edited and in what order.                   |
-| Run took too long                       | Job summary → stage timings                    | Identify the slow stage. Execution with many attempts is the usual culprit.                        |
-| Agent went in circles                   | Actions log (expand Attempt groups) → artifact | Repeated tool calls on the same files across attempts. Tool call log shows the pattern.            |
+| Symptom                                 | Where to look                                  | What to check                                                                                                                       |
+| --------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `failed` outcome, no PR/issue           | Source comment → job summary                   | Stage timings show which stage crashed. Error message in summary.                                                                   |
+| Draft PR, unclear why validation failed | PR body → Actions log (expand Attempt groups)  | Validation results in PR body. Per-attempt tool calls in log.                                                                       |
+| Unexpected skip                         | Source comment reason → PR body Decision Log   | Decision reason shows which heuristic fired or what the classifier inspected. Check if ignore patterns or labels are misconfigured. |
+| Port touched wrong files                | Target PR diff → artifact                      | `tool-calls.json` shows which files the agent read and edited and in what order.                                                    |
+| Run took too long                       | Job summary → stage timings                    | Identify the slow stage. Execution with many attempts is the usual culprit.                                                         |
+| Agent went in circles                   | Actions log (expand Attempt groups) → artifact | Repeated tool calls on the same files across attempts. Tool call log shows the pattern.                                             |
 
 ## Non-goals
 

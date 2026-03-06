@@ -62,8 +62,9 @@ Define what "working" means from a maintainer perspective when a change in one r
     - PR body follows a compact layout:
         - `## Cross-repo port` heading with decision blockquote immediately below (the "why" is the first thing a reviewer reads)
         - decision blockquote includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`)
-        - source narrative below the blockquote (`Ported from [<title>](<url>) in <repo>`)
-        - `### What was ported` — the agent's per-file summary of changes (the main content)
+        - when the decision came from the LLM classifier, a collapsible `Decision Log` appears below the blockquote showing what the classifier inspected (tool calls in code blocks, assistant reasoning in italics) with a provenance line (model, tool call count, duration). Heuristic decisions do not produce a Decision Log.
+        - source narrative below the decision section (`Ported from [<title>](<url>) in <repo>`)
+        - `## What was ported` — the agent's per-file summary of changes (the main content)
         - collapsed `Agent Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (only shown in "What was ported", not repeated in the log)
         - collapsible `Validation & diagnostics` section with pass/fail results
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention signal remains the git trailer `Ported-By: repo-port-bot`)

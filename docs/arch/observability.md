@@ -126,6 +126,35 @@ The action writes a summary via `core.summary` with a clean layout:
 
 This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log.
 
+## Decision Log (PR and issue bodies)
+
+When the decision came from the LLM classifier (not a heuristic), the target PR body and needs-human issue body include a collapsible **Decision Log** showing what the classifier inspected. It appears directly below the decision reason blockquote.
+
+The Decision Log uses the same humanization as the execution Agent Work Log:
+
+- assistant reasoning rendered as `_italic text_`
+- tool events grouped into fenced code blocks
+- `Glob` and `Grep` filtered out as low-signal
+- capped at the same per-section line limit
+
+Below the collapsible log, a one-line provenance summary shows:
+
+- classifier model (linked to models.dev)
+- tool call count
+- classifier duration
+
+Heuristic decisions do not produce a Decision Log — the reason blockquote alone is sufficient since heuristics are deterministic and fast.
+
+### Where the Decision Log appears
+
+| Surface               | Classifier decision                        | Heuristic decision |
+| --------------------- | ------------------------------------------ | ------------------ |
+| **Target PR body**    | Collapsible Decision Log + provenance line | No Decision Log    |
+| **Needs-human issue** | Collapsible Decision Log + provenance line | No Decision Log    |
+| **Source PR comment** | No Decision Log (comments stay minimal)    | No Decision Log    |
+
+The Decision Log is particularly valuable in the needs-human issue, where the whole point is explaining why the bot couldn't decide — the maintainer can see exactly which files the classifier inspected and how it reasoned.
+
 ## Tool call artifact
 
 The agent's `ToolCallEntry[]` is the most valuable debugging artifact but also the noisiest (50–200 entries per attempt across multiple retries). It should not go to stdout at `info` level.
