@@ -352,7 +352,7 @@ describe('deliverResult', () => {
 	test('throws when PORT_REQUIRED is delivered without execution result', async () => {
 		const { writer } = createWriterFake()
 
-		expect(
+		await expect(
 			deliverResult({
 				writer,
 				context: makeContext(),
