@@ -88,29 +88,13 @@ Port: <source PR title>
 >
 > — [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) (2 files changed · 1 attempt · 5 tool calls · 18.6s)
 
-<details><summary>Decision Log</summary>
-
-_Checking for equivalent target files._
-```
-
-Read `src/date.ts`
-Read `src/string.ts`
-
-```
-
-_Both files exist in the target repo. Port required._
-
-</details>
-
-Classified by [claude-sonnet-4-6](https://models.dev/...) · 3 tool calls · 1.8s
-
 Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
 
 ## What was ported
 
 <agent summary — per-file descriptions of changes>
 
-<details><summary>Agent Work Log</summary>
+<details><summary>Work Log</summary>
 _I'll start by reading the source diff and target files._
 ```
 
@@ -148,16 +132,17 @@ Key design choices:
 
 - **`## Cross-repo port`** heading with decision blockquote immediately below — the "why" is the first thing a reviewer reads
 - **Decision blockquote** includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`), keeping "who, why, and how much" together
-- **Decision Log** appears below the blockquote when the decision came from the LLM classifier (not shown for heuristic decisions). Uses the same humanized format as the Agent Work Log: assistant reasoning in _italics_, tool calls in fenced code blocks, low-signal tools filtered, line-capped. A provenance line below shows the classifier model, tool call count, and duration.
-- **Source narrative** follows the decision section — links back to the source PR and repo for traceability
+- **Source narrative** follows the blockquote — links back to the source PR and repo for traceability
 - **`## What was ported`** is the main content — the agent's per-file summary gets top billing
-- **`Agent Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks. The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
+- **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks. The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
 
-For **multi-attempt runs** (stalled ports), the `Agent Work Log` section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) so retries are easy to follow.
+Decision and execution event logs (Decision Log, Work Log) are surfaced in the **job summary** rather than the PR body — see [observability.md](observability.md) for the layout. This keeps the PR focused on what a reviewer needs (the blockquote reason + change summary) without duplicating trace data.
 
-**How summaries/logs are captured:** The provider keeps only the text from the _last_ assistant message as the polished `### What was ported` summary. In parallel, it now records ordered attempt events (assistant text + tool start/end lifecycle) so the PR renderer can build the collapsed, humanized `Agent Work Log` narrative.
+For **multi-attempt runs** (stalled ports), the `Work Log` section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) so retries are easy to follow.
+
+**How summaries/logs are captured:** The provider keeps only the text from the _last_ assistant message as the polished `## What was ported` summary. In parallel, it records ordered attempt events (assistant text + tool start/end lifecycle) so the PR renderer can build the collapsed, humanized `Work Log` narrative.
 
 **PR state:**
 
@@ -174,7 +159,7 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the 
 
 - Tagged `needs-human`
 - Compact title: `Needs review: <source PR title (truncated to 60 chars)>`
-- Body is a short narrative with the source PR link, reason, file count, and (when the classifier ran) a Decision Log
+- Body is a short narrative with the source PR link, reason, and file count
 
 **Example body:**
 
@@ -182,21 +167,6 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the 
 [Add formatting/date helpers](https://github.com/handlebauer/port-bot-test-source/pull/1) was merged in `port-bot-test-source` but could not be automatically ported.
 
 **Why:** Classifier could not determine a safe automatic port target.
-
-<details><summary>Decision Log</summary>
-
-_Inspecting target repo structure._
-```
-
-Read `src/date.ts`
-
-```
-
-_No equivalent module exists. Escalating to human review._
-
-</details>
-
-Classified by [claude-sonnet-4-6](https://models.dev/...) · 2 tool calls · 1.2s
 
 **Changed files:** 2
 ```
@@ -230,19 +200,19 @@ On reruns, non-failure comments include a `[!NOTE]` admonition linking the prior
 | `needs_human`          | `[!WARNING]` | Needs attention — manual   |
 | `failed`               | `[!CAUTION]` | Engine error               |
 
-The decision reason is rendered in a collapsible `<details><summary>Why</summary>` block so comments stay compact while the full rationale remains accessible.
+The decision reason is rendered in a collapsible `<details>` block nested inside the admonition body so comments stay compact while the full rationale remains accessible.
 
 **Example comment** (`pr_opened`):
 
 ```md
 > [!TIP]
 > Ported to https://github.com/acme/target-repo/pull/901 (2 files, validation passed).
-
-<details><summary>Why</summary>
-
-Source changes affect shared API surface that exists in both repos.
-
-</details>
+>
+> <details><summary>Why was this ported?</summary>
+>
+> Source changes affect shared API surface that exists in both repos.
+>
+> </details>
 ```
 
 ## Loop prevention

@@ -6,7 +6,6 @@ import type {
 	AgentSessionEvent,
 	AttemptEvent,
 	DecidePortResult,
-	DecisionTrace,
 	ExecutePortAttemptResult,
 	ExecutePortResult,
 	PortContext,
@@ -18,14 +17,12 @@ import type {
 interface RenderPullRequestBodyInput {
 	context: PortContext
 	decision: PortDecision
-	decisionTrace: DecisionTrace
 	execution: ExecutePortResult
 }
 
 interface RenderNeedsHumanIssueBodyInput {
 	context: PortContext
 	decision: PortDecision
-	decisionTrace: DecisionTrace
 }
 
 interface RenderSourceCommentInput {
@@ -354,7 +351,7 @@ function readStringField(
 }
 
 /**
- * Render a collapsed, humanized agent work log section.
+ * Render a collapsed, humanized work log section.
  *
  * @param execution - Execution details.
  * @returns HTML details block with per-attempt narrative.
@@ -371,44 +368,9 @@ function renderAgentWorkLog(execution: ExecutePortResult): string {
 			: body
 	})
 
-	return [
-		'<details><summary>Agent Work Log</summary>',
-		'',
-		...attemptSections,
-		'',
-		'</details>',
-	].join('\n\n')
-}
-
-/**
- * Render the Decision Log section when the decision came from the LLM classifier.
- *
- * @param trace - Decision trace with source, events, model, and duration.
- * @returns Decision Log markdown or undefined for heuristic/fallback decisions.
- */
-function renderDecisionLog(trace: DecisionTrace): string | undefined {
-	if (trace.source !== 'classifier') {
-		return undefined
-	}
-
-	const body = renderEventBlocks(trace.events)
-	const toolCallCount = trace.toolCallLog.length
-	const modelPart = trace.model
-		? `[${trace.model}](https://models.dev/?search=${encodeURIComponent(trace.model)})`
-		: 'classifier'
-	const durationPart =
-		trace.durationMs !== undefined ? ` · ${formatDuration(trace.durationMs)}` : ''
-	const provenance = `Classified by ${modelPart} · ${String(toolCallCount)} tool call${toolCallCount === 1 ? '' : 's'}${durationPart}`
-
-	return [
-		'<details><summary>Decision Log</summary>',
-		'',
-		body,
-		'',
-		'</details>',
-		'',
-		provenance,
-	].join('\n')
+	return ['<details><summary>Work Log</summary>', '', ...attemptSections, '', '</details>'].join(
+		'\n\n',
+	)
 }
 
 /**
@@ -417,7 +379,6 @@ function renderDecisionLog(trace: DecisionTrace): string | undefined {
  * @param input - Rendering input.
  * @param input.context - Port context.
  * @param input.decision - Decision that led to execution.
- * @param input.decisionTrace - Decision trace for Decision Log rendering.
  * @param input.execution - Execution result with diagnostics.
  * @returns Pull request body markdown.
  */
@@ -444,8 +405,6 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 
 	const reasonBlockquote = reasonLines.join('\n')
 
-	const decisionLog = renderDecisionLog(input.decisionTrace)
-
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
 
 	const diagnosticsBlock = noValidationConfigured
@@ -458,8 +417,6 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'',
 		reasonBlockquote,
 		'',
-		decisionLog,
-		decisionLog ? '' : undefined,
 		sourceNarrative,
 		'',
 		'## What was ported',
@@ -492,15 +449,12 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
 		? `[${sourcePullRequest.title}](${sourcePullRequest.url}) was merged in \`${sourceRepo}\` but could not be automatically ported.`
 		: `Commit \`${input.context.sourceChange.mergedCommitSha}\` was pushed to \`${sourceRepo}\` but could not be automatically ported.`
 	const fileCount = String(input.context.sourceChange.files.length)
-	const decisionLog = renderDecisionLog(input.decisionTrace)
 
 	return [
 		openingSentence,
 		'',
 		`**Why:** ${input.decision.reason}`,
 		'',
-		decisionLog,
-		decisionLog ? '' : undefined,
 		`**Changed files:** ${fileCount}`,
 	]
 		.filter(isDefinedLine)

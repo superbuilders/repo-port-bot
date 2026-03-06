@@ -8,13 +8,7 @@ import {
 	renderSourceComment,
 } from './render-body.ts'
 
-import type {
-	DecisionTrace,
-	ExecutePortResult,
-	PortContext,
-	PortDecision,
-	RepoRef,
-} from '../types.ts'
+import type { ExecutePortResult, PortContext, PortDecision, RepoRef } from '../types.ts'
 
 const SOURCE_REPO: RepoRef = {
 	owner: 'acme',
@@ -81,58 +75,6 @@ function makeDecision(kind: PortDecision['kind']): PortDecision {
 	return {
 		kind,
 		reason: 'Decision reason',
-	}
-}
-
-/**
- * Build a heuristic decision trace fixture.
- *
- * @returns Decision trace fixture with no classifier events.
- */
-function makeHeuristicTrace(): DecisionTrace {
-	return {
-		source: 'heuristic',
-		heuristicName: 'checkDocsOnly',
-		toolCallLog: [],
-		events: [],
-	}
-}
-
-/**
- * Build a classifier decision trace fixture with events.
- *
- * @returns Decision trace fixture with classifier events and model.
- */
-function makeClassifierTrace(): DecisionTrace {
-	return {
-		source: 'classifier',
-		model: 'claude-sonnet-4-6',
-		durationMs: 1800,
-		toolCallLog: [
-			{ toolName: 'Read', input: { file_path: 'src/app.ts' }, output: { ok: true } },
-		],
-		events: [
-			{
-				kind: 'assistant_note',
-				text: 'Checking for equivalent target files.',
-			},
-			{
-				kind: 'tool_start',
-				toolName: 'Read',
-				toolUseId: 'read-1',
-				toolInput: { file_path: 'src/app.ts' },
-			},
-			{
-				kind: 'tool_end',
-				toolName: 'Read',
-				toolUseId: 'read-1',
-				durationMs: 42,
-			},
-			{
-				kind: 'assistant_note',
-				text: 'Target file exists. Port required.',
-			},
-		],
 	}
 }
 
@@ -236,7 +178,6 @@ describe('render-body', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
-			decisionTrace: makeHeuristicTrace(),
 			execution: makeExecution(true),
 		})
 
@@ -252,17 +193,14 @@ describe('render-body', () => {
 
 		expect(blockquoteIndex).toBeLessThan(sourceIndex)
 		expect(body).toContain('Looks good.')
-		expect(body).toContain('<details><summary>Agent Work Log</summary>')
+		expect(body).toContain('<details><summary>Work Log</summary>')
 		expect(body).toContain('_Starting out the port..._')
 		expect(body).toContain('Read `src/app.ts`')
 		expect(body).toContain('Edited `src/app.ts`')
 		expect(body).toContain('Ran `bun run check` (18.6s)')
 		expect(body).toContain('```\nRead')
 
-		const workLogSection = body.slice(
-			body.indexOf('Agent Work Log'),
-			body.indexOf('</details>'),
-		)
+		const workLogSection = body.slice(body.indexOf('Work Log'), body.indexOf('</details>'))
 
 		expect(workLogSection).not.toContain('Looks good.')
 		expect(body).toContain('<details><summary>Validation & diagnostics</summary>')
@@ -275,48 +213,10 @@ describe('render-body', () => {
 		)
 	})
 
-	test('renders Decision Log for classifier decisions', () => {
-		const body = renderPortPullRequestBody({
-			context: makeContext(),
-			decision: makeDecision('PORT_REQUIRED'),
-			decisionTrace: makeClassifierTrace(),
-			execution: makeExecution(true),
-		})
-
-		expect(body).toContain('<details><summary>Decision Log</summary>')
-		expect(body).toContain('_Checking for equivalent target files._')
-		expect(body).toContain('Read `src/app.ts`')
-		expect(body).toContain('_Target file exists. Port required._')
-		expect(body).toContain('Classified by')
-		expect(body).toContain('claude-sonnet-4-6')
-		expect(body).toContain('1 tool call')
-		expect(body).toContain('1.8s')
-
-		const decisionLogIndex = body.indexOf('Decision Log')
-		const sourceNarrativeIndex = body.indexOf('Ported from')
-		const whatWasPortedIndex = body.indexOf('## What was ported')
-
-		expect(decisionLogIndex).toBeLessThan(sourceNarrativeIndex)
-		expect(sourceNarrativeIndex).toBeLessThan(whatWasPortedIndex)
-	})
-
-	test('omits Decision Log for heuristic decisions', () => {
-		const body = renderPortPullRequestBody({
-			context: makeContext(),
-			decision: makeDecision('PORT_REQUIRED'),
-			decisionTrace: makeHeuristicTrace(),
-			execution: makeExecution(true),
-		})
-
-		expect(body).not.toContain('Decision Log')
-		expect(body).not.toContain('Classified by')
-	})
-
 	test('renders draft/stalled PR with details open and failure info', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
-			decisionTrace: makeHeuristicTrace(),
 			execution: makeExecution(false),
 		})
 
@@ -330,7 +230,6 @@ describe('render-body', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContextWithoutValidationCommands(),
 			decision: makeDecision('PORT_REQUIRED'),
-			decisionTrace: makeHeuristicTrace(),
 			execution: makeExecution(true),
 		})
 
@@ -338,7 +237,7 @@ describe('render-body', () => {
 		expect(body).not.toContain('Validation & diagnostics')
 	})
 
-	test('renders per-attempt sections in Agent Work Log on retries', () => {
+	test('renders per-attempt sections in Work Log on retries', () => {
 		const execution = makeExecution(false)
 
 		execution.trace.attempts = [
@@ -391,7 +290,6 @@ describe('render-body', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
-			decisionTrace: makeHeuristicTrace(),
 			execution,
 		})
 
@@ -400,15 +298,12 @@ describe('render-body', () => {
 		expect(body).toContain('### Attempt 2')
 		expect(body).toContain('Retrying the port...')
 
-		const workLogSection = body.slice(
-			body.indexOf('Agent Work Log'),
-			body.indexOf('</details>'),
-		)
+		const workLogSection = body.slice(body.indexOf('Work Log'), body.indexOf('</details>'))
 
 		expect(workLogSection).not.toContain('Final attempt summary.')
 
 		const whatWasPortedIndex = body.indexOf('## What was ported')
-		const workLogIndex = body.indexOf('Agent Work Log')
+		const workLogIndex = body.indexOf('Work Log')
 		const sectionBetween = body.slice(whatWasPortedIndex, workLogIndex)
 
 		expect(sectionBetween).toContain('Final attempt summary.')
@@ -422,7 +317,6 @@ describe('render-body', () => {
 		const body = renderNeedsHumanIssueBody({
 			context,
 			decision,
-			decisionTrace: makeHeuristicTrace(),
 		})
 
 		expect(title).toBe('Needs review: Add execution orchestration')
@@ -430,21 +324,6 @@ describe('render-body', () => {
 			'[Add execution orchestration](https://github.com/acme/source-repo/pull/42) was merged in `acme/source-repo`',
 		)
 		expect(body).toContain('**Why:** Decision reason')
-		expect(body).toContain('**Changed files:** 1')
-	})
-
-	test('renders Decision Log in needs-human issue for classifier decisions', () => {
-		const context = makeContext()
-		const decision = makeDecision('NEEDS_HUMAN')
-		const body = renderNeedsHumanIssueBody({
-			context,
-			decision,
-			decisionTrace: makeClassifierTrace(),
-		})
-
-		expect(body).toContain('<details><summary>Decision Log</summary>')
-		expect(body).toContain('Classified by')
-		expect(body).toContain('claude-sonnet-4-6')
 		expect(body).toContain('**Changed files:** 1')
 	})
 

@@ -5,7 +5,6 @@ import { commentOnSourcePr, deliverResult } from './deliver.ts'
 import type {
 	CreatedIssue,
 	CreatedPullRequest,
-	DecisionTrace,
 	ExecutePortResult,
 	GitHubWriter,
 	PortContext,
@@ -70,13 +69,6 @@ function makeDecision(kind: PortDecision['kind']): PortDecision {
 		kind,
 		reason: 'Decision reason',
 	}
-}
-
-const HEURISTIC_TRACE: DecisionTrace = {
-	source: 'heuristic',
-	heuristicName: 'checkDocsOnly',
-	toolCallLog: [],
-	events: [],
 }
 
 /**
@@ -197,7 +189,6 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_NOT_REQUIRED'),
-			decisionTrace: HEURISTIC_TRACE,
 			targetWorkingDirectory: '/tmp/unused',
 			runCommand: async ({ command }) => {
 				commandCalls.push(command)
@@ -221,7 +212,6 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('NEEDS_HUMAN'),
-			decisionTrace: HEURISTIC_TRACE,
 			targetWorkingDirectory: '/tmp/unused',
 			runCommand: async () => {
 				commandInvoked = true
@@ -246,7 +236,7 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
-			decisionTrace: HEURISTIC_TRACE,
+
 			execution: makeExecution(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -280,7 +270,7 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
-			decisionTrace: HEURISTIC_TRACE,
+
 			execution: makeExecution(false),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -326,7 +316,7 @@ describe('deliverResult', () => {
 			writer,
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
-			decisionTrace: HEURISTIC_TRACE,
+
 			execution: makeExecution(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -357,7 +347,7 @@ describe('deliverResult', () => {
 				writer,
 				context: makeContext(),
 				decision: makeDecision('PORT_REQUIRED'),
-				decisionTrace: HEURISTIC_TRACE,
+
 				targetWorkingDirectory: '/tmp/target-repo',
 				runCommand: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
 			}),

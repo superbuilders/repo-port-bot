@@ -197,12 +197,6 @@ describe('runAction', () => {
 						kind: 'PORT_REQUIRED',
 						reason: 'Required',
 					},
-					decisionTrace: {
-						source: 'heuristic',
-						heuristicName: 'test',
-						toolCallLog: [],
-						events: [],
-					},
 					targetWorkingDirectory: '/tmp/target-repo',
 				})
 
