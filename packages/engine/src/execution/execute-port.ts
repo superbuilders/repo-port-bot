@@ -255,6 +255,7 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 		trace: {
 			model: agentModel,
 			durationMs: Date.now() - executionStartedAtMs,
+			notes: attempts.at(-1)?.trace.notes,
 			toolCallLog: attempts.flatMap(entry => entry.trace.toolCallLog),
 			events: attempts.flatMap(entry => entry.trace.events),
 			attempts,
