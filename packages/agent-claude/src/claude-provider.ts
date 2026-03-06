@@ -66,6 +66,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 	 * @returns Structured classifier response.
 	 */
 	public async decidePort(input: DecidePortInput): Promise<DecidePortResult> {
+		const startedAtMs = Date.now()
 		const onMessage = input.onMessage
 		const systemPrompt = buildDecideSystemPrompt({
 			pluginConfig: input.pluginConfig,
@@ -209,6 +210,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 			trace: {
 				source: 'classifier',
 				notes,
+				durationMs: Date.now() - startedAtMs,
 				toolCallLog,
 				events,
 				model: this.options.model ?? DEFAULT_MODEL,
