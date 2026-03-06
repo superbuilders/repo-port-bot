@@ -205,9 +205,13 @@ function renderAttemptNotes(execution: ExecutionResult): string {
  * assistant notes in italics, separated by blank lines.
  *
  * @param attempt - Attempt details.
+ * @param stripLastAssistantNote - When true, drop the final assistant note (already shown in "What was ported").
  * @returns Markdown string for this attempt's work log.
  */
-function renderAttemptWorkLogBody(attempt: ExecutionAttempt): string {
+function renderAttemptWorkLogBody(
+	attempt: ExecutionAttempt,
+	stripLastAssistantNote: boolean,
+): string {
 	const toolDurations = new Map<string, number | undefined>()
 
 	for (const event of attempt.events) {
@@ -246,6 +250,10 @@ function renderAttemptWorkLogBody(attempt: ExecutionAttempt): string {
 				}
 			}
 		}
+	}
+
+	if (stripLastAssistantNote && blocks.at(-1)?.kind === 'assistant') {
+		blocks.pop()
 	}
 
 	if (blocks.length === 0) {
@@ -332,8 +340,11 @@ function readStringField(
  * @returns HTML details block with per-attempt narrative.
  */
 function renderAgentWorkLog(execution: ExecutionResult): string {
+	const lastAttemptNumber = execution.history.at(-1)?.attempt
+
 	const attemptSections = execution.history.map(attempt => {
-		const body = renderAttemptWorkLogBody(attempt)
+		const isLastAttempt = attempt.attempt === lastAttemptNumber
+		const body = renderAttemptWorkLogBody(attempt, isLastAttempt)
 
 		return execution.history.length > 1
 			? [`### Attempt ${String(attempt.attempt)}`, '', body].join('\n')

@@ -145,6 +145,10 @@ function makeExecution(success: boolean): ExecutionResult {
 						toolUseId: 'bash-1',
 						durationMs: 18_601,
 					},
+					{
+						kind: 'assistant_note',
+						text: success ? 'Looks good.' : 'Still failing checks.',
+					},
 				],
 			},
 		],
@@ -185,6 +189,13 @@ describe('render-body', () => {
 		expect(body).toContain('Edited `src/app.ts`')
 		expect(body).toContain('Ran `bun run check` (18.6s)')
 		expect(body).toContain('```\nRead')
+
+		const workLogSection = body.slice(
+			body.indexOf('Agent Work Log'),
+			body.indexOf('</details>'),
+		)
+
+		expect(workLogSection).not.toContain('Looks good.')
 		expect(body).toContain('<details><summary>Validation & diagnostics</summary>')
 		expect(body).toContain('[PASS] `bun run check`')
 		expect(body).toContain('1 file changed · 1 attempt · 0 tool calls')
@@ -241,7 +252,23 @@ describe('render-body', () => {
 				events: [
 					{
 						kind: 'assistant_note',
-						text: 'Second attempt.',
+						text: 'Retrying the port...',
+					},
+					{
+						kind: 'tool_start',
+						toolName: 'Edit',
+						toolUseId: 'edit-2',
+						toolInput: { file_path: 'src/app.ts' },
+					},
+					{
+						kind: 'tool_end',
+						toolName: 'Edit',
+						toolUseId: 'edit-2',
+						durationMs: 10,
+					},
+					{
+						kind: 'assistant_note',
+						text: 'Final attempt summary.',
 					},
 				],
 			},
@@ -256,7 +283,14 @@ describe('render-body', () => {
 		expect(body).toContain('### Attempt 1')
 		expect(body).toContain('First attempt.')
 		expect(body).toContain('### Attempt 2')
-		expect(body).toContain('Second attempt.')
+		expect(body).toContain('Retrying the port...')
+
+		const workLogSection = body.slice(
+			body.indexOf('Agent Work Log'),
+			body.indexOf('</details>'),
+		)
+
+		expect(workLogSection).not.toContain('Final attempt summary.')
 
 		const whatWasPortedIndex = body.indexOf('### What was ported')
 		const workLogIndex = body.indexOf('Agent Work Log')

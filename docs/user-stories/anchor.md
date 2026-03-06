@@ -64,7 +64,7 @@ Define what "working" means from a maintainer perspective when a change in one r
         - decision blockquote includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`)
         - source narrative below the blockquote (`Ported from [<title>](<url>) in <repo>`)
         - `### What was ported` — the agent's per-file summary of changes (the main content)
-        - collapsed `Agent Work Log` with assistant notes in italics and tool actions in code blocks (for retries, grouped by attempt)
+        - collapsed `Agent Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (only shown in "What was ported", not repeated in the log)
         - collapsible `Validation & diagnostics` section with pass/fail results
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention signal remains the git trailer `Ported-By: repo-port-bot`)
 
