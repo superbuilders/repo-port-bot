@@ -61,7 +61,8 @@ async function main(): Promise<void> {
 
 		const heading = result.sourceTitle ? `Port: ${result.sourceTitle}` : 'Port run'
 		const outcomeLine = buildOutcomeLine(result)
-		const model = result.execution?.trace.model ?? result.decision.trace.model
+		const executionModel = result.execution?.trace.model
+		const model = executionModel ?? result.decision.trace.model
 
 		core.summary.addRaw(`# ${heading}\n\n`)
 		core.summary.addRaw(`${outcomeLine}\n\n`)
@@ -151,7 +152,6 @@ async function main(): Promise<void> {
 				[
 					`<details><summary>Execution</summary>`,
 					'',
-					model ? `- Model: \`${model}\`` : undefined,
 					artifactUploaded ? `- Artifact: \`port-bot-run-${result.runId}\`` : undefined,
 					`- Run ID: \`${result.runId}\``,
 					'- _No execution (skipped or needs-human)_',
