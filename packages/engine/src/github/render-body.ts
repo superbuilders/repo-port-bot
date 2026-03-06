@@ -199,12 +199,15 @@ function renderAttemptNotes(execution: ExecutionResult): string {
 }
 
 /**
- * Render one attempt's humanized work-log lines.
+ * Render one attempt's humanized work-log as markdown blocks.
+ *
+ * Groups consecutive tool events into fenced code blocks and wraps
+ * assistant notes in italics, separated by blank lines.
  *
  * @param attempt - Attempt details.
- * @returns Rendered lines for this attempt.
+ * @returns Markdown string for this attempt's work log.
  */
-function renderAttemptWorkLogLines(attempt: ExecutionAttempt): string[] {
+function renderAttemptWorkLogBody(attempt: ExecutionAttempt): string {
 	const toolDurations = new Map<string, number | undefined>()
 
 	for (const event of attempt.events) {
@@ -213,50 +216,57 @@ function renderAttemptWorkLogLines(attempt: ExecutionAttempt): string[] {
 		}
 	}
 
-	const lines: string[] = []
+	type Block = { kind: 'assistant'; text: string } | { kind: 'tool'; lines: string[] }
+
+	const blocks: Block[] = []
+	let eventCount = 0
 
 	for (const event of attempt.events) {
-		const rendered = renderAttemptEvent(event, toolDurations)
+		if (event.kind === 'tool_end') {
+			// skip: duration already captured in toolDurations map
+		} else if (event.kind === 'assistant_note') {
+			const text = event.text.trim()
 
-		if (rendered) {
-			lines.push(rendered)
+			if (text.length > 0) {
+				blocks.push({ kind: 'assistant', text })
+				eventCount += 1
+			}
+		} else {
+			const toolLine = summarizeToolStartEvent(event, toolDurations.get(event.toolUseId))
+
+			if (toolLine) {
+				eventCount += 1
+
+				const lastBlock = blocks.at(-1)
+
+				if (lastBlock?.kind === 'tool') {
+					lastBlock.lines.push(toolLine)
+				} else {
+					blocks.push({ kind: 'tool', lines: [toolLine] })
+				}
+			}
 		}
 	}
 
-	if (lines.length <= MAX_WORK_LOG_LINES_PER_ATTEMPT) {
-		return lines
+	if (blocks.length === 0) {
+		return '_No work-log events recorded._'
 	}
 
-	const hiddenCount = lines.length - MAX_WORK_LOG_LINES_PER_ATTEMPT
+	const rendered = blocks.map(block => {
+		if (block.kind === 'assistant') {
+			return `_${block.text}_`
+		}
 
-	return [
-		...lines.slice(0, MAX_WORK_LOG_LINES_PER_ATTEMPT),
-		`...and ${String(hiddenCount)} more event${hiddenCount === 1 ? '' : 's'}.`,
-	]
-}
+		return ['```', ...block.lines, '```'].join('\n')
+	})
 
-/**
- * Render a single attempt event to a humanized narrative line.
- *
- * @param event - Attempt event.
- * @param toolDurations - Tool duration map keyed by tool-use ID.
- * @returns Humanized line or undefined when omitted.
- */
-function renderAttemptEvent(
-	event: AttemptEvent,
-	toolDurations: Map<string, number | undefined>,
-): string | undefined {
-	if (event.kind === 'assistant_note') {
-		const text = event.text.trim()
-
-		return text.length > 0 ? text : undefined
+	if (eventCount > MAX_WORK_LOG_LINES_PER_ATTEMPT) {
+		return [...rendered.slice(0, MAX_WORK_LOG_LINES_PER_ATTEMPT), `_...and more events._`].join(
+			'\n\n',
+		)
 	}
 
-	if (event.kind === 'tool_end') {
-		return undefined
-	}
-
-	return summarizeToolStartEvent(event, toolDurations.get(event.toolUseId))
+	return rendered.join('\n\n')
 }
 
 /**
@@ -323,8 +333,7 @@ function readStringField(
  */
 function renderAgentWorkLog(execution: ExecutionResult): string {
 	const attemptSections = execution.history.map(attempt => {
-		const lines = renderAttemptWorkLogLines(attempt)
-		const body = lines.length > 0 ? lines.join('\n') : '_No work-log events recorded._'
+		const body = renderAttemptWorkLogBody(attempt)
 
 		return execution.history.length > 1
 			? [`### Attempt ${String(attempt.attempt)}`, '', body].join('\n')
@@ -365,7 +374,9 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	if (input.execution.model) {
 		const modelUrl = `https://models.dev/?search=${encodeURIComponent(input.execution.model)}`
 
-		reasonLines.push('>', `> — [${input.execution.model}](${modelUrl})`)
+		reasonLines.push('>', `> — [${input.execution.model}](${modelUrl}) _(${atAGlance})_`)
+	} else {
+		reasonLines.push('>', `> ${atAGlance}`)
 	}
 
 	const reasonBlockquote = reasonLines.join('\n')
@@ -380,11 +391,9 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	return [
 		'## Cross-repo port',
 		'',
-		sourceNarrative,
-		'',
 		reasonBlockquote,
 		'',
-		atAGlance,
+		sourceNarrative,
 		'',
 		'### What was ported',
 		'',

@@ -60,11 +60,11 @@ Define what "working" means from a maintainer perspective when a change in one r
     - PR title follows predictable format:
         - `Port: <source PR title>`
     - PR body follows a compact layout:
-        - `## Cross-repo port` heading with source narrative (`Ported from [<title>](<url>) in <repo>`)
-        - at-a-glance stats line (`2 files changed · 1 attempt · 5 tool calls · 18.6s`)
-        - decision reason as blockquote with model name (classifier or heuristic explanation)
+        - `## Cross-repo port` heading with decision blockquote immediately below (the "why" is the first thing a reviewer reads)
+        - decision blockquote includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`)
+        - source narrative below the blockquote (`Ported from [<title>](<url>) in <repo>`)
         - `### What was ported` — the agent's per-file summary of changes (the main content)
-        - collapsed `Agent Work Log` with chronological assistant notes and humanized tool actions (for retries, grouped by attempt)
+        - collapsed `Agent Work Log` with assistant notes in italics and tool actions in code blocks (for retries, grouped by attempt)
         - collapsible `Validation & diagnostics` section with pass/fail results
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention signal remains the git trailer `Ported-By: repo-port-bot`)
 

@@ -168,17 +168,23 @@ describe('render-body', () => {
 		})
 
 		expect(body).toContain('## Cross-repo port')
+		expect(body).toContain('> Decision reason')
 		expect(body).toContain(
 			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in [`acme/source-repo`](https://github.com/acme/source-repo).',
 		)
-		expect(body).toContain('> Decision reason')
 		expect(body).toContain('### What was ported')
+
+		const blockquoteIndex = body.indexOf('> Decision reason')
+		const sourceIndex = body.indexOf('Ported from')
+
+		expect(blockquoteIndex).toBeLessThan(sourceIndex)
 		expect(body).toContain('Looks good.')
 		expect(body).toContain('<details><summary>Agent Work Log</summary>')
-		expect(body).toContain('Starting out the port...')
+		expect(body).toContain('_Starting out the port..._')
 		expect(body).toContain('Read `src/app.ts`')
 		expect(body).toContain('Edited `src/app.ts`')
 		expect(body).toContain('Ran `bun run check` (18.6s)')
+		expect(body).toContain('```\nRead')
 		expect(body).toContain('<details><summary>Validation & diagnostics</summary>')
 		expect(body).toContain('[PASS] `bun run check`')
 		expect(body).toContain('1 file changed · 1 attempt · 0 tool calls')
