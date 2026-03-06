@@ -283,6 +283,36 @@ describe('ClaudeAgentProvider', () => {
 		expect(output.toolCallLog).toHaveLength(2)
 		expect(output.toolCallLog[0]?.toolName).toBe('Read')
 		expect(output.toolCallLog[1]?.toolName).toBe('Edit')
+		expect(output.events).toEqual([
+			{
+				kind: 'tool_start',
+				toolName: 'Read',
+				toolUseId: 'tool-read',
+				toolInput: { file_path: 'src/example.ts' },
+			},
+			{
+				kind: 'tool_end',
+				toolName: 'Read',
+				toolUseId: 'tool-read',
+				durationMs: expect.any(Number),
+			},
+			{
+				kind: 'tool_start',
+				toolName: 'Edit',
+				toolUseId: 'tool-edit',
+				toolInput: { file_path: 'src/ported.ts' },
+			},
+			{
+				kind: 'tool_end',
+				toolName: 'Edit',
+				toolUseId: 'tool-edit',
+				durationMs: expect.any(Number),
+			},
+			{
+				kind: 'assistant_note',
+				text: 'Applied source changes and updated imports.',
+			},
+		])
 		expect(output.notes).toContain('Applied source changes')
 		expect(streamedMessages).toContainEqual({
 			kind: 'thinking',
@@ -295,7 +325,7 @@ describe('ClaudeAgentProvider', () => {
 		expect(streamedMessages).toContainEqual({
 			kind: 'tool_start',
 			toolName: 'Read',
-			toolInput: { file_path: '/tmp/target/src/example.ts' },
+			toolInput: { file_path: 'src/example.ts' },
 		})
 		expect(streamedMessages).toContainEqual({
 			kind: 'tool_end',
@@ -344,5 +374,11 @@ describe('ClaudeAgentProvider', () => {
 		expect(output.complete).toBe(false)
 		expect(output.notes).toContain('Attempted update but hit constraints.')
 		expect(output.notes).toContain('Reached max turns.')
+		expect(output.events).toEqual([
+			{
+				kind: 'assistant_note',
+				text: 'Attempted update but hit constraints.',
+			},
+		])
 	})
 })

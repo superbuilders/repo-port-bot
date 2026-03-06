@@ -12,6 +12,7 @@ export { formatDuration } from './utils.ts'
 export type {
 	AgentMessage,
 	AgentMessageKind,
+	AttemptEvent,
 	AgentInput,
 	AgentOutput,
 	AgentProvider,

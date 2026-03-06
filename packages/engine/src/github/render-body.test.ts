@@ -104,6 +104,48 @@ function makeExecution(success: boolean): ExecutionResult {
 				],
 				notes: success ? 'Looks good.' : 'Still failing checks.',
 				toolCallLog: [],
+				events: [
+					{
+						kind: 'assistant_note',
+						text: 'Starting out the port...',
+					},
+					{
+						kind: 'tool_start',
+						toolName: 'Read',
+						toolUseId: 'read-1',
+						toolInput: { file_path: 'src/app.ts' },
+					},
+					{
+						kind: 'tool_end',
+						toolName: 'Read',
+						toolUseId: 'read-1',
+						durationMs: 42,
+					},
+					{
+						kind: 'tool_start',
+						toolName: 'Edit',
+						toolUseId: 'edit-1',
+						toolInput: { file_path: 'src/app.ts' },
+					},
+					{
+						kind: 'tool_end',
+						toolName: 'Edit',
+						toolUseId: 'edit-1',
+						durationMs: 55,
+					},
+					{
+						kind: 'tool_start',
+						toolName: 'Bash',
+						toolUseId: 'bash-1',
+						toolInput: { command: 'bun run check' },
+					},
+					{
+						kind: 'tool_end',
+						toolName: 'Bash',
+						toolUseId: 'bash-1',
+						durationMs: 18_601,
+					},
+				],
 			},
 		],
 		touchedFiles: ['src/app.ts'],
@@ -132,6 +174,11 @@ describe('render-body', () => {
 		expect(body).toContain('> Decision reason')
 		expect(body).toContain('### What was ported')
 		expect(body).toContain('Looks good.')
+		expect(body).toContain('<details><summary>Agent Work Log</summary>')
+		expect(body).toContain('Starting out the port...')
+		expect(body).toContain('Read `src/app.ts`')
+		expect(body).toContain('Edited `src/app.ts`')
+		expect(body).toContain('Ran `bun run check` (18.6s)')
 		expect(body).toContain('<details><summary>Validation & diagnostics</summary>')
 		expect(body).toContain('[PASS] `bun run check`')
 		expect(body).toContain('1 file changed · 1 attempt · 0 tool calls')
@@ -163,7 +210,45 @@ describe('render-body', () => {
 		})
 
 		expect(body).not.toContain('Validation')
-		expect(body).not.toContain('<details')
+		expect(body).not.toContain('Validation & diagnostics')
+	})
+
+	test('renders per-attempt sections in Agent Work Log on retries', () => {
+		const execution = makeExecution(false)
+
+		execution.history = [
+			{
+				...execution.history[0]!,
+				attempt: 1,
+				events: [
+					{
+						kind: 'assistant_note',
+						text: 'First attempt.',
+					},
+				],
+			},
+			{
+				...execution.history[0]!,
+				attempt: 2,
+				events: [
+					{
+						kind: 'assistant_note',
+						text: 'Second attempt.',
+					},
+				],
+			},
+		]
+
+		const body = renderPortPullRequestBody({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			execution,
+		})
+
+		expect(body).toContain('### Attempt 1')
+		expect(body).toContain('First attempt.')
+		expect(body).toContain('### Attempt 2')
+		expect(body).toContain('Second attempt.')
 	})
 
 	test('renders needs-human issue title and body with rationale and signals', () => {

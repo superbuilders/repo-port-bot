@@ -287,6 +287,42 @@ export interface AgentMessage {
 }
 
 /**
+ * Chronological event emitted during a single execution attempt.
+ *
+ * This stream is persisted in-attempt order so PR rendering can reconstruct
+ * a human-readable work log with assistant/tool interleaving.
+ */
+export type AttemptEvent = AttemptAssistantNoteEvent | AttemptToolStartEvent | AttemptToolEndEvent
+
+/**
+ * Assistant narration event captured from streamed text blocks.
+ */
+export interface AttemptAssistantNoteEvent {
+	kind: 'assistant_note'
+	text: string
+}
+
+/**
+ * Tool lifecycle start event captured before the tool executes.
+ */
+export interface AttemptToolStartEvent {
+	kind: 'tool_start'
+	toolName: string
+	toolUseId: string
+	toolInput?: Record<string, unknown>
+}
+
+/**
+ * Tool lifecycle end event captured after the tool executes.
+ */
+export interface AttemptToolEndEvent {
+	kind: 'tool_end'
+	toolName: string
+	toolUseId: string
+	durationMs?: number
+}
+
+/**
  * Input context for classifier-style "is a port required?" decisions.
  *
  * This mirrors `AgentInput` but intentionally excludes retry history because
@@ -412,6 +448,11 @@ export interface AgentOutput {
 	 * used for observability, cost tracking, and post-hoc debugging.
 	 */
 	toolCallLog: ToolCallEntry[]
+
+	/**
+	 * Ordered assistant/tool events from this attempt.
+	 */
+	events: AttemptEvent[]
 
 	/**
 	 * Model identifier used for this attempt (e.g. `claude-sonnet-4-6`).
@@ -742,6 +783,11 @@ export interface ExecutionAttempt {
 	 * Tool calls made by the agent during this attempt, for observability.
 	 */
 	toolCallLog: ToolCallEntry[]
+
+	/**
+	 * Ordered assistant/tool events captured during this attempt.
+	 */
+	events: AttemptEvent[]
 }
 
 /**

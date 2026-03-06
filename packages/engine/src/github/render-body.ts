@@ -3,6 +3,8 @@ import { formatDuration, joinNonEmptyLines } from '../utils.ts'
 const PORT_BOT_REPO_URL = 'https://github.com/superbuilders/repo-port-bot'
 
 import type {
+	AttemptEvent,
+	ExecutionAttempt,
 	ExecutionResult,
 	PortContext,
 	PortDecision,
@@ -43,6 +45,8 @@ interface RenderRunSummaryInput {
 
 const SHORT_SHA_LENGTH = 7
 const MAX_NEEDS_HUMAN_SOURCE_TITLE_LENGTH = 60
+const MAX_WORK_LOG_LINES_PER_ATTEMPT = 24
+const LOW_SIGNAL_TOOL_NAMES = new Set(['Glob', 'Grep'])
 
 /**
  * Filter predicate that removes `undefined` while preserving empty strings
@@ -214,6 +218,148 @@ function renderAttemptNotes(execution: ExecutionResult): string {
 }
 
 /**
+ * Render one attempt's humanized work-log lines.
+ *
+ * @param attempt - Attempt details.
+ * @returns Rendered lines for this attempt.
+ */
+function renderAttemptWorkLogLines(attempt: ExecutionAttempt): string[] {
+	const toolDurations = new Map<string, number | undefined>()
+
+	for (const event of attempt.events) {
+		if (event.kind === 'tool_end') {
+			toolDurations.set(event.toolUseId, event.durationMs)
+		}
+	}
+
+	const lines: string[] = []
+
+	for (const event of attempt.events) {
+		const rendered = renderAttemptEvent(event, toolDurations)
+
+		if (rendered) {
+			lines.push(rendered)
+		}
+	}
+
+	if (lines.length <= MAX_WORK_LOG_LINES_PER_ATTEMPT) {
+		return lines
+	}
+
+	const hiddenCount = lines.length - MAX_WORK_LOG_LINES_PER_ATTEMPT
+
+	return [
+		...lines.slice(0, MAX_WORK_LOG_LINES_PER_ATTEMPT),
+		`...and ${String(hiddenCount)} more event${hiddenCount === 1 ? '' : 's'}.`,
+	]
+}
+
+/**
+ * Render a single attempt event to a humanized narrative line.
+ *
+ * @param event - Attempt event.
+ * @param toolDurations - Tool duration map keyed by tool-use ID.
+ * @returns Humanized line or undefined when omitted.
+ */
+function renderAttemptEvent(
+	event: AttemptEvent,
+	toolDurations: Map<string, number | undefined>,
+): string | undefined {
+	if (event.kind === 'assistant_note') {
+		const text = event.text.trim()
+
+		return text.length > 0 ? text : undefined
+	}
+
+	if (event.kind === 'tool_end') {
+		return undefined
+	}
+
+	return summarizeToolStartEvent(event, toolDurations.get(event.toolUseId))
+}
+
+/**
+ * Render one tool start event in humanized form.
+ *
+ * @param event - Tool start event.
+ * @param durationMs - Optional paired duration from tool end.
+ * @returns Humanized line or undefined for low-signal tools.
+ */
+function summarizeToolStartEvent(
+	event: Extract<AttemptEvent, { kind: 'tool_start' }>,
+	durationMs?: number,
+): string | undefined {
+	if (LOW_SIGNAL_TOOL_NAMES.has(event.toolName)) {
+		return undefined
+	}
+
+	const filePath = readStringField(event.toolInput, 'file_path')
+	const command = readStringField(event.toolInput, 'command')
+	const durationSuffix = durationMs === undefined ? '' : ` (${formatDuration(durationMs)})`
+
+	switch (event.toolName) {
+		case 'Read': {
+			return filePath ? `Read \`${filePath}\`` : 'Read a file.'
+		}
+		case 'Edit': {
+			return filePath ? `Edited \`${filePath}\`` : 'Edited a file.'
+		}
+		case 'Write': {
+			return filePath ? `Created \`${filePath}\`` : 'Created a file.'
+		}
+		case 'Bash': {
+			return command
+				? `Ran \`${command}\`${durationSuffix}`
+				: `Ran a shell command${durationSuffix}.`
+		}
+		default: {
+			return `Ran ${event.toolName}${durationSuffix}`
+		}
+	}
+}
+
+/**
+ * Read a string field from optional tool input payload.
+ *
+ * @param record - Tool input record.
+ * @param key - Field key.
+ * @returns String value when present.
+ */
+function readStringField(
+	record: Record<string, unknown> | undefined,
+	key: string,
+): string | undefined {
+	const value = record?.[key]
+
+	return typeof value === 'string' && value.trim().length > 0 ? value : undefined
+}
+
+/**
+ * Render a collapsed, humanized agent work log section.
+ *
+ * @param execution - Execution details.
+ * @returns HTML details block with per-attempt narrative.
+ */
+function renderAgentWorkLog(execution: ExecutionResult): string {
+	const attemptSections = execution.history.map(attempt => {
+		const lines = renderAttemptWorkLogLines(attempt)
+		const body = lines.length > 0 ? lines.join('\n') : '_No work-log events recorded._'
+
+		return execution.history.length > 1
+			? [`### Attempt ${String(attempt.attempt)}`, '', body].join('\n')
+			: body
+	})
+
+	return [
+		'<details><summary>Agent Work Log</summary>',
+		'',
+		...attemptSections,
+		'',
+		'</details>',
+	].join('\n\n')
+}
+
+/**
  * Render the markdown body for a target pull request.
  *
  * @param input - Rendering input.
@@ -248,6 +394,7 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	const diagnosticsBlock = noValidationConfigured
 		? undefined
 		: renderDiagnosticsBlock(input.execution)
+	const agentWorkLog = renderAgentWorkLog(input.execution)
 
 	return [
 		'## Cross-repo port',
@@ -261,6 +408,8 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'### What was ported',
 		'',
 		renderAttemptNotes(input.execution),
+		'',
+		agentWorkLog,
 		'',
 		diagnosticsBlock,
 		'',

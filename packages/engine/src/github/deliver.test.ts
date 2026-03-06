@@ -107,6 +107,7 @@ function makeExecution(success: boolean): ExecutionResult {
 				validation: makeValidation(success),
 				notes: success ? 'done' : 'failed',
 				toolCallLog: [],
+				events: [],
 			},
 		],
 		touchedFiles: ['src/file.ts'],

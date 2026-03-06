@@ -150,6 +150,7 @@ describe('buildUserPrompt', () => {
 						],
 						notes: 'Updated the main function but missed an import.',
 						toolCallLog: [],
+						events: [],
 					},
 				],
 			}),

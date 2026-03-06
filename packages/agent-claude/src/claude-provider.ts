@@ -14,6 +14,7 @@ import type {
 	AgentOutput,
 	AgentMessage,
 	AgentProvider,
+	AttemptEvent,
 	DecidePortInput,
 	DecidePortOutput,
 	ToolCallEntry,
@@ -117,6 +118,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 	public async executePort(input: AgentInput): Promise<AgentOutput> {
 		const touchedFiles = new Set<string>()
 		const toolCallLog: ToolCallEntry[] = []
+		const events: AttemptEvent[] = []
 		const assistantNotes: string[] = []
 		const startTimesByToolUseId = new Map<string, number>()
 		const onMessage = input.onMessage
@@ -151,10 +153,22 @@ export class ClaudeAgentProvider implements AgentProvider {
 								}
 
 								startTimesByToolUseId.set(hookInput.tool_use_id, Date.now())
+
+								const toolInput = normalizeToolInputForEvent(
+									hookInput.tool_input,
+									input.targetWorkingDirectory,
+								)
+
+								events.push({
+									kind: 'tool_start',
+									toolName: hookInput.tool_name,
+									toolUseId: hookInput.tool_use_id,
+									toolInput,
+								})
 								onMessage?.({
 									kind: 'tool_start',
 									toolName: hookInput.tool_name,
-									toolInput: toRecord(hookInput.tool_input),
+									toolInput,
 								})
 
 								return {}
@@ -178,6 +192,12 @@ export class ClaudeAgentProvider implements AgentProvider {
 									toolName: hookInput.tool_name,
 									input: hookInput.tool_input,
 									output: hookInput.tool_response,
+									durationMs,
+								})
+								events.push({
+									kind: 'tool_end',
+									toolName: hookInput.tool_name,
+									toolUseId: hookInput.tool_use_id,
 									durationMs,
 								})
 								onMessage?.({
@@ -215,6 +235,15 @@ export class ClaudeAgentProvider implements AgentProvider {
 				const textBlocks = extractAssistantText(message)
 
 				if (textBlocks.length > 0) {
+					for (const textBlock of textBlocks) {
+						if (textBlock.trim().length > 0) {
+							events.push({
+								kind: 'assistant_note',
+								text: textBlock.trim(),
+							})
+						}
+					}
+
 					assistantNotes.length = 0
 					assistantNotes.push(...textBlocks)
 				}
@@ -239,6 +268,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 			complete: resultMessage.subtype === 'success',
 			notes,
 			toolCallLog,
+			events,
 			model: this.options.model ?? DEFAULT_MODEL,
 		}
 	}
@@ -375,6 +405,33 @@ function toRecord(value: unknown): Record<string, unknown> | undefined {
 	}
 
 	return value as Record<string, unknown>
+}
+
+/**
+ * Normalize tool inputs for event rendering (not execution).
+ *
+ * @param toolInput - Raw tool input payload.
+ * @param targetWorkingDirectory - Target repository root.
+ * @returns Normalized record suitable for attempt events.
+ */
+function normalizeToolInputForEvent(
+	toolInput: unknown,
+	targetWorkingDirectory: string,
+): Record<string, unknown> | undefined {
+	const record = toRecord(toolInput)
+
+	if (!record) {
+		return undefined
+	}
+
+	const normalized: Record<string, unknown> = { ...record }
+	const rawPath = normalized[FILE_PATH_KEY]
+
+	if (typeof rawPath === 'string' && rawPath.length > 0) {
+		normalized[FILE_PATH_KEY] = normalizeToTargetRelativePath(rawPath, targetWorkingDirectory)
+	}
+
+	return normalized
 }
 
 /**
