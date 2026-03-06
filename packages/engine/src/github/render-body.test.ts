@@ -458,8 +458,8 @@ describe('render-body', () => {
 
 		expect(body).toContain('[!NOTE]')
 		expect(body).toContain('skipped this for `acme/target-repo`')
-		expect(body).toContain('<details><summary>Why</summary>')
-		expect(body).toContain('Decision reason')
+		expect(body).toContain('> <details><summary>Why was this ported?</summary>')
+		expect(body).toContain('> Decision reason')
 	})
 
 	test('renders source comment for pr_opened with tip admonition', () => {
@@ -475,7 +475,7 @@ describe('render-body', () => {
 		expect(body).toContain(
 			'Ported to https://github.com/acme/target-repo/pull/901 (1 file, validation passed)',
 		)
-		expect(body).toContain('<details><summary>Why</summary>')
+		expect(body).toContain('> <details><summary>Why was this ported?</summary>')
 	})
 
 	test('renders source comment for draft_pr_opened and needs_human with warning admonition', () => {
@@ -497,9 +497,11 @@ describe('render-body', () => {
 		expect(draftBody).toContain('[!WARNING]')
 		expect(draftBody).toContain('validation failed after retries')
 		expect(draftBody).toContain('draft PR: https://github.com/acme/target-repo/pull/333')
+		expect(draftBody).toContain('> <details><summary>Why was this ported?</summary>')
 		expect(needsHumanBody).toContain('[!WARNING]')
 		expect(needsHumanBody).toContain('issue: https://github.com/acme/target-repo/issues/55')
 		expect(needsHumanBody).toContain('manual review')
+		expect(needsHumanBody).toContain('> <details><summary>Why was this ported?</summary>')
 	})
 
 	test('renders source comment for failed outcome with caution admonition', () => {
@@ -513,6 +515,7 @@ describe('render-body', () => {
 		expect(body).toContain('[!CAUTION]')
 		expect(body).toContain('failed due to an engine error')
 		expect(body).toContain('Run ID: `run-4`')
+		expect(body).toContain('> <details><summary>Why was this ported?</summary>')
 	})
 
 	test('renders source comment supersede as note admonition with link', () => {

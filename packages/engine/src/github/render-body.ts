@@ -527,11 +527,11 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			}.`
 		: undefined
 	const reasonDetails = [
-		'<details><summary>Why</summary>',
-		'',
-		input.decision.reason,
-		'',
-		'</details>',
+		'> <details><summary>Why was this ported?</summary>',
+		'>',
+		`> ${input.decision.reason}`,
+		'>',
+		'> </details>',
 	].join('\n')
 
 	switch (input.outcome) {
