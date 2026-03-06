@@ -64,7 +64,7 @@ async function main(): Promise<void> {
 				{ data: 'execute', header: true },
 				{ data: 'deliver', header: true },
 				{ data: 'notify', header: true },
-				{ data: '**total**', header: true },
+				{ data: '<b>total</b>', header: true },
 			],
 			[
 				formatMs(result.stageTimings?.contextMs),
@@ -73,11 +73,12 @@ async function main(): Promise<void> {
 				formatMs(result.stageTimings?.executeMs),
 				formatMs(result.stageTimings?.deliverMs),
 				formatMs(result.stageTimings?.notifyMs),
-				`**${formatMs(result.durationMs)}**`,
+				`<b>${formatMs(result.durationMs)}</b>`,
 			],
 		])
 		core.summary.addRaw(
 			[
+				'',
 				'<details><summary>Decision & diagnostics</summary>',
 				'',
 				`- Kind: \`${result.decision.kind}\``,
@@ -92,7 +93,7 @@ async function main(): Promise<void> {
 				'</details>',
 				'',
 			]
-				.filter(Boolean)
+				.filter(line => line !== undefined)
 				.join('\n'),
 		)
 		await core.summary.write()
