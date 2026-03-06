@@ -155,15 +155,15 @@ describe('render-body', () => {
 		expect(body).toContain('Failure reason: Validation failed after retries.')
 	})
 
-	test('renders validation-not-run in diagnostics when no commands configured', () => {
+	test('omits diagnostics block when no validation commands configured', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContextWithoutValidationCommands(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(true),
 		})
 
-		expect(body).toContain('Validation not run (no validation commands configured).')
-		expect(body).not.toContain('Final status')
+		expect(body).not.toContain('Validation')
+		expect(body).not.toContain('<details')
 	})
 
 	test('renders needs-human issue title and body with rationale and signals', () => {

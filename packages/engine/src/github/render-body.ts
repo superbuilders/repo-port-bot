@@ -133,6 +133,31 @@ function renderValidationSummary(execution: ExecutionResult): string {
 }
 
 /**
+ * Render the collapsible validation & diagnostics block.
+ *
+ * @param execution - Execution details.
+ * @returns HTML details block with validation results.
+ */
+function renderDiagnosticsBlock(execution: ExecutionResult): string {
+	const validationLines = renderValidationSummary(execution)
+	const failureLine = !execution.success
+		? `- Final status: validation failed after retries.\n- Failure reason: ${execution.failureReason ?? 'Unknown failure reason.'}`
+		: undefined
+	const detailsTag = execution.success ? '<details>' : '<details open>'
+
+	return [
+		`${detailsTag}<summary>Validation & diagnostics</summary>`,
+		'',
+		validationLines,
+		failureLine,
+		'',
+		'</details>',
+	]
+		.filter(isDefinedLine)
+		.join('\n')
+}
+
+/**
  * Render compact execution metrics for PR notes.
  *
  * @param execution - Execution details.
@@ -217,35 +242,19 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	const reasonBlockquote = reasonLines.join('\n')
 
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
-	const validationLines = noValidationConfigured
-		? '- Validation not run (no validation commands configured).'
-		: renderValidationSummary(input.execution)
-	const failureLine =
-		!input.execution.success && !noValidationConfigured
-			? `- Final status: validation failed after retries.\n- Failure reason: ${input.execution.failureReason ?? 'Unknown failure reason.'}`
-			: undefined
 
-	const detailsTag = input.execution.success ? '<details>' : '<details open>'
-
-	const diagnosticsBlock = [
-		`${detailsTag}<summary>Validation & diagnostics</summary>`,
-		'',
-		validationLines,
-		failureLine,
-		'',
-		'</details>',
-	]
-		.filter(isDefinedLine)
-		.join('\n')
+	const diagnosticsBlock = noValidationConfigured
+		? undefined
+		: renderDiagnosticsBlock(input.execution)
 
 	return [
 		'## Cross-repo port',
 		'',
 		sourceNarrative,
 		'',
-		atAGlance,
-		'',
 		reasonBlockquote,
+		'',
+		atAGlance,
 		'',
 		'### What was ported',
 		'',
@@ -255,7 +264,9 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'',
 		'---',
 		`[Ported-By: repo-port-bot](${PORT_BOT_REPO_URL})`,
-	].join('\n')
+	]
+		.filter(isDefinedLine)
+		.join('\n')
 }
 
 /**
