@@ -50,7 +50,7 @@ interface RenderRunSummaryInput {
 
 const SHORT_SHA_LENGTH = 7
 const MAX_NEEDS_HUMAN_SOURCE_TITLE_LENGTH = 60
-const MAX_WORK_LOG_LINES_PER_ATTEMPT = 24
+const MAX_WORK_LOG_BLOCKS = 24
 const LOW_SIGNAL_TOOL_NAMES = new Set(['Glob', 'Grep'])
 
 /**
@@ -232,7 +232,6 @@ function renderEventBlocks(
 	type Block = { kind: 'assistant'; text: string } | { kind: 'tool'; lines: string[] }
 
 	const blocks: Block[] = []
-	let eventCount = 0
 
 	for (const event of events) {
 		if (event.kind === 'tool_end') {
@@ -242,14 +241,11 @@ function renderEventBlocks(
 
 			if (text.length > 0) {
 				blocks.push({ kind: 'assistant', text })
-				eventCount += 1
 			}
 		} else {
 			const toolLine = summarizeToolStartEvent(event, toolDurations.get(event.toolUseId))
 
 			if (toolLine) {
-				eventCount += 1
-
 				const lastBlock = blocks.at(-1)
 
 				if (lastBlock?.kind === 'tool') {
@@ -277,10 +273,11 @@ function renderEventBlocks(
 		return ['```', ...block.lines, '```'].join('\n')
 	})
 
-	if (eventCount > MAX_WORK_LOG_LINES_PER_ATTEMPT) {
-		return [...rendered.slice(0, MAX_WORK_LOG_LINES_PER_ATTEMPT), `_...and more events._`].join(
-			'\n\n',
-		)
+	if (rendered.length > MAX_WORK_LOG_BLOCKS) {
+		return [
+			...rendered.slice(0, MAX_WORK_LOG_BLOCKS),
+			`_...and ${String(rendered.length - MAX_WORK_LOG_BLOCKS)} more._`,
+		].join('\n\n')
 	}
 
 	return rendered.join('\n\n')

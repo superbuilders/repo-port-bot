@@ -1,12 +1,16 @@
-import { isAbsolute, relative } from 'node:path'
-
 import {
 	createConsoleLogger,
 	formatPortBotExecuteAttemptLine,
 	formatPortBotLine,
 } from '@repo-port-bot/logger'
 
-import { extractFilePath, joinNonEmptyLines, toErrorMessage, truncateLogText } from '../utils.ts'
+import {
+	extractFilePath,
+	joinNonEmptyLines,
+	normalizeLoggedFilePath,
+	toErrorMessage,
+	truncateLogText,
+} from '../utils.ts'
 import { runValidationCommands } from './run-validation.ts'
 import { buildValidationFailureReason } from './utils.ts'
 
@@ -328,37 +332,4 @@ function logAgentMessage(input: {
 			},
 		}),
 	)
-}
-
-/**
- * Normalize logged file paths to source/target-relative values when possible.
- *
- * @param input - Path normalization input.
- * @param input.filePath - Candidate raw path from tool input.
- * @param input.targetWorkingDirectory - Optional target repo root.
- * @param input.sourceWorkingDirectory - Optional source repo root.
- * @returns Relative path when inside known roots, else original path.
- */
-function normalizeLoggedFilePath(input: {
-	filePath: string | undefined
-	targetWorkingDirectory?: string
-	sourceWorkingDirectory?: string
-}): string | undefined {
-	const filePath = input.filePath
-
-	if (!filePath || !isAbsolute(filePath)) {
-		return filePath
-	}
-
-	for (const root of [input.targetWorkingDirectory, input.sourceWorkingDirectory]) {
-		if (root) {
-			const relativePath = relative(root, filePath)
-
-			if (relativePath && !relativePath.startsWith('..')) {
-				return relativePath
-			}
-		}
-	}
-
-	return filePath
 }

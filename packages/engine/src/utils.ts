@@ -1,3 +1,5 @@
+import { isAbsolute, relative } from 'node:path'
+
 const MIN_DURATION_MS = 1
 const MS_PER_SECOND = 1000
 const MS_PER_TENTH_SECOND = 100
@@ -95,6 +97,39 @@ export function extractFilePath(
 	}
 
 	return undefined
+}
+
+/**
+ * Normalize a file path to source/target-relative when inside known roots.
+ *
+ * @param input - Path normalization input.
+ * @param input.filePath - Candidate raw path from tool input.
+ * @param input.targetWorkingDirectory - Optional target repo root.
+ * @param input.sourceWorkingDirectory - Optional source repo root.
+ * @returns Relative path when inside known roots, else original path.
+ */
+export function normalizeLoggedFilePath(input: {
+	filePath: string | undefined
+	targetWorkingDirectory?: string
+	sourceWorkingDirectory?: string
+}): string | undefined {
+	const filePath = input.filePath
+
+	if (!filePath || !isAbsolute(filePath)) {
+		return filePath
+	}
+
+	for (const root of [input.targetWorkingDirectory, input.sourceWorkingDirectory]) {
+		if (root) {
+			const relativePath = relative(root, filePath)
+
+			if (relativePath && !relativePath.startsWith('..')) {
+				return relativePath
+			}
+		}
+	}
+
+	return filePath
 }
 
 const DEFAULT_MAX_LOG_TEXT_LENGTH = 240

@@ -1,5 +1,3 @@
-import { isAbsolute, relative } from 'node:path'
-
 import { createConsoleLogger, formatPortBotLine } from '@repo-port-bot/logger'
 
 import { fetchPortBotJson } from '../config/fetch-port-bot-json.ts'
@@ -9,7 +7,12 @@ import { executePort } from '../execution/execute-port.ts'
 import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
 import { renderRunSummary } from '../github/render-body.ts'
-import { getDurationMs, toErrorMessage } from '../utils.ts'
+import {
+	extractFilePath,
+	getDurationMs,
+	normalizeLoggedFilePath,
+	toErrorMessage,
+} from '../utils.ts'
 import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
 import { runNeedsHumanFlow } from './needs-human.ts'
 import { runPortRequiredFlow } from './port-required.ts'
@@ -364,49 +367,4 @@ function logDecisionMessage(input: {
 			},
 		}),
 	)
-}
-
-/**
- * Normalize logged file paths to source/target-relative values when possible.
- *
- * @param input - Path normalization input.
- * @param input.filePath - Candidate raw path from tool input.
- * @param input.targetWorkingDirectory - Optional target repo root.
- * @param input.sourceWorkingDirectory - Optional source repo root.
- * @returns Relative path when inside known roots, else original path.
- */
-function normalizeLoggedFilePath(input: {
-	filePath: string | undefined
-	targetWorkingDirectory?: string
-	sourceWorkingDirectory?: string
-}): string | undefined {
-	const filePath = input.filePath
-
-	if (!filePath || !isAbsolute(filePath)) {
-		return filePath
-	}
-
-	for (const root of [input.targetWorkingDirectory, input.sourceWorkingDirectory]) {
-		if (root) {
-			const relativePath = relative(root, filePath)
-
-			if (relativePath && !relativePath.startsWith('..')) {
-				return relativePath
-			}
-		}
-	}
-
-	return filePath
-}
-
-/**
- * Read a file path from tool input payloads.
- *
- * @param input - Tool input payload.
- * @returns File path when present.
- */
-function extractFilePath(input: Record<string, unknown> | undefined): string | undefined {
-	const filePath = input?.file_path
-
-	return typeof filePath === 'string' ? filePath : undefined
 }
