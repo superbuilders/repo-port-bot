@@ -495,7 +495,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!NOTE]\n> Port bot skipped this for \`${targetRepo}\`.`,
-				'',
+				'>',
 				reasonDetails,
 			]
 				.filter(isDefinedLine)
@@ -510,7 +510,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!TIP]\n> Ported to ${prLink} (${shape}, validation passed).`,
-				'',
+				'>',
 				reasonDetails,
 			]
 				.filter(isDefinedLine)
@@ -527,7 +527,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!WARNING]\n> Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
-				'',
+				'>',
 				reasonDetails,
 			]
 				.filter(isDefinedLine)
@@ -542,7 +542,7 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!WARNING]\n> Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
-				'',
+				'>',
 				reasonDetails,
 			]
 				.filter(isDefinedLine)
@@ -551,12 +551,12 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 		case 'failed': {
 			return [
 				`> [!CAUTION]\n> Port to \`${targetRepo}\` failed due to an engine error. Run ID: \`${input.runId}\``,
-				'',
+				'>',
 				reasonDetails,
 			].join('\n')
 		}
 		default: {
-			return [`> [!NOTE]\n> Port bot ran for \`${targetRepo}\`.`, '', reasonDetails].join(
+			return [`> [!NOTE]\n> Port bot ran for \`${targetRepo}\`.`, '>', reasonDetails].join(
 				'\n',
 			)
 		}
