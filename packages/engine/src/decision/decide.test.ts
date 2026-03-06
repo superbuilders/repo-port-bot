@@ -90,7 +90,8 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.trace.source).toBe('heuristic')
 	})
 
 	test('returns PORT_NOT_REQUIRED for auto-port label (loop prevention)', async () => {
@@ -101,7 +102,8 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.trace.heuristicName).toBe('checkLoopPrevention')
 	})
 
 	test('returns PORT_NOT_REQUIRED for no-port label', async () => {
@@ -112,7 +114,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
 	test('returns PORT_NOT_REQUIRED for docs-only changes', async () => {
@@ -126,7 +128,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
 	test('returns PORT_NOT_REQUIRED for config-only changes', async () => {
@@ -145,7 +147,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
 	test('treats ignored paths as config-only for skip decision', async () => {
@@ -159,7 +161,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
 	test('falls through to conservative fallback for mixed changes without classifier', async () => {
@@ -173,7 +175,8 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.kind).toBe('PORT_REQUIRED')
+		expect(result.outcome.kind).toBe('PORT_REQUIRED')
+		expect(result.trace.source).toBe('fallback')
 	})
 
 	test('uses provider-backed classifier on mixed changes', async () => {
@@ -187,8 +190,15 @@ describe('decide', () => {
 		const provider: AgentProvider = {
 			async decidePort() {
 				return {
-					required: false,
-					reason: 'No equivalent target code exists for these changes.',
+					outcome: {
+						kind: 'PORT_NOT_REQUIRED',
+						reason: 'No equivalent target code exists for these changes.',
+					},
+					trace: {
+						source: 'classifier',
+						toolCallLog: [],
+						events: [],
+					},
 				}
 			},
 			async executePort() {
@@ -201,7 +211,49 @@ describe('decide', () => {
 			targetWorkingDirectory: '/tmp/target',
 		})
 
-		expect(result.kind).toBe('PORT_NOT_REQUIRED')
-		expect(result.reason).toContain('No equivalent target code exists')
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.reason).toContain('No equivalent target code exists')
+		expect(result.trace.source).toBe('classifier')
+	})
+
+	test('forwards decision-stage streamed messages to caller', async () => {
+		const context = makeContext({
+			labels: [],
+			files: [{ path: 'src/app.ts', status: 'modified', additions: 4, deletions: 1 }],
+		})
+		const seenMessages: string[] = []
+		const provider: AgentProvider = {
+			async decidePort(input) {
+				input.onMessage?.({ kind: 'thinking', text: 'Inspecting diff.' })
+				input.onMessage?.({ kind: 'text', text: 'Classifier summary.' })
+
+				return {
+					outcome: {
+						kind: 'PORT_REQUIRED',
+						reason: 'Port required.',
+					},
+					trace: {
+						source: 'classifier',
+						toolCallLog: [],
+						events: [],
+					},
+				}
+			},
+			async executePort() {
+				throw new Error('not used in decide test')
+			},
+		}
+
+		await decide(context, {
+			agentProvider: provider,
+			targetWorkingDirectory: '/tmp/target',
+			onMessage: message => {
+				if (message.text) {
+					seenMessages.push(message.text)
+				}
+			},
+		})
+
+		expect(seenMessages).toEqual(['Inspecting diff.', 'Classifier summary.'])
 	})
 })

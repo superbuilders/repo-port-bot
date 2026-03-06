@@ -8,7 +8,8 @@ import type { Logger } from '@repo-port-bot/logger'
 
 import type {
 	AgentProvider,
-	ExecutionResult,
+	DecidePortResult,
+	ExecutePortResult,
 	GitHubReader,
 	GitHubWriter,
 	PluginConfig,
@@ -117,27 +118,61 @@ function makeDecision(kind: PortDecision['kind'], reason: string): PortDecision 
 }
 
 /**
+ * Build decision-stage result fixture with provenance and optional tool traces.
+ *
+ * @param kind - Decision kind.
+ * @param reason - Decision explanation text.
+ * @param source - Decision source.
+ * @returns Decision result value.
+ */
+function makeDecisionResult(
+	kind: PortDecision['kind'],
+	reason: string,
+	source: DecidePortResult['trace']['source'] = 'heuristic',
+): DecidePortResult {
+	return {
+		outcome: makeDecision(kind, reason),
+		trace: {
+			source,
+			heuristicName: source === 'heuristic' ? 'checkNoPortLabel' : undefined,
+			toolCallLog: [],
+			events: [],
+		},
+	}
+}
+
+/**
  * Build execution fixture for success/failure paths.
  *
  * @param success - Execution success state.
  * @returns Execution result fixture.
  */
-function makeExecution(success: boolean): ExecutionResult {
+function makeExecution(success: boolean): ExecutePortResult {
 	return {
-		success,
-		attempts: success ? 1 : 3,
-		history: [
-			{
-				attempt: success ? 1 : 3,
-				touchedFiles: ['src/ported.ts'],
-				validation: [],
-				notes: success ? 'Done.' : 'Validation failed after retries.',
-				toolCallLog: [],
-				events: [],
-			},
-		],
-		touchedFiles: ['src/ported.ts'],
-		failureReason: success ? undefined : 'Validation failed after 3 attempts: `bun run check`.',
+		outcome: {
+			status: success ? 'SUCCEEDED' : 'VALIDATION_FAILED',
+			attempts: success ? 1 : 3,
+			touchedFiles: ['src/ported.ts'],
+			reason: success ? undefined : 'Validation failed after 3 attempts: `bun run check`.',
+		},
+		trace: {
+			notes: success ? 'Done.' : 'Validation failed after retries.',
+			toolCallLog: [],
+			events: [],
+			attempts: [
+				{
+					attempt: success ? 1 : 3,
+					status: success ? 'VALIDATED' : 'VALIDATION_FAILED',
+					touchedFiles: ['src/ported.ts'],
+					validation: [],
+					trace: {
+						notes: success ? 'Done.' : 'Validation failed after retries.',
+						toolCallLog: [],
+						events: [],
+					},
+				},
+			],
+		},
 	}
 }
 
@@ -197,7 +232,7 @@ describe('runPort', () => {
 					callOrder.push('decide')
 					expect(context.sourceChange.mergedCommitSha).toBe(sourceChange.mergedCommitSha)
 
-					return makeDecision('PORT_REQUIRED', 'Port required.')
+					return makeDecisionResult('PORT_REQUIRED', 'Port required.', 'classifier')
 				},
 				executePort: async input => {
 					callOrder.push('execute')
@@ -228,6 +263,7 @@ describe('runPort', () => {
 		expect(callOrder).toEqual(['read', 'resolve', 'decide', 'execute', 'deliver', 'comment'])
 		expect(commentOutcomes).toEqual(['pr_opened'])
 		expect(result.outcome).toBe('pr_opened')
+		expect(result.decision.trace.source).toBe('classifier')
 		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/901')
 		expect(result.durationMs).toBeGreaterThan(0)
 		expect(result.stageTimings?.contextMs).toBeGreaterThan(0)
@@ -258,7 +294,11 @@ describe('runPort', () => {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => makePluginConfig(),
 				decide: async () =>
-					makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+					makeDecisionResult(
+						'PORT_NOT_REQUIRED',
+						'Skipping because no-port is set.',
+						'heuristic',
+					),
 				executePort: async () => {
 					executeCalled = true
 
@@ -278,6 +318,7 @@ describe('runPort', () => {
 		})
 
 		expect(result.outcome).toBe('skipped_not_required')
+		expect(result.decision.trace.source).toBe('heuristic')
 		expect(result.summary).toContain('Skipped:')
 		expect(executeCalled).toBe(false)
 		expect(deliverCalled).toBe(false)
@@ -298,7 +339,7 @@ describe('runPort', () => {
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => makePluginConfig(),
-				decide: async () => makeDecision('NEEDS_HUMAN', 'Classifier is uncertain.'),
+				decide: async () => makeDecisionResult('NEEDS_HUMAN', 'Classifier is uncertain.'),
 				executePort: async () => {
 					executeCalled = true
 
@@ -336,7 +377,7 @@ describe('runPort', () => {
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => makePluginConfig(),
-				decide: async () => makeDecision('PORT_REQUIRED', 'Port required.'),
+				decide: async () => makeDecisionResult('PORT_REQUIRED', 'Port required.'),
 				executePort: async () => makeExecution(false),
 				deliverResult: async () => ({
 					outcome: 'draft_pr_opened',
@@ -373,7 +414,8 @@ describe('runPort', () => {
 		})
 
 		expect(result.outcome).toBe('failed')
-		expect(result.decision.kind).toBe('NEEDS_HUMAN')
+		expect(result.decision.outcome.kind).toBe('NEEDS_HUMAN')
+		expect(result.decision.trace.source).toBe('fallback')
 		expect(result.summary).toContain('Engine failure: read context exploded')
 		expect(result.durationMs).toBeGreaterThan(0)
 	})
@@ -399,7 +441,7 @@ describe('runPort', () => {
 		})
 
 		expect(result.outcome).toBe('failed')
-		expect(result.decision.kind).toBe('NEEDS_HUMAN')
+		expect(result.decision.outcome.kind).toBe('NEEDS_HUMAN')
 		expect(result.summary).toContain('Engine failure: decider exploded')
 	})
 
@@ -429,7 +471,11 @@ describe('runPort', () => {
 					return makePluginConfig()
 				},
 				decide: async () =>
-					makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+					makeDecisionResult(
+						'PORT_NOT_REQUIRED',
+						'Skipping because no-port is set.',
+						'heuristic',
+					),
 			},
 		})
 
@@ -462,7 +508,11 @@ describe('runPort', () => {
 					return makePluginConfig()
 				},
 				decide: async () =>
-					makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+					makeDecisionResult(
+						'PORT_NOT_REQUIRED',
+						'Skipping because no-port is set.',
+						'heuristic',
+					),
 			},
 		})
 
@@ -493,7 +543,11 @@ describe('runPort', () => {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => makePluginConfig(),
 				decide: async () =>
-					makeDecision('PORT_NOT_REQUIRED', 'Skipping because no-port is set.'),
+					makeDecisionResult(
+						'PORT_NOT_REQUIRED',
+						'Skipping because no-port is set.',
+						'heuristic',
+					),
 			},
 		})
 
@@ -503,5 +557,80 @@ describe('runPort', () => {
 		expect(infoMessages.some(message => message.includes('outcome=skipped_not_required'))).toBe(
 			true,
 		)
+	})
+
+	test('routes decision streamed messages to info/debug logs', async () => {
+		const infoMessages: string[] = []
+		const debugMessages: string[] = []
+		const logger: Logger = {
+			error: () => {},
+			warn: () => {},
+			info: message => infoMessages.push(message),
+			debug: message => debugMessages.push(message),
+			group: () => {},
+			groupEnd: () => {},
+		}
+
+		await runPort({
+			reader: createReaderFake(),
+			writer: createWriterFake(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			sourceWorkingDirectory: '/tmp/source-repo',
+			logger,
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => makePluginConfig(),
+				decide: async (_context, options) => {
+					options?.onMessage?.({
+						kind: 'thinking',
+						text: 'Checking changed files.',
+					})
+					options?.onMessage?.({
+						kind: 'tool_start',
+						toolName: 'Read',
+						toolInput: { file_path: '/tmp/target-repo/src/example.ts' },
+					})
+					options?.onMessage?.({
+						kind: 'tool_end',
+						toolName: 'Read',
+						durationMs: 7,
+					})
+					options?.onMessage?.({
+						kind: 'text',
+						text: 'Classifier summary.',
+					})
+
+					return makeDecisionResult(
+						'PORT_NOT_REQUIRED',
+						'Skipping because no-port is set.',
+						'classifier',
+					)
+				},
+			},
+		})
+
+		expect(
+			infoMessages.some(message =>
+				message.includes('stage=decision tool=Read file=src/example.ts'),
+			),
+		).toBe(true)
+		expect(
+			debugMessages.some(message =>
+				message.includes('stage=decision thinking=Checking changed files.'),
+			),
+		).toBe(true)
+		expect(
+			debugMessages.some(message =>
+				message.includes('stage=decision tool=Read toolDurationMs=7'),
+			),
+		).toBe(true)
+		expect(
+			debugMessages.some(message =>
+				message.includes('stage=decision text=Classifier summary.'),
+			),
+		).toBe(true)
 	})
 })

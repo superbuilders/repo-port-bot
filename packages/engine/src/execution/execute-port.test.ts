@@ -7,7 +7,7 @@ import { executePort } from './execute-port.ts'
 
 import type { Logger } from '@repo-port-bot/logger'
 
-import type { AgentInput, AgentProvider, PortContext, RepoRef } from '../types.ts'
+import type { AgentProvider, ExecutePortAttemptInput, PortContext, RepoRef } from '../types.ts'
 
 const SOURCE_REPO: RepoRef = {
 	owner: 'acme',
@@ -76,22 +76,27 @@ function makeContext(validationCommands: string[]): PortContext {
 describe('executePort', () => {
 	test('returns success on first attempt when validation passes', async () => {
 		const directory = await createTempDirectory()
-		let receivedInput: AgentInput | undefined = undefined
+		let receivedInput: ExecutePortAttemptInput | undefined = undefined
 		const provider: AgentProvider = {
 			async decidePort() {
-				return { required: true, reason: 'required' }
+				return {
+					outcome: { kind: 'PORT_REQUIRED', reason: 'required' },
+					trace: { source: 'classifier', toolCallLog: [], events: [] },
+				}
 			},
 			async executePort(
-				input: AgentInput,
+				input: ExecutePortAttemptInput,
 			): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
 				receivedInput = input
 
 				return {
 					touchedFiles: ['src/ported.ts'],
 					complete: true,
-					notes: 'Applied source changes.',
-					toolCallLog: [],
-					events: [],
+					trace: {
+						notes: 'Applied source changes.',
+						toolCallLog: [],
+						events: [],
+					},
 				}
 			},
 		}
@@ -105,11 +110,11 @@ describe('executePort', () => {
 			maxAttempts: 3,
 		})
 
-		expect(result.success).toBe(true)
-		expect(result.attempts).toBe(1)
-		expect(result.history).toHaveLength(1)
-		expect(result.history[0]?.validation[0]?.ok).toBe(true)
-		expect(result.touchedFiles).toEqual(['src/ported.ts'])
+		expect(result.outcome.status).toBe('SUCCEEDED')
+		expect(result.outcome.attempts).toBe(1)
+		expect(result.trace.attempts).toHaveLength(1)
+		expect(result.trace.attempts[0]?.validation[0]?.ok).toBe(true)
+		expect(result.outcome.touchedFiles).toEqual(['src/ported.ts'])
 		expect(receivedInput).toBeDefined()
 		expect(receivedInput!.sourceWorkingDirectory).toBe('/tmp/source-repo')
 		expect(receivedInput!.diffFilePath).toBe('/tmp/source-repo/port-diff.patch')
@@ -121,10 +126,13 @@ describe('executePort', () => {
 		let callCount = 0
 		const provider: AgentProvider = {
 			async decidePort() {
-				return { required: true, reason: 'required' }
+				return {
+					outcome: { kind: 'PORT_REQUIRED', reason: 'required' },
+					trace: { source: 'classifier', toolCallLog: [], events: [] },
+				}
 			},
 			async executePort(
-				input: AgentInput,
+				input: ExecutePortAttemptInput,
 			): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
 				callCount += 1
 				previousAttemptLengths.push(input.previousAttempts.length)
@@ -136,19 +144,21 @@ describe('executePort', () => {
 				return {
 					touchedFiles: callCount === 1 ? ['src/first-pass.ts'] : ['src/fix-pass.ts'],
 					complete: callCount === 2,
-					toolCallLog: [
-						{
-							toolName: 'write_file',
-							input: { attempt: callCount },
-							output: { ok: true },
-						},
-					],
-					events: [
-						{
-							kind: 'assistant_note',
-							text: `Attempt ${String(callCount)} update.`,
-						},
-					],
+					trace: {
+						toolCallLog: [
+							{
+								toolName: 'write_file',
+								input: { attempt: callCount },
+								output: { ok: true },
+							},
+						],
+						events: [
+							{
+								kind: 'assistant_note',
+								text: `Attempt ${String(callCount)} update.`,
+							},
+						],
+					},
 				}
 			},
 		}
@@ -160,35 +170,40 @@ describe('executePort', () => {
 			maxAttempts: 3,
 		})
 
-		expect(result.success).toBe(true)
-		expect(result.attempts).toBe(2)
-		expect(result.history).toHaveLength(2)
-		expect(result.history[0]?.validation[0]?.ok).toBe(false)
-		expect(result.history[1]?.validation[0]?.ok).toBe(true)
-		expect(result.history[0]?.events[0]).toEqual({
+		expect(result.outcome.status).toBe('SUCCEEDED')
+		expect(result.outcome.attempts).toBe(2)
+		expect(result.trace.attempts).toHaveLength(2)
+		expect(result.trace.attempts[0]?.validation[0]?.ok).toBe(false)
+		expect(result.trace.attempts[1]?.validation[0]?.ok).toBe(true)
+		expect(result.trace.attempts[0]?.trace.events[0]).toEqual({
 			kind: 'assistant_note',
 			text: 'Attempt 1 update.',
 		})
-		expect(result.history[1]?.events[0]).toEqual({
+		expect(result.trace.attempts[1]?.trace.events[0]).toEqual({
 			kind: 'assistant_note',
 			text: 'Attempt 2 update.',
 		})
 		expect(previousAttemptLengths).toEqual([0, 1])
-		expect(result.touchedFiles.sort()).toEqual(['src/first-pass.ts', 'src/fix-pass.ts'])
+		expect(result.outcome.touchedFiles.sort()).toEqual(['src/first-pass.ts', 'src/fix-pass.ts'])
 	})
 
 	test('returns failure when validation keeps failing until retry exhaustion', async () => {
 		const directory = await createTempDirectory()
 		const provider: AgentProvider = {
 			async decidePort() {
-				return { required: true, reason: 'required' }
+				return {
+					outcome: { kind: 'PORT_REQUIRED', reason: 'required' },
+					trace: { source: 'classifier', toolCallLog: [], events: [] },
+				}
 			},
 			async executePort(): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
 				return {
 					touchedFiles: ['src/failing.ts'],
 					complete: true,
-					toolCallLog: [],
-					events: [],
+					trace: {
+						toolCallLog: [],
+						events: [],
+					},
 				}
 			},
 		}
@@ -200,18 +215,21 @@ describe('executePort', () => {
 			maxAttempts: 2,
 		})
 
-		expect(result.success).toBe(false)
-		expect(result.attempts).toBe(2)
-		expect(result.history).toHaveLength(2)
-		expect(result.failureReason).toContain('Validation failed after 2 attempts')
-		expect(result.history[1]?.validation[0]?.ok).toBe(false)
+		expect(result.outcome.status).toBe('VALIDATION_FAILED')
+		expect(result.outcome.attempts).toBe(2)
+		expect(result.trace.attempts).toHaveLength(2)
+		expect(result.outcome.reason).toContain('Validation failed after 2 attempts')
+		expect(result.trace.attempts[1]?.validation[0]?.ok).toBe(false)
 	})
 
 	test('returns failure when provider throws', async () => {
 		const directory = await createTempDirectory()
 		const provider: AgentProvider = {
 			async decidePort() {
-				return { required: true, reason: 'required' }
+				return {
+					outcome: { kind: 'PORT_REQUIRED', reason: 'required' },
+					trace: { source: 'classifier', toolCallLog: [], events: [] },
+				}
 			},
 			async executePort(): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
 				throw new Error('provider crashed')
@@ -225,11 +243,11 @@ describe('executePort', () => {
 			maxAttempts: 3,
 		})
 
-		expect(result.success).toBe(false)
-		expect(result.attempts).toBe(1)
-		expect(result.history).toHaveLength(1)
-		expect(result.history[0]?.validation).toEqual([])
-		expect(result.failureReason).toContain('Agent provider failed on attempt 1')
+		expect(result.outcome.status).toBe('PROVIDER_ERROR')
+		expect(result.outcome.attempts).toBe(1)
+		expect(result.trace.attempts).toHaveLength(1)
+		expect(result.trace.attempts[0]?.validation).toEqual([])
+		expect(result.outcome.reason).toContain('Agent provider failed on attempt 1')
 	})
 
 	test('emits per-attempt logs when logger is provided', async () => {
@@ -245,14 +263,19 @@ describe('executePort', () => {
 		}
 		const provider: AgentProvider = {
 			async decidePort() {
-				return { required: true, reason: 'required' }
+				return {
+					outcome: { kind: 'PORT_REQUIRED', reason: 'required' },
+					trace: { source: 'classifier', toolCallLog: [], events: [] },
+				}
 			},
 			async executePort(): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
 				return {
 					touchedFiles: ['src/failing.ts'],
 					complete: true,
-					toolCallLog: [],
-					events: [],
+					trace: {
+						toolCallLog: [],
+						events: [],
+					},
 				}
 			},
 		}
@@ -284,10 +307,13 @@ describe('executePort', () => {
 		}
 		const provider: AgentProvider = {
 			async decidePort() {
-				return { required: true, reason: 'required' }
+				return {
+					outcome: { kind: 'PORT_REQUIRED', reason: 'required' },
+					trace: { source: 'classifier', toolCallLog: [], events: [] },
+				}
 			},
 			async executePort(
-				input: AgentInput,
+				input: ExecutePortAttemptInput,
 			): Promise<Awaited<ReturnType<AgentProvider['executePort']>>> {
 				input.onMessage?.({
 					kind: 'thinking',
@@ -311,8 +337,10 @@ describe('executePort', () => {
 				return {
 					touchedFiles: ['src/example.ts'],
 					complete: true,
-					toolCallLog: [],
-					events: [],
+					trace: {
+						toolCallLog: [],
+						events: [],
+					},
 				}
 			},
 		}

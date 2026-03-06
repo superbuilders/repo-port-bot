@@ -9,9 +9,9 @@ import type { executePort } from '../execution/execute-port.ts'
 import type { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import type {
 	AgentProvider,
+	DecidePortResult,
 	GitHubWriter,
 	PortContext,
-	PortDecision,
 	PortRunResult,
 } from '../types.ts'
 
@@ -19,7 +19,7 @@ interface PortRequiredFlowInput {
 	writer: GitHubWriter
 	agentProvider: AgentProvider
 	context: PortContext
-	decision: PortDecision
+	decision: DecidePortResult
 	targetWorkingDirectory: string
 	sourceWorkingDirectory?: string
 	diffFilePath?: string
@@ -53,8 +53,8 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 	})
 
 	logStage(input.logger, input.runId, 'execute', {
-		attempts: execution.attempts,
-		success: execution.success ? 'pass' : 'fail',
+		attempts: execution.outcome.attempts,
+		success: execution.outcome.status === 'SUCCEEDED' ? 'pass' : 'fail',
 		executeMs: (input.stageTimings.executeMs = getDurationMs(executeStartedAtMs)),
 	})
 
@@ -66,7 +66,7 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 			const stageDelivery = await input.deliverStage({
 				writer: input.writer,
 				context: input.context,
-				decision: input.decision,
+				decision: input.decision.outcome,
 				execution,
 				targetWorkingDirectory: input.targetWorkingDirectory,
 				logger: input.logger,
@@ -98,7 +98,7 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 			const ms = await postSourcePrCommentBestEffort({
 				commentStage: input.commentStage,
 				context: input.context,
-				decision: input.decision,
+				decision: input.decision.outcome,
 				writer: input.writer,
 				outcome,
 				targetPullRequestUrl: delivery.targetPullRequestUrl,

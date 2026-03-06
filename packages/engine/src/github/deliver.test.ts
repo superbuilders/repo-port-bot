@@ -5,7 +5,7 @@ import { commentOnSourcePr, deliverResult } from './deliver.ts'
 import type {
 	CreatedIssue,
 	CreatedPullRequest,
-	ExecutionResult,
+	ExecutePortResult,
 	GitHubWriter,
 	PortContext,
 	PortDecision,
@@ -96,22 +96,32 @@ function makeValidation(ok: boolean): ValidationCommandResult[] {
  * @param success - Whether execution succeeded.
  * @returns Execution fixture.
  */
-function makeExecution(success: boolean): ExecutionResult {
+function makeExecution(success: boolean): ExecutePortResult {
 	return {
-		success,
-		attempts: success ? 1 : 2,
-		history: [
-			{
-				attempt: success ? 1 : 2,
-				touchedFiles: ['src/file.ts'],
-				validation: makeValidation(success),
-				notes: success ? 'done' : 'failed',
-				toolCallLog: [],
-				events: [],
-			},
-		],
-		touchedFiles: ['src/file.ts'],
-		failureReason: success ? undefined : 'Validation failed after retries.',
+		outcome: {
+			status: success ? 'SUCCEEDED' : 'VALIDATION_FAILED',
+			attempts: success ? 1 : 2,
+			touchedFiles: ['src/file.ts'],
+			reason: success ? undefined : 'Validation failed after retries.',
+		},
+		trace: {
+			notes: success ? 'done' : 'failed',
+			toolCallLog: [],
+			events: [],
+			attempts: [
+				{
+					attempt: success ? 1 : 2,
+					status: success ? 'VALIDATED' : 'VALIDATION_FAILED',
+					touchedFiles: ['src/file.ts'],
+					validation: makeValidation(success),
+					trace: {
+						notes: success ? 'done' : 'failed',
+						toolCallLog: [],
+						events: [],
+					},
+				},
+			],
+		},
 	}
 }
 

@@ -15,7 +15,7 @@ import type { Logger } from '@repo-port-bot/logger'
 import type {
 	CreatedPullRequest,
 	DeliveryResult,
-	ExecutionResult,
+	ExecutePortResult,
 	GitHubWriter,
 	PortContext,
 	PortDecision,
@@ -31,7 +31,7 @@ interface DeliverResultOptions {
 	writer: GitHubWriter
 	context: PortContext
 	decision: PortDecision
-	execution?: ExecutionResult
+	execution?: ExecutePortResult
 	targetWorkingDirectory: string
 	runCommand?: CommandRunner
 	logger?: Logger
@@ -422,7 +422,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	await stageAndCommit(
 		runner,
 		options.targetWorkingDirectory,
-		buildCommitMessage(options.context, options.execution.model),
+		buildCommitMessage(options.context, options.execution.trace.model),
 	)
 	await expectCommandSuccess(
 		runner,
@@ -443,10 +443,13 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		body: prBody,
 		head: branchName,
 		base: targetRepo.defaultBranch,
-		draft: !options.execution.success,
+		draft: options.execution.outcome.status !== 'SUCCEEDED',
 	})
 
-	const labels = options.execution.success ? ['auto-port'] : ['auto-port', 'port-stalled']
+	const labels =
+		options.execution.outcome.status === 'SUCCEEDED'
+			? ['auto-port']
+			: ['auto-port', 'port-stalled']
 
 	await options.writer.addLabels({
 		owner: targetRepo.owner,
@@ -455,7 +458,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		labels,
 	})
 
-	if (options.execution.success && options.writer.removeLabel) {
+	if (options.execution.outcome.status === 'SUCCEEDED' && options.writer.removeLabel) {
 		try {
 			await options.writer.removeLabel({
 				owner: targetRepo.owner,
@@ -469,7 +472,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	}
 
 	return {
-		outcome: options.execution.success ? 'pr_opened' : 'draft_pr_opened',
+		outcome: options.execution.outcome.status === 'SUCCEEDED' ? 'pr_opened' : 'draft_pr_opened',
 		targetPullRequestUrl: pullRequest.url,
 	}
 }

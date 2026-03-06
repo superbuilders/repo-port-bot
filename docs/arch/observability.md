@@ -78,20 +78,20 @@ At `info` level, `runPort` emits one log line per stage transition so the Action
 
 At `debug` level, each stage additionally logs structured detail: full file lists, resolved config, classifier reasoning, validation stdout/stderr per command, delivery git operations, agent thinking blocks, and per-tool-call durations.
 
-Note: `decisionMs` varies significantly depending on whether a fast heuristic matched (sub-millisecond) or the LLM-backed classifier was invoked (seconds). When the classifier runs, the decision stage uses read-only tools and the SDK's structured output format to produce a validated `{ required, reason }` response.
+Note: `decisionMs` varies significantly depending on whether a fast heuristic matched (sub-millisecond) or the LLM-backed classifier was invoked (seconds). When the classifier runs, the decision stage emits the same streaming message categories as execution (`tool_start`, `thinking`, `tool_end`, `text`) and captures tool-call and event traces in `decision.trace` without changing decision control flow (`decision.outcome.kind` / `decision.outcome.reason` stay unchanged).
 
 ### Agent streaming
 
-During execution, the `ClaudeAgentProvider` emits structured `AgentMessage` events via an `onMessage` callback on `AgentInput`. The execution orchestrator routes these to the logger:
+During decision and execution, the `ClaudeAgentProvider` emits structured `AgentMessage` events via `onMessage` callbacks. The orchestrators route these to the logger:
 
 | AgentMessage kind | Log level | What it shows                                                           |
 | ----------------- | --------- | ----------------------------------------------------------------------- |
 | `tool_start`      | **info**  | One line per tool call with normalized relative file path when possible |
 | `thinking`        | **debug** | Claude's reasoning — verbose, for troubleshooting                       |
-| `tool_end`        | **debug** | Tool duration — captured in toolCallLog anyway                          |
-| `text`            | **debug** | Agent summary text — already in AgentOutput                             |
+| `tool_end`        | **debug** | Tool duration — captured in trace toolCallLog anyway                    |
+| `text`            | **debug** | Agent summary text — persisted in stage notes/events                    |
 
-This means at `info` level an operator sees real-time progress (which files Claude is reading/editing) without noise. At `debug` level they also see Claude's internal reasoning and tool timing.
+This means at `info` level an operator sees real-time progress for both stages without noise. At `debug` level they also see Claude's internal reasoning and tool timing.
 
 ### Collapsible groups
 
@@ -122,7 +122,7 @@ The action writes a summary via `core.summary` with a clean layout:
 - **H1**: source PR title (e.g. `# Port: Add formatting/date helpers`)
 - **One-liner**: outcome with linked target PR and total duration (e.g. `Ported to [target-repo#6](url) · 39.5s`)
 - **Timing table**: horizontal stage breakdown showing where time was spent
-- **Collapsible details**: decision kind, reason, model, artifact, tool call count, run ID
+- **Collapsible details**: decision kind/reason plus decision provenance (`heuristic`/`classifier`/`fallback`), heuristic name when present, decision model when classifier runs, execution model, artifact, execution tool call count, decision tool call count, run ID
 
 This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log.
 
@@ -130,12 +130,13 @@ This gives the maintainer a glanceable dashboard directly in the Actions UI with
 
 The agent's `ToolCallEntry[]` is the most valuable debugging artifact but also the noisiest (50–200 entries per attempt across multiple retries). It should not go to stdout at `info` level.
 
-Instead, it is written to a JSON file and uploaded as a GitHub Actions artifact:
+Instead, it is written to JSON files and uploaded as a GitHub Actions artifact:
 
 ```
 port-bot-run-<runId>/
-  tool-calls.json      # Full ToolCallEntry[] across all attempts
-  run-result.json      # Serialized PortRunResult
+  tool-calls.json           # Full ToolCallEntry[] across execution attempts
+  decision-tool-calls.json  # Full ToolCallEntry[] from decision classifier session
+  run-result.json           # Serialized PortRunResult including decision/outcome traces
 ```
 
 Uploaded via the runtime artifact client with 14-day retention. Upload requires `ACTIONS_RUNTIME_TOKEN`; if the token is unavailable for the runner context, upload is skipped and the run still succeeds.

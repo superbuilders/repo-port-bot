@@ -252,12 +252,12 @@ export interface ToolCallEntry {
 }
 
 /**
- * Streaming message kinds emitted by an agent provider during execution.
+ * Streaming message kinds emitted by an agent provider during a stage session.
  */
 export type AgentMessageKind = 'thinking' | 'tool_start' | 'tool_end' | 'text'
 
 /**
- * Structured streaming message emitted during one agent attempt.
+ * Structured streaming message emitted during one agent session.
  */
 export interface AgentMessage {
 	/**
@@ -287,17 +287,55 @@ export interface AgentMessage {
 }
 
 /**
- * Chronological event emitted during a single execution attempt.
+ * Chronological event emitted during an agent session.
  *
- * This stream is persisted in-attempt order so PR rendering can reconstruct
+ * This stream is persisted in-order so PR rendering can reconstruct
  * a human-readable work log with assistant/tool interleaving.
  */
-export type AttemptEvent = AttemptAssistantNoteEvent | AttemptToolStartEvent | AttemptToolEndEvent
+export type AgentSessionEvent =
+	| AttemptAssistantNoteEvent
+	| AttemptToolStartEvent
+	| AttemptToolEndEvent
+
+/**
+ * Backward-compatible alias for execution attempt events.
+ */
+export type AttemptEvent = AgentSessionEvent
+
+/**
+ * Shared observability payload captured for a stage session.
+ */
+export interface StageTrace {
+	/**
+	 * Optional free-form notes from the stage.
+	 */
+	notes?: string
+
+	/**
+	 * Model identifier used during the stage when applicable.
+	 */
+	model?: string
+
+	/**
+	 * Total wall-clock duration of the stage in milliseconds.
+	 */
+	durationMs?: number
+
+	/**
+	 * Ordered log of tool calls made during the stage.
+	 */
+	toolCallLog: ToolCallEntry[]
+
+	/**
+	 * Ordered assistant/tool events captured during the stage.
+	 */
+	events: AgentSessionEvent[]
+}
 
 /**
  * Assistant narration event captured from streamed text blocks.
  */
-export interface AttemptAssistantNoteEvent {
+interface AttemptAssistantNoteEvent {
 	kind: 'assistant_note'
 	text: string
 }
@@ -305,7 +343,7 @@ export interface AttemptAssistantNoteEvent {
 /**
  * Tool lifecycle start event captured before the tool executes.
  */
-export interface AttemptToolStartEvent {
+interface AttemptToolStartEvent {
 	kind: 'tool_start'
 	toolName: string
 	toolUseId: string
@@ -315,7 +353,7 @@ export interface AttemptToolStartEvent {
 /**
  * Tool lifecycle end event captured after the tool executes.
  */
-export interface AttemptToolEndEvent {
+interface AttemptToolEndEvent {
 	kind: 'tool_end'
 	toolName: string
 	toolUseId: string
@@ -325,8 +363,8 @@ export interface AttemptToolEndEvent {
 /**
  * Input context for classifier-style "is a port required?" decisions.
  *
- * This mirrors `AgentInput` but intentionally excludes retry history because
- * classification runs before execution attempts.
+ * This mirrors `ExecutePortAttemptInput` but intentionally excludes retry
+ * history because classification runs before execution attempts.
  */
 export interface DecidePortInput {
 	/**
@@ -361,28 +399,48 @@ export interface DecidePortInput {
 }
 
 /**
- * Output contract for provider-backed "port required?" classification.
+ * Source of the final decision result for a run.
  */
-export interface DecidePortOutput {
+export type DecisionSource = 'heuristic' | 'classifier' | 'fallback'
+
+/**
+ * Decision-stage observability payload captured during classification.
+ */
+export interface DecisionTrace extends StageTrace {
 	/**
-	 * True when the source change should proceed to execution.
+	 * Decision source for this run.
 	 */
-	required: boolean
+	source: DecisionSource
 
 	/**
-	 * Human-readable decision rationale suitable for logs/issues.
+	 * Heuristic identifier when source is `heuristic`.
 	 */
-	reason: string
+	heuristicName?: string
 }
 
 /**
- * Everything the agent provider needs to perform one edit attempt.
+ * Full decision-stage result including control-flow decision and trace data.
+ */
+export interface DecidePortResult {
+	/**
+	 * Branching decision consumed by the pipeline.
+	 */
+	outcome: PortDecision
+
+	/**
+	 * Decision-stage trace and provenance metadata.
+	 */
+	trace: DecisionTrace
+}
+
+/**
+ * Everything the agent provider needs to perform one execution attempt.
  *
  * The orchestrator constructs this before each call to the provider. On
  * retries, `previousAttempts` carries validation errors and touched files
  * from earlier attempts so the provider can adjust its strategy.
  */
-export interface AgentInput {
+export interface ExecutePortAttemptInput {
 	/**
 	 * Changed files with patch content from the source PR.
 	 */
@@ -412,7 +470,7 @@ export interface AgentInput {
 	 * Previous attempt results provided on retries so the agent can learn
 	 * from validation failures. Empty array on the first attempt.
 	 */
-	previousAttempts: ExecutionAttempt[]
+	previousAttempts: ExecutePortAttemptResult[]
 
 	/**
 	 * Optional callback for streaming provider messages during execution.
@@ -421,12 +479,17 @@ export interface AgentInput {
 }
 
 /**
+ * Observability payload for one execution attempt.
+ */
+export type ExecutePortAttemptTrace = StageTrace
+
+/**
  * What the agent provider returns after one edit attempt.
  *
  * The provider only produces edits — it never runs validation commands.
  * The orchestrator validates the result and decides whether to retry.
  */
-export interface AgentOutput {
+export interface ExecutePortAttemptOutput {
 	/**
 	 * Files the agent created or modified in the target repo.
 	 */
@@ -438,26 +501,9 @@ export interface AgentOutput {
 	complete: boolean
 
 	/**
-	 * Optional free-form notes about uncertainty, trade-offs, or skipped items.
+	 * Observability payload captured during the attempt.
 	 */
-	notes?: string
-
-	/**
-	 * Ordered log of tool calls made during this attempt. Collected from the
-	 * SDK message stream (e.g., `SDKAssistantMessage` tool_use blocks) and
-	 * used for observability, cost tracking, and post-hoc debugging.
-	 */
-	toolCallLog: ToolCallEntry[]
-
-	/**
-	 * Ordered assistant/tool events from this attempt.
-	 */
-	events: AttemptEvent[]
-
-	/**
-	 * Model identifier used for this attempt (e.g. `claude-sonnet-4-6`).
-	 */
-	model?: string
+	trace: ExecutePortAttemptTrace
 }
 
 /**
@@ -472,17 +518,17 @@ export interface AgentProvider {
 	 * Classify whether a source change requires a port attempt.
 	 *
 	 * @param input - Classification context from the decision stage.
-	 * @returns Required/skip decision and rationale.
+	 * @returns Decision outcome and stage trace.
 	 */
-	decidePort(input: DecidePortInput): Promise<DecidePortOutput>
+	decidePort(input: DecidePortInput): Promise<DecidePortResult>
 
 	/**
 	 * Execute one port attempt given the provided context.
 	 *
 	 * @param input - Context for this attempt including source diff and retry history.
-	 * @returns Agent output with touched files, completion status, and tool call log.
+	 * @returns Attempt output with touched files, completion status, and trace.
 	 */
-	executePort(input: AgentInput): Promise<AgentOutput>
+	executePort(input: ExecutePortAttemptInput): Promise<ExecutePortAttemptOutput>
 }
 
 // ---------------------------------------------------------------------------
@@ -756,13 +802,23 @@ export interface ValidationCommandResult {
 }
 
 /**
+ * Status of one aggregated execution attempt.
+ */
+export type ExecutePortAttemptStatus = 'VALIDATED' | 'VALIDATION_FAILED' | 'PROVIDER_ERROR'
+
+/**
  * Per-attempt execution report for agent edit + validate cycles.
  */
-export interface ExecutionAttempt {
+export interface ExecutePortAttemptResult {
 	/**
 	 * 1-based attempt counter.
 	 */
 	attempt: number
+
+	/**
+	 * Aggregate status for this attempt after validation/provider handling.
+	 */
+	status: ExecutePortAttemptStatus
 
 	/**
 	 * Files touched by the agent in this attempt.
@@ -775,29 +831,24 @@ export interface ExecutionAttempt {
 	validation: ValidationCommandResult[]
 
 	/**
-	 * Optional summary of what changed in this attempt.
+	 * Attempt trace payload.
 	 */
-	notes?: string
-
-	/**
-	 * Tool calls made by the agent during this attempt, for observability.
-	 */
-	toolCallLog: ToolCallEntry[]
-
-	/**
-	 * Ordered assistant/tool events captured during this attempt.
-	 */
-	events: AttemptEvent[]
+	trace: ExecutePortAttemptTrace
 }
 
 /**
- * Final output from the execution stage.
+ * Final execution outcome after all attempts.
  */
-export interface ExecutionResult {
+export type ExecutePortStatus = 'SUCCEEDED' | 'VALIDATION_FAILED' | 'PROVIDER_ERROR'
+
+/**
+ * Domain outcome returned by the execution stage.
+ */
+export interface ExecutePortOutcome {
 	/**
-	 * Whether execution produced a valid, reviewable port branch.
+	 * Final execution status.
 	 */
-	success: boolean
+	status: ExecutePortStatus
 
 	/**
 	 * Total attempts performed before success/failure.
@@ -805,29 +856,39 @@ export interface ExecutionResult {
 	attempts: number
 
 	/**
-	 * Per-attempt diagnostics for debugging and PR summaries.
-	 */
-	history: ExecutionAttempt[]
-
-	/**
 	 * Final touched files list (deduplicated).
 	 */
 	touchedFiles: string[]
 
 	/**
-	 * Final failure explanation when `success` is false.
+	 * Final failure explanation when execution did not succeed.
 	 */
-	failureReason?: string
+	reason?: string
+}
+
+/**
+ * Execution-stage trace payload.
+ */
+export interface ExecutionTrace extends StageTrace {
+	/**
+	 * Per-attempt diagnostics for debugging and PR summaries.
+	 */
+	attempts: ExecutePortAttemptResult[]
+}
+
+/**
+ * Final output from the execution stage.
+ */
+export interface ExecutePortResult {
+	/**
+	 * Domain outcome from the execution stage.
+	 */
+	outcome: ExecutePortOutcome
 
 	/**
-	 * Model identifier used by the agent provider (e.g. `claude-sonnet-4-6`).
+	 * Execution-stage trace metadata.
 	 */
-	model?: string
-
-	/**
-	 * Total wall-clock duration of the execution stage in milliseconds.
-	 */
-	durationMs?: number
+	trace: ExecutionTrace
 }
 
 // ---------------------------------------------------------------------------
@@ -900,12 +961,12 @@ export interface PortRunResult {
 	/**
 	 * Decision returned by the decision stage.
 	 */
-	decision: PortDecision
+	decision: DecidePortResult
 
 	/**
 	 * Execution details when the pipeline attempted a port.
 	 */
-	execution?: ExecutionResult
+	execution?: ExecutePortResult
 
 	/**
 	 * Created target PR URL when available.

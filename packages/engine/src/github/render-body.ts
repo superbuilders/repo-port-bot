@@ -4,8 +4,9 @@ const PORT_BOT_REPO_URL = 'https://github.com/superbuilders/repo-port-bot'
 
 import type {
 	AttemptEvent,
-	ExecutionAttempt,
-	ExecutionResult,
+	DecidePortResult,
+	ExecutePortAttemptResult,
+	ExecutePortResult,
 	PortContext,
 	PortDecision,
 	PortRunOutcome,
@@ -15,7 +16,7 @@ import type {
 interface RenderPullRequestBodyInput {
 	context: PortContext
 	decision: PortDecision
-	execution: ExecutionResult
+	execution: ExecutePortResult
 }
 
 interface RenderNeedsHumanIssueBodyInput {
@@ -36,8 +37,8 @@ interface RenderSourceCommentInput {
 
 interface RenderRunSummaryInput {
 	outcome: PortRunOutcome
-	decision: PortDecision
-	execution?: ExecutionResult
+	decision: DecidePortResult
+	execution?: ExecutePortResult
 	targetPullRequestUrl?: string
 	followUpIssueUrl?: string
 	errorMessage?: string
@@ -126,8 +127,8 @@ function renderValidationLine(result: ValidationCommandResult): string {
  * @param execution - Execution details from the execution stage.
  * @returns Validation summary section.
  */
-function renderValidationSummary(execution: ExecutionResult): string {
-	const latestAttempt = execution.history.at(-1)
+function renderValidationSummary(execution: ExecutePortResult): string {
+	const latestAttempt = execution.trace.attempts.at(-1)
 
 	if (!latestAttempt || latestAttempt.validation.length === 0) {
 		return '- No validation output recorded.'
@@ -142,12 +143,13 @@ function renderValidationSummary(execution: ExecutionResult): string {
  * @param execution - Execution details.
  * @returns HTML details block with validation results.
  */
-function renderDiagnosticsBlock(execution: ExecutionResult): string {
+function renderDiagnosticsBlock(execution: ExecutePortResult): string {
 	const validationLines = renderValidationSummary(execution)
-	const failureLine = !execution.success
-		? `- Final status: validation failed after retries.\n- Failure reason: ${execution.failureReason ?? 'Unknown failure reason.'}`
-		: undefined
-	const detailsTag = execution.success ? '<details>' : '<details open>'
+	const failureLine =
+		execution.outcome.status !== 'SUCCEEDED'
+			? `- Final status: validation failed after retries.\n- Failure reason: ${execution.outcome.reason ?? 'Unknown failure reason.'}`
+			: undefined
+	const detailsTag = execution.outcome.status === 'SUCCEEDED' ? '<details>' : '<details open>'
 
 	return [
 		`${detailsTag}<summary>Validation & diagnostics</summary>`,
@@ -167,18 +169,20 @@ function renderDiagnosticsBlock(execution: ExecutionResult): string {
  * @param execution - Execution details.
  * @returns One-line metrics string.
  */
-function renderExecutionMetrics(execution: ExecutionResult): string {
-	const toolCallCount = execution.history.reduce(
-		(count, attempt) => count + attempt.toolCallLog.length,
+function renderExecutionMetrics(execution: ExecutePortResult): string {
+	const toolCallCount = execution.trace.attempts.reduce(
+		(count, attempt) => count + attempt.trace.toolCallLog.length,
 		0,
 	)
 
 	const durationSuffix =
-		execution.durationMs !== undefined ? ` · ${formatDuration(execution.durationMs)}` : ''
+		execution.trace.durationMs !== undefined
+			? ` · ${formatDuration(execution.trace.durationMs)}`
+			: ''
 
-	const fileCount = execution.touchedFiles.length
+	const fileCount = execution.outcome.touchedFiles.length
 
-	return `${String(fileCount)} file${fileCount === 1 ? '' : 's'} changed · ${String(execution.attempts)} attempt${execution.attempts === 1 ? '' : 's'} · ${String(toolCallCount)} tool call${toolCallCount === 1 ? '' : 's'}${durationSuffix}`
+	return `${String(fileCount)} file${fileCount === 1 ? '' : 's'} changed · ${String(execution.outcome.attempts)} attempt${execution.outcome.attempts === 1 ? '' : 's'} · ${String(toolCallCount)} tool call${toolCallCount === 1 ? '' : 's'}${durationSuffix}`
 }
 
 /**
@@ -187,13 +191,13 @@ function renderExecutionMetrics(execution: ExecutionResult): string {
  * @param execution - Execution details.
  * @returns Markdown sections for each attempt.
  */
-function renderAttemptNotes(execution: ExecutionResult): string {
-	if (execution.history.length === 0) {
+function renderAttemptNotes(execution: ExecutePortResult): string {
+	if (execution.trace.attempts.length === 0) {
 		return '_No notes recorded._'
 	}
 
-	const lastAttempt = execution.history.at(-1)
-	const notes = lastAttempt?.notes?.trim() || '_No notes recorded._'
+	const lastAttempt = execution.trace.attempts.at(-1)
+	const notes = lastAttempt?.trace.notes?.trim() || '_No notes recorded._'
 
 	return notes
 }
@@ -209,12 +213,12 @@ function renderAttemptNotes(execution: ExecutionResult): string {
  * @returns Markdown string for this attempt's work log.
  */
 function renderAttemptWorkLogBody(
-	attempt: ExecutionAttempt,
+	attempt: ExecutePortAttemptResult,
 	stripLastAssistantNote: boolean,
 ): string {
 	const toolDurations = new Map<string, number | undefined>()
 
-	for (const event of attempt.events) {
+	for (const event of attempt.trace.events) {
 		if (event.kind === 'tool_end') {
 			toolDurations.set(event.toolUseId, event.durationMs)
 		}
@@ -225,7 +229,7 @@ function renderAttemptWorkLogBody(
 	const blocks: Block[] = []
 	let eventCount = 0
 
-	for (const event of attempt.events) {
+	for (const event of attempt.trace.events) {
 		if (event.kind === 'tool_end') {
 			// skip: duration already captured in toolDurations map
 		} else if (event.kind === 'assistant_note') {
@@ -339,14 +343,14 @@ function readStringField(
  * @param execution - Execution details.
  * @returns HTML details block with per-attempt narrative.
  */
-function renderAgentWorkLog(execution: ExecutionResult): string {
-	const lastAttemptNumber = execution.history.at(-1)?.attempt
+function renderAgentWorkLog(execution: ExecutePortResult): string {
+	const lastAttemptNumber = execution.trace.attempts.at(-1)?.attempt
 
-	const attemptSections = execution.history.map(attempt => {
+	const attemptSections = execution.trace.attempts.map(attempt => {
 		const isLastAttempt = attempt.attempt === lastAttemptNumber
 		const body = renderAttemptWorkLogBody(attempt, isLastAttempt)
 
-		return execution.history.length > 1
+		return execution.trace.attempts.length > 1
 			? [`### Attempt ${String(attempt.attempt)}`, '', body].join('\n')
 			: body
 	})
@@ -382,10 +386,10 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 
 	const reasonLines = input.decision.reason.split('\n').map(line => `> ${line}`)
 
-	if (input.execution.model) {
-		const modelUrl = `https://models.dev/?search=${encodeURIComponent(input.execution.model)}`
+	if (input.execution.trace.model) {
+		const modelUrl = `https://models.dev/?search=${encodeURIComponent(input.execution.trace.model)}`
 
-		reasonLines.push('>', `> — [${input.execution.model}](${modelUrl}) _(${atAGlance})_`)
+		reasonLines.push('>', `> — [${input.execution.trace.model}](${modelUrl}) _(${atAGlance})_`)
 	} else {
 		reasonLines.push('>', `> ${atAGlance}`)
 	}
@@ -558,17 +562,17 @@ export function renderRunSummary(input: RenderRunSummaryInput): string {
 
 	switch (outcome) {
 		case 'skipped_not_required': {
-			return `Skipped: ${decision.reason}`
+			return `Skipped: ${decision.outcome.reason}`
 		}
 		case 'needs_human': {
 			return (
 				joinNonEmptyLines(
 					[
-						`Needs human review: ${decision.reason}`,
+						`Needs human review: ${decision.outcome.reason}`,
 						followUpIssueUrl && `Issue: ${followUpIssueUrl}`,
 					],
 					' ',
-				) ?? `Needs human review: ${decision.reason}`
+				) ?? `Needs human review: ${decision.outcome.reason}`
 			)
 		}
 		case 'pr_opened': {
@@ -576,7 +580,7 @@ export function renderRunSummary(input: RenderRunSummaryInput): string {
 				joinNonEmptyLines(
 					[
 						targetPullRequestUrl && `Port PR opened: ${targetPullRequestUrl}`,
-						execution && `(${String(execution.attempts)} attempts)`,
+						execution && `(${String(execution.outcome.attempts)} attempts)`,
 					],
 					' ',
 				) ?? 'Port PR opened.'
@@ -588,14 +592,14 @@ export function renderRunSummary(input: RenderRunSummaryInput): string {
 					[
 						targetPullRequestUrl &&
 							`Draft PR opened (stalled): ${targetPullRequestUrl}.`,
-						execution?.failureReason,
+						execution?.outcome.reason,
 					],
 					' ',
 				) ?? 'Draft PR opened (stalled).'
 			)
 		}
 		case 'failed': {
-			return `Engine failure: ${input.errorMessage ?? decision.reason}`
+			return `Engine failure: ${input.errorMessage ?? decision.outcome.reason}`
 		}
 		default: {
 			return 'Port run completed.'

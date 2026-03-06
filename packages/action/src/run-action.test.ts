@@ -65,8 +65,25 @@ describe('runAction', () => {
 			runId: 'run-1',
 			outcome: 'pr_opened',
 			decision: {
-				kind: 'PORT_REQUIRED',
-				reason: 'Required',
+				outcome: {
+					kind: 'PORT_REQUIRED',
+					reason: 'Required',
+				},
+				trace: {
+					source: 'classifier',
+					toolCallLog: [
+						{
+							toolName: 'Read',
+							input: { file_path: 'src/a.ts' },
+							output: { ok: true },
+						},
+					],
+					events: [
+						{ kind: 'tool_start', toolName: 'Read', toolUseId: 'tool-1' },
+						{ kind: 'tool_end', toolName: 'Read', toolUseId: 'tool-1', durationMs: 5 },
+					],
+					model: 'claude-sonnet-4-6',
+				},
 			},
 			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/1',
 			summary: 'Port PR opened.',
@@ -107,16 +124,25 @@ describe('runAction', () => {
 				({
 					async decidePort() {
 						return {
-							required: true,
-							reason: 'Required',
+							outcome: {
+								kind: 'PORT_REQUIRED',
+								reason: 'Required',
+							},
+							trace: {
+								source: 'classifier',
+								toolCallLog: [],
+								events: [],
+							},
 						}
 					},
 					async executePort() {
 						return {
 							touchedFiles: [],
 							complete: true,
-							toolCallLog: [],
-							events: [],
+							trace: {
+								toolCallLog: [],
+								events: [],
+							},
 						}
 					},
 				}) as AgentProvider,

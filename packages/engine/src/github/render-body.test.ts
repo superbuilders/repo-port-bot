@@ -8,7 +8,7 @@ import {
 	renderSourceComment,
 } from './render-body.ts'
 
-import type { ExecutionResult, PortContext, PortDecision, RepoRef } from '../types.ts'
+import type { ExecutePortResult, PortContext, PortDecision, RepoRef } from '../types.ts'
 
 const SOURCE_REPO: RepoRef = {
 	owner: 'acme',
@@ -84,76 +84,86 @@ function makeDecision(kind: PortDecision['kind']): PortDecision {
  * @param success - Whether execution succeeded.
  * @returns Execution fixture.
  */
-function makeExecution(success: boolean): ExecutionResult {
+function makeExecution(success: boolean): ExecutePortResult {
 	return {
-		success,
-		attempts: success ? 1 : 2,
-		history: [
-			{
-				attempt: success ? 1 : 2,
-				touchedFiles: ['src/app.ts'],
-				validation: [
-					{
-						command: 'bun run check',
-						ok: success,
-						exitCode: success ? 0 : 1,
-						stdout: success ? 'ok' : '',
-						stderr: success ? '' : 'failed',
-						durationMs: 123,
+		outcome: {
+			status: success ? 'SUCCEEDED' : 'VALIDATION_FAILED',
+			attempts: success ? 1 : 2,
+			touchedFiles: ['src/app.ts'],
+			reason: success ? undefined : 'Validation failed after retries.',
+		},
+		trace: {
+			notes: success ? 'Looks good.' : 'Still failing checks.',
+			toolCallLog: [],
+			events: [],
+			attempts: [
+				{
+					attempt: success ? 1 : 2,
+					status: success ? 'VALIDATED' : 'VALIDATION_FAILED',
+					touchedFiles: ['src/app.ts'],
+					validation: [
+						{
+							command: 'bun run check',
+							ok: success,
+							exitCode: success ? 0 : 1,
+							stdout: success ? 'ok' : '',
+							stderr: success ? '' : 'failed',
+							durationMs: 123,
+						},
+					],
+					trace: {
+						notes: success ? 'Looks good.' : 'Still failing checks.',
+						toolCallLog: [],
+						events: [
+							{
+								kind: 'assistant_note',
+								text: 'Starting out the port...',
+							},
+							{
+								kind: 'tool_start',
+								toolName: 'Read',
+								toolUseId: 'read-1',
+								toolInput: { file_path: 'src/app.ts' },
+							},
+							{
+								kind: 'tool_end',
+								toolName: 'Read',
+								toolUseId: 'read-1',
+								durationMs: 42,
+							},
+							{
+								kind: 'tool_start',
+								toolName: 'Edit',
+								toolUseId: 'edit-1',
+								toolInput: { file_path: 'src/app.ts' },
+							},
+							{
+								kind: 'tool_end',
+								toolName: 'Edit',
+								toolUseId: 'edit-1',
+								durationMs: 55,
+							},
+							{
+								kind: 'tool_start',
+								toolName: 'Bash',
+								toolUseId: 'bash-1',
+								toolInput: { command: 'bun run check' },
+							},
+							{
+								kind: 'tool_end',
+								toolName: 'Bash',
+								toolUseId: 'bash-1',
+								durationMs: 18_601,
+							},
+							{
+								kind: 'assistant_note',
+								text: success ? 'Looks good.' : 'Still failing checks.',
+							},
+						],
 					},
-				],
-				notes: success ? 'Looks good.' : 'Still failing checks.',
-				toolCallLog: [],
-				events: [
-					{
-						kind: 'assistant_note',
-						text: 'Starting out the port...',
-					},
-					{
-						kind: 'tool_start',
-						toolName: 'Read',
-						toolUseId: 'read-1',
-						toolInput: { file_path: 'src/app.ts' },
-					},
-					{
-						kind: 'tool_end',
-						toolName: 'Read',
-						toolUseId: 'read-1',
-						durationMs: 42,
-					},
-					{
-						kind: 'tool_start',
-						toolName: 'Edit',
-						toolUseId: 'edit-1',
-						toolInput: { file_path: 'src/app.ts' },
-					},
-					{
-						kind: 'tool_end',
-						toolName: 'Edit',
-						toolUseId: 'edit-1',
-						durationMs: 55,
-					},
-					{
-						kind: 'tool_start',
-						toolName: 'Bash',
-						toolUseId: 'bash-1',
-						toolInput: { command: 'bun run check' },
-					},
-					{
-						kind: 'tool_end',
-						toolName: 'Bash',
-						toolUseId: 'bash-1',
-						durationMs: 18_601,
-					},
-					{
-						kind: 'assistant_note',
-						text: success ? 'Looks good.' : 'Still failing checks.',
-					},
-				],
-			},
-		],
-		touchedFiles: ['src/app.ts'],
-		failureReason: success ? undefined : 'Validation failed after retries.',
+				},
+			],
+		},
 	}
 }
 
@@ -233,44 +243,50 @@ describe('render-body', () => {
 	test('renders per-attempt sections in Agent Work Log on retries', () => {
 		const execution = makeExecution(false)
 
-		execution.history = [
+		execution.trace.attempts = [
 			{
-				...execution.history[0]!,
+				...execution.trace.attempts[0]!,
 				attempt: 1,
-				notes: 'First attempt notes.',
-				events: [
-					{
-						kind: 'assistant_note',
-						text: 'First attempt.',
-					},
-				],
+				trace: {
+					...execution.trace.attempts[0]!.trace,
+					notes: 'First attempt notes.',
+					events: [
+						{
+							kind: 'assistant_note',
+							text: 'First attempt.',
+						},
+					],
+				},
 			},
 			{
-				...execution.history[0]!,
+				...execution.trace.attempts[0]!,
 				attempt: 2,
-				notes: 'Final attempt summary.',
-				events: [
-					{
-						kind: 'assistant_note',
-						text: 'Retrying the port...',
-					},
-					{
-						kind: 'tool_start',
-						toolName: 'Edit',
-						toolUseId: 'edit-2',
-						toolInput: { file_path: 'src/app.ts' },
-					},
-					{
-						kind: 'tool_end',
-						toolName: 'Edit',
-						toolUseId: 'edit-2',
-						durationMs: 10,
-					},
-					{
-						kind: 'assistant_note',
-						text: 'Final attempt summary.',
-					},
-				],
+				trace: {
+					...execution.trace.attempts[0]!.trace,
+					notes: 'Final attempt summary.',
+					events: [
+						{
+							kind: 'assistant_note',
+							text: 'Retrying the port...',
+						},
+						{
+							kind: 'tool_start',
+							toolName: 'Edit',
+							toolUseId: 'edit-2',
+							toolInput: { file_path: 'src/app.ts' },
+						},
+						{
+							kind: 'tool_end',
+							toolName: 'Edit',
+							toolUseId: 'edit-2',
+							durationMs: 10,
+						},
+						{
+							kind: 'assistant_note',
+							text: 'Final attempt summary.',
+						},
+					],
+				},
 			},
 		]
 

@@ -1,4 +1,6 @@
-import { createConsoleLogger } from '@repo-port-bot/logger'
+import { isAbsolute, relative } from 'node:path'
+
+import { createConsoleLogger, formatPortBotLine } from '@repo-port-bot/logger'
 
 import { fetchPortBotJson } from '../config/fetch-port-bot-json.ts'
 import { resolvePluginConfig } from '../config/resolve-plugin-config.ts'
@@ -17,6 +19,7 @@ import type { Logger } from '@repo-port-bot/logger'
 import type { PortBotJsonConfig } from '../config/types.ts'
 import type {
 	AgentProvider,
+	AgentMessage,
 	GitHubReader,
 	GitHubWriter,
 	PartialPluginConfig,
@@ -158,22 +161,33 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		logger.group('Decision: classify source change')
 
 		try {
-			decision = await stages.decide(context, {
+			const decisionResult = await stages.decide(context, {
 				agentProvider: options.agentProvider,
 				targetWorkingDirectory: options.targetWorkingDirectory,
 				sourceWorkingDirectory: options.sourceWorkingDirectory,
 				diffFilePath: options.diffFilePath,
+				onMessage: message => {
+					logDecisionMessage({
+						logger,
+						runId,
+						message,
+						targetWorkingDirectory: options.targetWorkingDirectory,
+						sourceWorkingDirectory: options.sourceWorkingDirectory,
+					})
+				},
 			})
+
+			decision = decisionResult
 			logStage(logger, runId, 'decision', {
-				kind: decision.kind,
-				reason: decision.reason,
+				kind: decision.outcome.kind,
+				reason: decision.outcome.reason,
 				decisionMs: (stageTimings.decisionMs = getDurationMs(startedAtMs)),
 			})
 		} finally {
 			logger.groupEnd()
 		}
 
-		if (decision.kind === 'PORT_NOT_REQUIRED') {
+		if (decision.outcome.kind === 'PORT_NOT_REQUIRED') {
 			const sourcePrNumber = context.sourceChange.pullRequest?.number
 
 			if (sourcePrNumber) {
@@ -182,7 +196,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 						writer: options.writer,
 						pullRequestNumber: sourcePrNumber,
 						context,
-						decision,
+						decision: decision.outcome,
 						outcome: 'skipped_not_required',
 						runId,
 						logger,
@@ -208,7 +222,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			}
 		}
 
-		if (decision.kind === 'NEEDS_HUMAN') {
+		if (decision.outcome.kind === 'NEEDS_HUMAN') {
 			return runNeedsHumanFlow({
 				writer: options.writer,
 				context,
@@ -244,7 +258,8 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		})
 	} catch (error) {
 		const errorMessage = toErrorMessage(error)
-		const failureDecision = decision ?? buildEngineFailureDecision(errorMessage)
+		const failureDecision = buildEngineFailureDecision(errorMessage)
+		const failureDecisionValue = decision ?? failureDecision
 		const sourcePullRequestNumber = context?.sourceChange.pullRequest?.number
 
 		if (context && sourcePullRequestNumber) {
@@ -253,7 +268,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 					writer: options.writer,
 					pullRequestNumber: sourcePullRequestNumber,
 					context,
-					decision: failureDecision,
+					decision: failureDecisionValue.outcome,
 					outcome: 'failed',
 					runId,
 					logger,
@@ -272,14 +287,126 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			runId,
 			sourceTitle,
 			outcome: 'failed',
-			decision: failureDecision,
+			decision: failureDecisionValue,
 			summary: renderRunSummary({
 				outcome: 'failed',
-				decision: failureDecision,
+				decision: failureDecisionValue,
 				errorMessage,
 			}),
 			durationMs: getDurationMs(startedAtMs),
 			stageTimings,
 		}
 	}
+}
+
+/**
+ * Log one streamed decision-stage agent message using structured formatting.
+ *
+ * @param input - Message logging input.
+ * @param input.logger - Logger implementation.
+ * @param input.runId - Run identifier for correlation.
+ * @param input.message - Streamed agent message.
+ * @param input.targetWorkingDirectory - Optional target repo root for path normalization.
+ * @param input.sourceWorkingDirectory - Optional source repo root for path normalization.
+ */
+function logDecisionMessage(input: {
+	logger: Logger
+	runId: string
+	message: AgentMessage
+	targetWorkingDirectory?: string
+	sourceWorkingDirectory?: string
+}): void {
+	const { logger, runId, message } = input
+
+	if (message.kind === 'tool_start') {
+		const filePath = extractFilePath(message.toolInput)
+		const loggedFilePath = normalizeLoggedFilePath({
+			filePath,
+			targetWorkingDirectory: input.targetWorkingDirectory,
+			sourceWorkingDirectory: input.sourceWorkingDirectory,
+		})
+
+		logger.info(
+			formatPortBotLine({
+				runId,
+				fields: {
+					stage: 'decision',
+					tool: message.toolName,
+					file: loggedFilePath,
+				},
+			}),
+		)
+
+		return
+	}
+
+	if (message.kind === 'tool_end') {
+		logger.debug(
+			formatPortBotLine({
+				runId,
+				fields: {
+					stage: 'decision',
+					tool: message.toolName,
+					toolDurationMs: message.durationMs,
+				},
+			}),
+		)
+
+		return
+	}
+
+	logger.debug(
+		formatPortBotLine({
+			runId,
+			fields: {
+				stage: 'decision',
+				[message.kind]: message.text,
+			},
+		}),
+	)
+}
+
+/**
+ * Normalize logged file paths to source/target-relative values when possible.
+ *
+ * @param input - Path normalization input.
+ * @param input.filePath - Candidate raw path from tool input.
+ * @param input.targetWorkingDirectory - Optional target repo root.
+ * @param input.sourceWorkingDirectory - Optional source repo root.
+ * @returns Relative path when inside known roots, else original path.
+ */
+function normalizeLoggedFilePath(input: {
+	filePath: string | undefined
+	targetWorkingDirectory?: string
+	sourceWorkingDirectory?: string
+}): string | undefined {
+	const filePath = input.filePath
+
+	if (!filePath || !isAbsolute(filePath)) {
+		return filePath
+	}
+
+	for (const root of [input.targetWorkingDirectory, input.sourceWorkingDirectory]) {
+		if (root) {
+			const relativePath = relative(root, filePath)
+
+			if (relativePath && !relativePath.startsWith('..')) {
+				return relativePath
+			}
+		}
+	}
+
+	return filePath
+}
+
+/**
+ * Read a file path from tool input payloads.
+ *
+ * @param input - Tool input payload.
+ * @returns File path when present.
+ */
+function extractFilePath(input: Record<string, unknown> | undefined): string | undefined {
+	const filePath = input?.file_path
+
+	return typeof filePath === 'string' ? filePath : undefined
 }

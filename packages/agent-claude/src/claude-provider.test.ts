@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { ClaudeAgentProvider } from './claude-provider.ts'
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
-import type { AgentInput, PluginConfig } from '@repo-port-bot/engine'
+import type { ExecutePortAttemptInput, PluginConfig } from '@repo-port-bot/engine'
 
 /**
  * Build plugin config fixture.
@@ -30,7 +30,7 @@ function makePluginConfig(): PluginConfig {
  *
  * @returns Agent input fixture.
  */
-function makeInput(): AgentInput {
+function makeInput(): ExecutePortAttemptInput {
 	return {
 		files: [
 			{
@@ -108,8 +108,15 @@ describe('ClaudeAgentProvider', () => {
 			pluginConfig: makePluginConfig(),
 		})
 
-		expect(output.required).toBe(false)
-		expect(output.reason).toBe('No matching target module to port.')
+		expect(output.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(output.outcome.reason).toBe('No matching target module to port.')
+		expect(output.trace.toolCallLog).toEqual([])
+		expect(output.trace.events).toEqual([
+			{
+				kind: 'assistant_note',
+				text: 'Analyzing the change...',
+			},
+		])
 		expect(queryCalls).toHaveLength(1)
 		expect(queryCalls[0]!.options).toMatchObject({
 			allowedTools: ['Read', 'Glob', 'Grep'],
@@ -125,6 +132,121 @@ describe('ClaudeAgentProvider', () => {
 					required: ['required', 'reason'],
 				},
 			},
+		})
+	})
+
+	test('decidePort captures tool calls, events, and streamed messages', async () => {
+		const streamedMessages: unknown[] = []
+		const provider = new ClaudeAgentProvider({
+			queryFn: ({ options }) =>
+				(async function* queryFn(): AsyncGenerator<SDKMessage, void> {
+					const preHook = (options?.hooks?.PreToolUse ?? [])[0]?.hooks?.[0]
+					const postHook = (options?.hooks?.PostToolUse ?? [])[0]?.hooks?.[0]
+
+					await preHook?.(
+						{
+							hook_event_name: 'PreToolUse',
+							tool_name: 'Read',
+							tool_input: { file_path: '/tmp/target/src/example.ts' },
+							tool_use_id: 'tool-read',
+							session_id: 'session-1',
+							transcript_path: '/tmp/transcript',
+							cwd: '/tmp/target',
+						},
+						undefined,
+						{ signal: new AbortController().signal },
+					)
+
+					await postHook?.(
+						{
+							hook_event_name: 'PostToolUse',
+							tool_name: 'Read',
+							tool_input: { file_path: '/tmp/target/src/example.ts' },
+							tool_response: { content: 'source text' },
+							tool_use_id: 'tool-read',
+							session_id: 'session-1',
+							transcript_path: '/tmp/transcript',
+							cwd: '/tmp/target',
+						},
+						undefined,
+						{ signal: new AbortController().signal },
+					)
+
+					yield makeAssistantMessage([
+						{
+							type: 'thinking',
+							thinking: 'Checking for equivalent target files.',
+						},
+						{
+							type: 'text',
+							text: 'Classifier decision rationale.',
+						},
+					])
+					yield {
+						type: 'result',
+						subtype: 'success',
+						duration_ms: 10,
+						duration_api_ms: 8,
+						is_error: false,
+						num_turns: 1,
+						result: '',
+						stop_reason: null,
+						total_cost_usd: 0.001,
+						usage: {
+							input_tokens: 1,
+							output_tokens: 1,
+							cache_creation_input_tokens: 0,
+							cache_read_input_tokens: 0,
+							service_tier: 'standard',
+						},
+						modelUsage: {},
+						permission_denials: [],
+						structured_output: {
+							required: true,
+							reason: 'Port required for target parity.',
+						},
+						uuid: 'uuid-result',
+						session_id: 'session-1',
+					} as unknown as SDKMessage
+				})(),
+		})
+
+		const output = await provider.decidePort({
+			files: makeInput().files,
+			targetWorkingDirectory: '/tmp/target',
+			pluginConfig: makePluginConfig(),
+			onMessage: message => streamedMessages.push(message),
+		})
+
+		expect(output.outcome.kind).toBe('PORT_REQUIRED')
+		expect(output.outcome.reason).toBe('Port required for target parity.')
+		expect(output.trace.toolCallLog).toHaveLength(1)
+		expect(output.trace.events).toEqual([
+			{
+				kind: 'tool_start',
+				toolName: 'Read',
+				toolUseId: 'tool-read',
+				toolInput: { file_path: 'src/example.ts' },
+			},
+			{
+				kind: 'tool_end',
+				toolName: 'Read',
+				toolUseId: 'tool-read',
+				durationMs: expect.any(Number),
+			},
+			{
+				kind: 'assistant_note',
+				text: 'Classifier decision rationale.',
+			},
+		])
+		expect(streamedMessages).toContainEqual({
+			kind: 'thinking',
+			text: 'Checking for equivalent target files.',
+		})
+		expect(streamedMessages).toContainEqual({
+			kind: 'tool_start',
+			toolName: 'Read',
+			toolInput: { file_path: 'src/example.ts' },
 		})
 	})
 
@@ -280,10 +402,10 @@ describe('ClaudeAgentProvider', () => {
 		expect(queryCalls).toHaveLength(1)
 		expect(output.complete).toBe(true)
 		expect(output.touchedFiles).toEqual(['src/ported.ts'])
-		expect(output.toolCallLog).toHaveLength(2)
-		expect(output.toolCallLog[0]?.toolName).toBe('Read')
-		expect(output.toolCallLog[1]?.toolName).toBe('Edit')
-		expect(output.events).toEqual([
+		expect(output.trace.toolCallLog).toHaveLength(2)
+		expect(output.trace.toolCallLog[0]?.toolName).toBe('Read')
+		expect(output.trace.toolCallLog[1]?.toolName).toBe('Edit')
+		expect(output.trace.events).toEqual([
 			{
 				kind: 'tool_start',
 				toolName: 'Read',
@@ -313,7 +435,7 @@ describe('ClaudeAgentProvider', () => {
 				text: 'Applied source changes and updated imports.',
 			},
 		])
-		expect(output.notes).toContain('Applied source changes')
+		expect(output.trace.notes).toContain('Applied source changes')
 		expect(streamedMessages).toContainEqual({
 			kind: 'thinking',
 			text: 'Need to inspect the destination file before editing.',
@@ -372,9 +494,9 @@ describe('ClaudeAgentProvider', () => {
 		const output = await provider.executePort(makeInput())
 
 		expect(output.complete).toBe(false)
-		expect(output.notes).toContain('Attempted update but hit constraints.')
-		expect(output.notes).toContain('Reached max turns.')
-		expect(output.events).toEqual([
+		expect(output.trace.notes).toContain('Attempted update but hit constraints.')
+		expect(output.trace.notes).toContain('Reached max turns.')
+		expect(output.trace.events).toEqual([
 			{
 				kind: 'assistant_note',
 				text: 'Attempted update but hit constraints.',
