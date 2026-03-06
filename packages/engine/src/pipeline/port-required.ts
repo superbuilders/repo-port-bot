@@ -29,6 +29,7 @@ interface PortRequiredFlowInput {
 	commentStage: typeof commentOnSourcePr
 	logger: Logger
 	runId: string
+	sourceTitle?: string
 	startedAtMs: number
 	stageTimings: NonNullable<PortRunResult['stageTimings']>
 }
@@ -120,6 +121,7 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 
 	return {
 		runId: input.runId,
+		sourceTitle: input.sourceTitle,
 		outcome,
 		decision: input.decision,
 		execution,

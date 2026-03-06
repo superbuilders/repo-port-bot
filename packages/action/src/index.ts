@@ -51,26 +51,35 @@ async function main(): Promise<void> {
 		core.setOutput('issue-url', result.followUpIssueUrl ?? '')
 		core.setOutput('summary', result.summary)
 
+		const heading = result.sourceTitle ? `Port: ${result.sourceTitle}` : 'Port run'
 		const outcomeLine = buildOutcomeLine(result)
 
-		core.summary.addRaw(`# ${result.summary}\n\n`)
+		core.summary.addRaw(`# ${heading}\n\n`)
 		core.summary.addRaw(`${outcomeLine}\n\n`)
 		core.summary.addTable([
 			[
-				{ data: 'Stage', header: true },
-				{ data: 'Duration', header: true },
+				{ data: 'context', header: true },
+				{ data: 'config', header: true },
+				{ data: 'decision', header: true },
+				{ data: 'execute', header: true },
+				{ data: 'deliver', header: true },
+				{ data: 'notify', header: true },
+				{ data: '**total**', header: true },
 			],
-			['context', formatMs(result.stageTimings?.contextMs)],
-			['config', formatMs(result.stageTimings?.configMs)],
-			['decision', formatMs(result.stageTimings?.decisionMs)],
-			['execute', formatMs(result.stageTimings?.executeMs)],
-			['deliver', formatMs(result.stageTimings?.deliverMs)],
-			['notify', formatMs(result.stageTimings?.notifyMs)],
-			['**total**', `**${formatMs(result.durationMs)}**`],
+			[
+				formatMs(result.stageTimings?.contextMs),
+				formatMs(result.stageTimings?.configMs),
+				formatMs(result.stageTimings?.decisionMs),
+				formatMs(result.stageTimings?.executeMs),
+				formatMs(result.stageTimings?.deliverMs),
+				formatMs(result.stageTimings?.notifyMs),
+				`**${formatMs(result.durationMs)}**`,
+			],
 		])
 		core.summary.addRaw(
 			[
-				'<details><summary>Decision & diagnostics</summary>\n',
+				'<details><summary>Decision & diagnostics</summary>',
+				'',
 				`- Kind: \`${result.decision.kind}\``,
 				`- Reason: ${result.decision.reason}`,
 				result.execution?.model ? `- Model: ${result.execution.model}` : undefined,
@@ -79,7 +88,9 @@ async function main(): Promise<void> {
 					: '- Artifact: skipped (runtime token unavailable)',
 				`- Tool calls: ${String(toolCalls.length)}`,
 				`- Run ID: \`${result.runId}\``,
-				'\n</details>\n',
+				'',
+				'</details>',
+				'',
 			]
 				.filter(Boolean)
 				.join('\n'),
@@ -95,38 +106,64 @@ async function main(): Promise<void> {
 void main()
 
 /**
- * Build a human-readable one-liner describing the outcome with links.
+ * Build a one-liner with short linked ref and duration.
  *
  * @param result - Pipeline result.
  * @returns Markdown one-liner.
  */
 function buildOutcomeLine(result: Awaited<ReturnType<typeof runAction>>): string {
+	const duration = formatMs(result.durationMs)
+
 	switch (result.outcome) {
 		case 'pr_opened': {
-			const link = result.targetPullRequestUrl ?? 'target PR'
+			const link = result.targetPullRequestUrl
+				? `[${shortRef(result.targetPullRequestUrl, 'pull')}](${result.targetPullRequestUrl})`
+				: 'target PR'
 
-			return `Ported to ${link} — validation passed, ready for review.`
+			return `Ported to ${link} (${duration})`
 		}
 		case 'draft_pr_opened': {
-			const link = result.targetPullRequestUrl ?? 'target PR (draft)'
+			const link = result.targetPullRequestUrl
+				? `[${shortRef(result.targetPullRequestUrl, 'pull')}](${result.targetPullRequestUrl})`
+				: 'target PR (draft)'
 
-			return `Opened draft PR: ${link} — validation failed after ${String(result.execution?.attempts ?? '?')} attempts.`
+			return `Draft PR: ${link} — validation failed (${duration})`
 		}
 		case 'needs_human': {
-			const link = result.followUpIssueUrl ?? 'follow-up issue'
+			const link = result.followUpIssueUrl
+				? `[${shortRef(result.followUpIssueUrl, 'issues')}](${result.followUpIssueUrl})`
+				: 'follow-up issue'
 
-			return `Opened ${link} for manual review.`
+			return `Opened ${link} for manual review (${duration})`
 		}
 		case 'skipped_not_required': {
-			return `Skipped — ${result.decision.reason}`
+			return `Skipped (${duration})`
 		}
 		case 'failed': {
-			return `Failed: ${result.summary}`
+			return `Failed (${duration})`
 		}
 		default: {
 			return result.summary
 		}
 	}
+}
+
+/**
+ * Extract a short `repo#N` reference from a GitHub URL.
+ *
+ * @param url - Full GitHub PR or issue URL.
+ * @param kind - URL path segment (`pull` or `issues`).
+ * @returns Short reference like `target-repo#6`.
+ */
+function shortRef(url: string, kind: 'pull' | 'issues'): string {
+	const pattern = new RegExp(`github\\.com/[^/]+/([^/]+)/${kind}/(\\d+)`)
+	const match = url.match(pattern)
+
+	if (!match) {
+		return url
+	}
+
+	return `${match[1]}#${match[2]}`
 }
 
 /**

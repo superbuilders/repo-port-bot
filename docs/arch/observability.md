@@ -117,13 +117,12 @@ Notes:
 
 ## Job summary
 
-The action writes a summary via `core.summary` including:
+The action writes a summary via `core.summary` with a clean layout:
 
-- Run ID, outcome, duration
-- Source PR link and target PR/issue link
-- Decision rationale (one line)
-- Attempt count and final validation status
-- Timing breakdown (context, decision, execution, delivery)
+- **H1**: source PR title (e.g. `# Port: Add formatting/date helpers`)
+- **One-liner**: outcome with linked target PR and total duration (e.g. `Ported to [target-repo#6](url) · 39.5s`)
+- **Timing table**: horizontal stage breakdown showing where time was spent
+- **Collapsible details**: decision kind, reason, model, artifact, tool call count, run ID
 
 This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log.
 

@@ -842,6 +842,11 @@ export interface PortRunResult {
 	runId: string
 
 	/**
+	 * Source PR title when available, for use in job summaries and logs.
+	 */
+	sourceTitle?: string
+
+	/**
 	 * Terminal outcome of the run.
 	 */
 	outcome: PortRunOutcome
