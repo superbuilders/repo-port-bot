@@ -91,6 +91,7 @@ describe('executePort', () => {
 					complete: true,
 					notes: 'Applied source changes.',
 					toolCallLog: [],
+					events: [],
 				}
 			},
 		}
@@ -142,6 +143,12 @@ describe('executePort', () => {
 							output: { ok: true },
 						},
 					],
+					events: [
+						{
+							kind: 'assistant_note',
+							text: `Attempt ${String(callCount)} update.`,
+						},
+					],
 				}
 			},
 		}
@@ -158,6 +165,14 @@ describe('executePort', () => {
 		expect(result.history).toHaveLength(2)
 		expect(result.history[0]?.validation[0]?.ok).toBe(false)
 		expect(result.history[1]?.validation[0]?.ok).toBe(true)
+		expect(result.history[0]?.events[0]).toEqual({
+			kind: 'assistant_note',
+			text: 'Attempt 1 update.',
+		})
+		expect(result.history[1]?.events[0]).toEqual({
+			kind: 'assistant_note',
+			text: 'Attempt 2 update.',
+		})
 		expect(previousAttemptLengths).toEqual([0, 1])
 		expect(result.touchedFiles.sort()).toEqual(['src/first-pass.ts', 'src/fix-pass.ts'])
 	})
@@ -173,6 +188,7 @@ describe('executePort', () => {
 					touchedFiles: ['src/failing.ts'],
 					complete: true,
 					toolCallLog: [],
+					events: [],
 				}
 			},
 		}
@@ -236,6 +252,7 @@ describe('executePort', () => {
 					touchedFiles: ['src/failing.ts'],
 					complete: true,
 					toolCallLog: [],
+					events: [],
 				}
 			},
 		}
@@ -295,6 +312,7 @@ describe('executePort', () => {
 					touchedFiles: ['src/example.ts'],
 					complete: true,
 					toolCallLog: [],
+					events: [],
 				}
 			},
 		}

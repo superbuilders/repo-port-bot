@@ -96,6 +96,15 @@ Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
 
 <agent summary — per-file descriptions of changes>
 
+<details><summary>Agent Work Log</summary>
+
+Read `src/date.ts`
+Edited `src/date.ts`
+Ran `bun run check` (18.6s)
+Both changes have been applied successfully.
+
+</details>
+
 <details><summary>Validation & diagnostics</summary>
 
 - [PASS] `bun run check`
@@ -112,14 +121,15 @@ Key design choices:
 - **`## Cross-repo port`** heading with source narrative immediately below — orients the reader in one glance
 - **Decision reason as blockquote** — reads as context, not a separate section
 - **`### What was ported`** is the main content — the agent's per-file summary gets top billing
+- **`Agent Work Log` as a collapsed details block** — preserves chronological assistant notes + humanized tool steps without overwhelming the default PR view
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
 - **At-a-glance stats line** (`2 files changed · 1 attempt · 5 tool calls · 18.6s`) between the source narrative and reason blockquote — sets reviewer expectations for diff size and shows how fast the agent worked
 - **Decision blockquote** includes the agent model name (e.g. `claude-sonnet-4-6`) as a trailing bullet, keeping "who and why" context together
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
 
-For **multi-attempt runs** (stalled ports), the "What was ported" section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) with touched-in-attempt lines. Single-attempt runs omit this nesting.
+For **multi-attempt runs** (stalled ports), the `Agent Work Log` section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) so retries are easy to follow.
 
-**How agent notes are captured:** The provider keeps only the text from the _last_ assistant message before the SDK returns a result. In practice the model's final message is a natural wrap-up summary (per-file descriptions, what was added/changed), but this is emergent behavior — there is no explicit prompt instruction requesting a structured summary. If consistency becomes an issue, a follow-up could add a closing instruction to the system prompt or post-process the notes into a fixed format.
+**How summaries/logs are captured:** The provider keeps only the text from the _last_ assistant message as the polished `### What was ported` summary. In parallel, it now records ordered attempt events (assistant text + tool start/end lifecycle) so the PR renderer can build the collapsed, humanized `Agent Work Log` narrative.
 
 **PR state:**
 

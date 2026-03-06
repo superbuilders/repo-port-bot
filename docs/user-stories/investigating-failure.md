@@ -39,10 +39,10 @@ Define what a productive debugging session looks like. The maintainer should be 
 
 3. **Maintainer opens the Actions run**
     - From the source repo's Actions tab, they find the "Port Bot" workflow run for the relevant push event.
-    - The **Summary tab** leads with a narrative:
-        - H1 headline summarizing the outcome (e.g. "Port PR opened: url (1 attempts)").
-        - One-liner with links: "Ported to target-repo#3 — validation passed, ready for review."
-        - Stage timing table with human-readable durations and a total row.
+    - The **Summary tab** leads with:
+        - H1 with the source PR title (e.g. `# Port: Add formatting/date helpers`).
+        - One-liner with outcome and linked target PR: "Ported to [target-repo#3](url) · 39.5s".
+        - Horizontal stage timing breakdown showing the pipeline flow and where time was spent.
         - Collapsible "Decision & diagnostics" section with decision kind, reason, model, artifact name, tool call count, and run ID.
     - This tells the maintainer which stage is the bottleneck or failure point. A decision that took 4.5s means the classifier ran (not a heuristic). An execution stage taking the bulk of the time means the agent was working. A missing delivery timing means the pipeline crashed before delivery.
 

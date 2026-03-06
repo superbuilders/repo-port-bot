@@ -116,6 +116,7 @@ describe('runAction', () => {
 							touchedFiles: [],
 							complete: true,
 							toolCallLog: [],
+							events: [],
 						}
 					},
 				}) as AgentProvider,

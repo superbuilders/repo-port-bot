@@ -64,8 +64,9 @@ Define what "working" means from a maintainer perspective when a change in one r
         - at-a-glance stats line (`2 files changed · 1 attempt · 5 tool calls · 18.6s`)
         - decision reason as blockquote with model name (classifier or heuristic explanation)
         - `### What was ported` — the agent's per-file summary of changes (the main content)
+        - collapsed `Agent Work Log` with chronological assistant notes and humanized tool actions (for retries, grouped by attempt)
         - collapsible `Validation & diagnostics` section with pass/fail results
-        - `Ported-By: repo-port-bot` footer linking to the bot repository (loop prevention signal)
+        - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention signal remains the git trailer `Ported-By: repo-port-bot`)
 
 7. **Maintainer reviews a small, traceable PR**
     - Maintainer sees a focused change set.

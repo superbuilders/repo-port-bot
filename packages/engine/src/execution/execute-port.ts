@@ -112,6 +112,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 					validation,
 					notes: attemptNotes,
 					toolCallLog: agentOutput.toolCallLog,
+					events: agentOutput.events,
 				}
 
 				history.push(attempt)
@@ -174,6 +175,7 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 					validation: [],
 					notes: `Agent provider error: ${errorMessage}`,
 					toolCallLog: [],
+					events: [],
 				}
 
 				history.push(attempt)

@@ -53,9 +53,10 @@ Define what "good failure" looks like when an automated port is attempted but ca
         - `## Cross-repo port` heading with source narrative
         - at-a-glance stats line (files, attempts, tool calls, duration)
         - decision reason as blockquote with model name
-        - `### What was ported` — per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.) with touched files and agent notes for each attempt
+        - `### What was ported` — polished summary of what changed
+        - collapsed `Agent Work Log` showing chronological assistant notes and humanized tool actions; for retries this section includes per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.)
         - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes and failure reason
-        - `Ported-By: repo-port-bot` footer linking to the bot repository (loop prevention)
+        - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention remains the git trailer `Ported-By: repo-port-bot`)
 
 6. **Source PR receives a notification comment**
     - Best-effort comment on the merged source PR: "Port attempted (N files) but validation failed after retries. Opened a draft PR: `<url>`."

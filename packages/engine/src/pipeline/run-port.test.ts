@@ -133,6 +133,7 @@ function makeExecution(success: boolean): ExecutionResult {
 				validation: [],
 				notes: success ? 'Done.' : 'Validation failed after retries.',
 				toolCallLog: [],
+				events: [],
 			},
 		],
 		touchedFiles: ['src/ported.ts'],

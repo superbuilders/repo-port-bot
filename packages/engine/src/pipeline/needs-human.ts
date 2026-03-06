@@ -17,6 +17,7 @@ interface NeedsHumanFlowInput {
 	commentStage: typeof commentOnSourcePr
 	logger: Logger
 	runId: string
+	sourceTitle?: string
 	startedAtMs: number
 	stageTimings: NonNullable<PortRunResult['stageTimings']>
 }
@@ -81,6 +82,7 @@ export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<Por
 
 	return {
 		runId: input.runId,
+		sourceTitle: input.sourceTitle,
 		outcome: 'needs_human',
 		decision: input.decision,
 		followUpIssueUrl: delivery.followUpIssueUrl,

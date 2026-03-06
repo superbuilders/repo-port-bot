@@ -85,6 +85,8 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		commentOnSourcePr: options.stageOverrides?.commentOnSourcePr ?? commentOnSourcePr,
 	}
 
+	let sourceTitle: string | undefined = undefined
+
 	try {
 		const sourceChange: SourceChange = await (async () => {
 			logger.group(
@@ -111,6 +113,8 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 				logger.groupEnd()
 			}
 		})()
+
+		sourceTitle = sourceChange.pullRequest?.title
 
 		const pluginConfig: PluginConfig = await (async () => {
 			logger.group('Config: resolve plugin config')
@@ -195,6 +199,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 
 			return {
 				runId,
+				sourceTitle,
 				outcome: 'skipped_not_required',
 				decision,
 				summary: renderRunSummary({ outcome: 'skipped_not_required', decision }),
@@ -213,6 +218,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 				commentStage: stages.commentOnSourcePr,
 				logger,
 				runId,
+				sourceTitle,
 				startedAtMs,
 				stageTimings,
 			})
@@ -232,6 +238,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			commentStage: stages.commentOnSourcePr,
 			logger,
 			runId,
+			sourceTitle,
 			startedAtMs,
 			stageTimings,
 		})
@@ -263,6 +270,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 
 		return {
 			runId,
+			sourceTitle,
 			outcome: 'failed',
 			decision: failureDecision,
 			summary: renderRunSummary({
