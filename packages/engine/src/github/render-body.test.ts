@@ -118,41 +118,44 @@ describe('render-body', () => {
 		expect(title).toBe('Port: Add execution orchestration (#42)')
 	})
 
-	test('renders PR body with source link, validation summary, files, and footer', () => {
+	test('renders compact PR body with cross-repo heading, blockquote reason, and collapsible diagnostics', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(true),
 		})
 
+		expect(body).toContain('## Cross-repo port')
 		expect(body).toContain(
-			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in `acme/source-repo`.',
+			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in [`acme/source-repo`](https://github.com/acme/source-repo).',
 		)
-		expect(body).toContain('## Why this was ported')
-		expect(body).toContain('Decision reason')
-		expect(body).not.toContain('Kind:')
-		expect(body).toContain('## Files touched')
-		expect(body).toContain('`src/app.ts`')
-		expect(body).toContain('## Validation')
+		expect(body).toContain('> Decision reason')
+		expect(body).toContain('### What was ported')
+		expect(body).toContain('Looks good.')
+		expect(body).toContain('<details><summary>Validation & diagnostics</summary>')
 		expect(body).toContain('[PASS] `bun run check`')
-		expect(body).toContain('- Attempts: 1')
-		expect(body).toContain('- Tool calls: 0')
-		expect(body).toContain('Ported-By: repo-port-bot')
+		expect(body).toContain('1 file changed · 1 attempt · 0 tool calls')
+		expect(body).not.toContain('Final status')
+		expect(body).not.toContain('### Attempt 1')
+		expect(body).toContain(
+			'[Ported-By: repo-port-bot](https://github.com/superbuilders/repo-port-bot)',
+		)
 	})
 
-	test('renders draft/stalled PR details for failed execution', () => {
+	test('renders draft/stalled PR with details open and failure info', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(false),
 		})
 
+		expect(body).toContain('<details open><summary>Validation & diagnostics</summary>')
 		expect(body).toContain('[FAIL] `bun run check`')
 		expect(body).toContain('Final status: validation failed after retries.')
 		expect(body).toContain('Failure reason: Validation failed after retries.')
 	})
 
-	test('renders explicit validation-not-run line when no commands are configured', () => {
+	test('renders validation-not-run in diagnostics when no commands configured', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContextWithoutValidationCommands(),
 			decision: makeDecision('PORT_REQUIRED'),
@@ -160,6 +163,7 @@ describe('render-body', () => {
 		})
 
 		expect(body).toContain('Validation not run (no validation commands configured).')
+		expect(body).not.toContain('Final status')
 	})
 
 	test('renders needs-human issue title and body with rationale and signals', () => {
@@ -198,7 +202,7 @@ describe('render-body', () => {
 		})
 
 		expect(body).toContain(
-			'Ported to https://github.com/acme/target-repo/pull/901. Validation passed',
+			'Ported to https://github.com/acme/target-repo/pull/901 (1 file, validation passed)',
 		)
 		expect(body).toContain('**Why:** Decision reason')
 	})

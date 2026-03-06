@@ -239,6 +239,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 			complete: resultMessage.subtype === 'success',
 			notes,
 			toolCallLog,
+			model: this.options.model ?? DEFAULT_MODEL,
 		}
 	}
 }

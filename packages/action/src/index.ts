@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { DefaultArtifactClient } from '@actions/artifact'
 import * as core from '@actions/core'
+import { formatDuration } from '@repo-port-bot/engine'
 
 import { runAction } from './run-action.ts'
 
@@ -49,73 +50,40 @@ async function main(): Promise<void> {
 		core.setOutput('pr-url', result.targetPullRequestUrl ?? '')
 		core.setOutput('issue-url', result.followUpIssueUrl ?? '')
 		core.setOutput('summary', result.summary)
-		core.summary.addHeading('repo-port-bot result')
-		core.summary.addTable([
-			[
-				{ data: 'Field', header: true },
-				{ data: 'Value', header: true },
-			],
-			['Run ID', result.runId],
-			['Outcome', result.outcome],
-			['Duration (ms)', String(result.durationMs)],
-			[
-				'Source PR',
-				result.decision.kind === 'PORT_NOT_REQUIRED' ? 'Skipped' : 'See source PR comment',
-			],
-			['Target PR', result.targetPullRequestUrl ?? 'N/A'],
-			['Follow-up issue', result.followUpIssueUrl ?? 'N/A'],
-		])
-		core.summary.addHeading('Decision', 2)
-		core.summary.addRaw(`- Kind: \`${result.decision.kind}\`\n`)
-		core.summary.addRaw(`- Reason: ${result.decision.reason}\n`)
 
-		if (result.execution) {
-			core.summary.addHeading('Execution', 2)
-			core.summary.addRaw(`- Attempts: ${String(result.execution.attempts)}\n`)
-			core.summary.addRaw(`- Success: ${result.execution.success ? 'yes' : 'no'}\n`)
-			core.summary.addRaw(
-				`- Touched files: ${String(result.execution.touchedFiles.length)}\n`,
-			)
-		}
+		const outcomeLine = buildOutcomeLine(result)
 
-		core.summary.addHeading('Stage timings', 2)
+		core.summary.addRaw(`# ${result.summary}\n\n`)
+		core.summary.addRaw(`${outcomeLine}\n\n`)
 		core.summary.addTable([
 			[
 				{ data: 'Stage', header: true },
-				{ data: 'Duration (ms)', header: true },
+				{ data: 'Duration', header: true },
 			],
-			[
-				'context',
-				result.stageTimings?.contextMs ? String(result.stageTimings.contextMs) : 'N/A',
-			],
-			[
-				'config',
-				result.stageTimings?.configMs ? String(result.stageTimings.configMs) : 'N/A',
-			],
-			[
-				'decision',
-				result.stageTimings?.decisionMs ? String(result.stageTimings.decisionMs) : 'N/A',
-			],
-			[
-				'execute',
-				result.stageTimings?.executeMs ? String(result.stageTimings.executeMs) : 'N/A',
-			],
-			[
-				'deliver',
-				result.stageTimings?.deliverMs ? String(result.stageTimings.deliverMs) : 'N/A',
-			],
-			[
-				'notify',
-				result.stageTimings?.notifyMs ? String(result.stageTimings.notifyMs) : 'N/A',
-			],
+			['context', formatMs(result.stageTimings?.contextMs)],
+			['config', formatMs(result.stageTimings?.configMs)],
+			['decision', formatMs(result.stageTimings?.decisionMs)],
+			['execute', formatMs(result.stageTimings?.executeMs)],
+			['deliver', formatMs(result.stageTimings?.deliverMs)],
+			['notify', formatMs(result.stageTimings?.notifyMs)],
+			['**total**', `**${formatMs(result.durationMs)}**`],
 		])
-		core.summary.addHeading('Artifact', 2)
 		core.summary.addRaw(
-			artifactUploaded
-				? `- Uploaded: \`port-bot-run-${result.runId}\`\n`
-				: '- Uploaded: skipped (runtime token unavailable)\n',
+			[
+				'<details><summary>Decision & diagnostics</summary>\n',
+				`- Kind: \`${result.decision.kind}\``,
+				`- Reason: ${result.decision.reason}`,
+				result.execution?.model ? `- Model: ${result.execution.model}` : undefined,
+				artifactUploaded
+					? `- Artifact: \`port-bot-run-${result.runId}\``
+					: '- Artifact: skipped (runtime token unavailable)',
+				`- Tool calls: ${String(toolCalls.length)}`,
+				`- Run ID: \`${result.runId}\``,
+				'\n</details>\n',
+			]
+				.filter(Boolean)
+				.join('\n'),
 		)
-		core.summary.addRaw(`- Tool calls: ${String(toolCalls.length)}\n`)
 		await core.summary.write()
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
@@ -125,5 +93,54 @@ async function main(): Promise<void> {
 }
 
 void main()
+
+/**
+ * Build a human-readable one-liner describing the outcome with links.
+ *
+ * @param result - Pipeline result.
+ * @returns Markdown one-liner.
+ */
+function buildOutcomeLine(result: Awaited<ReturnType<typeof runAction>>): string {
+	switch (result.outcome) {
+		case 'pr_opened': {
+			const link = result.targetPullRequestUrl ?? 'target PR'
+
+			return `Ported to ${link} — validation passed, ready for review.`
+		}
+		case 'draft_pr_opened': {
+			const link = result.targetPullRequestUrl ?? 'target PR (draft)'
+
+			return `Opened draft PR: ${link} — validation failed after ${String(result.execution?.attempts ?? '?')} attempts.`
+		}
+		case 'needs_human': {
+			const link = result.followUpIssueUrl ?? 'follow-up issue'
+
+			return `Opened ${link} for manual review.`
+		}
+		case 'skipped_not_required': {
+			return `Skipped — ${result.decision.reason}`
+		}
+		case 'failed': {
+			return `Failed: ${result.summary}`
+		}
+		default: {
+			return result.summary
+		}
+	}
+}
+
+/**
+ * Format milliseconds for display, returning 'N/A' when undefined.
+ *
+ * @param ms - Duration in milliseconds.
+ * @returns Formatted string.
+ */
+function formatMs(ms: number | undefined): string {
+	if (ms === undefined) {
+		return 'N/A'
+	}
+
+	return formatDuration(ms)
+}
 
 export { runAction } from './run-action.ts'

@@ -60,8 +60,10 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 		throw new Error('`maxAttempts` must be greater than or equal to 1.')
 	}
 
+	const executionStartedAtMs = Date.now()
 	const history: ExecutionAttempt[] = []
 	const touchedFiles = new Set<string>()
+	let agentModel: string | undefined = undefined
 
 	for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber += 1) {
 		const attemptStartedAtMs = Date.now()
@@ -87,6 +89,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						})
 					},
 				})
+
+				agentModel ??= agentOutput.model
 
 				for (const path of agentOutput.touchedFiles) {
 					touchedFiles.add(path)
@@ -146,6 +150,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						attempts: history.length,
 						history,
 						touchedFiles: [...touchedFiles],
+						model: agentModel,
+						durationMs: Date.now() - executionStartedAtMs,
 					}
 				}
 
@@ -156,6 +162,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 						history,
 						touchedFiles: [...touchedFiles],
 						failureReason: buildValidationFailureReason(validation, history.length),
+						model: agentModel,
+						durationMs: Date.now() - executionStartedAtMs,
 					}
 				}
 			} catch (error) {
@@ -196,6 +204,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 					history,
 					touchedFiles: [...touchedFiles],
 					failureReason: `Agent provider failed on attempt ${String(attemptNumber)}: ${errorMessage}`,
+					model: agentModel,
+					durationMs: Date.now() - executionStartedAtMs,
 				}
 			}
 		} finally {
@@ -209,6 +219,8 @@ export async function executePort(options: ExecutePortOptions): Promise<Executio
 		history,
 		touchedFiles: [...touchedFiles],
 		failureReason: `Execution stopped before completing after ${String(history.length)} attempts.`,
+		model: agentModel,
+		durationMs: Date.now() - executionStartedAtMs,
 	}
 }
 

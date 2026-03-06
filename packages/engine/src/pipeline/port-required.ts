@@ -89,11 +89,12 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 	}
 
 	const outcome = delivery.outcome
-	const notifyMs: number | undefined = await (async () => {
+
+	await (async () => {
 		input.logger.group('Notify: source PR comment')
 
 		try {
-			return await postSourcePrCommentBestEffort({
+			const ms = await postSourcePrCommentBestEffort({
 				commentStage: input.commentStage,
 				context: input.context,
 				decision: input.decision,
@@ -103,17 +104,17 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 				runId: input.runId,
 				logger: input.logger,
 			})
+
+			if (ms !== undefined) {
+				logStage(input.logger, input.runId, 'notify', {
+					outcome,
+					notifyMs: (input.stageTimings.notifyMs = ms),
+				})
+			}
 		} finally {
 			input.logger.groupEnd()
 		}
 	})()
-
-	if (notifyMs !== undefined) {
-		logStage(input.logger, input.runId, 'notify', {
-			outcome,
-			notifyMs: (input.stageTimings.notifyMs = notifyMs),
-		})
-	}
 
 	logOutcome(input.logger, input.runId, outcome, getDurationMs(input.startedAtMs))
 

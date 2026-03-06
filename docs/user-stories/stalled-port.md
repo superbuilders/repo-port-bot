@@ -49,18 +49,16 @@ Define what "good failure" looks like when an automated port is attempted but ca
     - The delivery stage commits the agent's final working tree state (even though validation failed) and force-pushes the port branch. If the branch already exists from a previous run, the force-push replaces it.
     - A **draft** pull request is created. If one already exists for the same port branch (from a prior attempt), the existing PR is updated with the new body instead of creating a duplicate.
     - Labels applied: `auto-port` + `port-stalled`.
-    - PR body includes:
-        - Source narrative: `Ported from [<title>](<url>) in <owner>/<repo>.`
-        - "Why this was ported" prose section with the classifier/heuristic reason.
-        - Files touched across all attempts.
-        - Validation summary showing which commands passed and which failed (with exit codes).
-        - Final status line: "validation failed after retries" with the failure reason.
-        - Compact execution metrics (attempts, files touched, tool call count).
-        - Per-attempt notes in stable sections (for example `### Attempt 1`), containing the agent's final summary for that attempt (per-file descriptions, uncertainty flags), not intermediate working narration.
-        - `Ported-By: repo-port-bot` footer (loop prevention).
+    - PR body follows the same compact layout as successful ports, but with key differences:
+        - `## Cross-repo port` heading with source narrative
+        - at-a-glance stats line (files, attempts, tool calls, duration)
+        - decision reason as blockquote with model name
+        - `### What was ported` — per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.) with touched files and agent notes for each attempt
+        - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes and failure reason
+        - `Ported-By: repo-port-bot` footer linking to the bot repository (loop prevention)
 
 6. **Source PR receives a notification comment**
-    - Best-effort comment on the merged source PR: "Port attempted but validation failed after retries. Opened a draft PR: `<url>`."
+    - Best-effort comment on the merged source PR: "Port attempted (N files) but validation failed after retries. Opened a draft PR: `<url>`."
     - This is how the maintainer discovers the stall without having to check the target repo.
 
 7. **Maintainer triages the draft PR**

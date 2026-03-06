@@ -1,4 +1,8 @@
 const MIN_DURATION_MS = 1
+const MS_PER_SECOND = 1000
+const MS_PER_TENTH_SECOND = 100
+const TENTHS_PER_SECOND = 10
+const MS_PER_MINUTE = 60_000
 
 /**
  * Measure elapsed runtime in milliseconds.
@@ -8,6 +12,29 @@ const MIN_DURATION_MS = 1
  */
 export function getDurationMs(startedAtMs: number): number {
 	return Math.max(MIN_DURATION_MS, Date.now() - startedAtMs)
+}
+
+/**
+ * Format milliseconds as a human-readable duration string.
+ *
+ * @param ms - Duration in milliseconds.
+ * @returns Formatted string like `3m23s`, `18.6s`, or `234ms`.
+ */
+export function formatDuration(ms: number): string {
+	if (ms < MS_PER_SECOND) {
+		return `${String(ms)}ms`
+	}
+
+	if (ms < MS_PER_MINUTE) {
+		const truncatedTenths = Math.floor(ms / MS_PER_TENTH_SECOND) / TENTHS_PER_SECOND
+
+		return `${truncatedTenths.toFixed(1)}s`
+	}
+
+	const minutes = Math.floor(ms / MS_PER_MINUTE)
+	const seconds = Math.floor((ms % MS_PER_MINUTE) / MS_PER_SECOND)
+
+	return `${String(minutes)}m${String(seconds).padStart(2, '0')}s`
 }
 
 /**

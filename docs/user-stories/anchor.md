@@ -59,13 +59,13 @@ Define what "working" means from a maintainer perspective when a change in one r
     - On first run, a new PR is created. On re-runs where the port branch already has an open PR, the existing PR is updated with fresh output rather than failing.
     - PR title follows predictable format:
         - `Port: <source PR title> (#<source PR number>)`
-    - PR body includes:
-        - source narrative: `Ported from [<title>](<url>) in <owner>/<repo>.`
-        - "Why this was ported" prose section with the classifier/heuristic reason
-        - files touched
-        - validation commands and results
-        - per-attempt agent summary (per-file descriptions, assumptions, uncertainty flags — not intermediate narration)
-        - `Ported-By: repo-port-bot` footer (loop prevention signal)
+    - PR body follows a compact layout:
+        - `## Cross-repo port` heading with source narrative (`Ported from [<title>](<url>) in <repo>`)
+        - at-a-glance stats line (`2 files changed · 1 attempt · 5 tool calls · 18.6s`)
+        - decision reason as blockquote with model name (classifier or heuristic explanation)
+        - `### What was ported` — the agent's per-file summary of changes (the main content)
+        - collapsible `Validation & diagnostics` section with pass/fail results
+        - `Ported-By: repo-port-bot` footer linking to the bot repository (loop prevention signal)
 
 7. **Maintainer reviews a small, traceable PR**
     - Maintainer sees a focused change set.
