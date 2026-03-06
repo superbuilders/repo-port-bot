@@ -3,7 +3,11 @@ import { join } from 'node:path'
 
 import { DefaultArtifactClient } from '@actions/artifact'
 import * as core from '@actions/core'
-import { formatDuration } from '@repo-port-bot/engine'
+import {
+	formatDuration,
+	renderDecisionLogSummary,
+	renderExecutionLogSummary,
+} from '@repo-port-bot/engine'
 
 import { runAction } from './run-action.ts'
 
@@ -14,25 +18,25 @@ async function main(): Promise<void> {
 	try {
 		const result = await runAction()
 		const artifactDirectory = join(process.cwd(), `port-bot-run-${result.runId}`)
-		const toolCalls =
+		const executionToolCalls =
 			result.execution?.trace.attempts.flatMap(attempt => attempt.trace.toolCallLog) ?? []
 		const decisionToolCalls = result.decision.trace.toolCallLog
 		const runResultPath = join(artifactDirectory, 'run-result.json')
-		const toolCallsPath = join(artifactDirectory, 'tool-calls.json')
+		const executionToolCallsPath = join(artifactDirectory, 'tool-calls.json')
 		const decisionToolCallsPath = join(artifactDirectory, 'decision-tool-calls.json')
 		const artifactClient = new DefaultArtifactClient()
 		let artifactUploaded = false
 
 		await mkdir(artifactDirectory, { recursive: true })
 		await writeFile(runResultPath, JSON.stringify(result, null, 2))
-		await writeFile(toolCallsPath, JSON.stringify(toolCalls, null, 2))
+		await writeFile(executionToolCallsPath, JSON.stringify(executionToolCalls, null, 2))
 		await writeFile(decisionToolCallsPath, JSON.stringify(decisionToolCalls, null, 2))
 
 		if (process.env.ACTIONS_RUNTIME_TOKEN) {
 			try {
 				await artifactClient.uploadArtifact(
 					`port-bot-run-${result.runId}`,
-					[runResultPath, toolCallsPath, decisionToolCallsPath],
+					[runResultPath, executionToolCallsPath, decisionToolCallsPath],
 					artifactDirectory,
 					{ retentionDays: 14 },
 				)
@@ -57,6 +61,7 @@ async function main(): Promise<void> {
 
 		const heading = result.sourceTitle ? `Port: ${result.sourceTitle}` : 'Port run'
 		const outcomeLine = buildOutcomeLine(result)
+		const model = result.execution?.trace.model ?? result.decision.trace.model
 
 		core.summary.addRaw(`# ${heading}\n\n`)
 		core.summary.addRaw(`${outcomeLine}\n\n`)
@@ -80,29 +85,31 @@ async function main(): Promise<void> {
 				`<b>${formatMs(result.durationMs)}</b>`,
 			],
 		])
+
+		const decisionTrace = result.decision.trace
+		const decisionDuration =
+			decisionTrace.durationMs !== undefined
+				? ` · ${formatDuration(decisionTrace.durationMs)}`
+				: ''
+		const decisionLabel = `Decision (${String(decisionToolCalls.length)} tool call${decisionToolCalls.length === 1 ? '' : 's'}${decisionDuration})`
+		const decisionLog = renderDecisionLogSummary(decisionTrace)
+
 		core.summary.addRaw(
 			[
 				'',
-				'<details><summary>Decision & diagnostics</summary>',
+				`<details><summary>${decisionLabel}</summary>`,
 				'',
-				`- Kind: \`${result.decision.outcome.kind}\``,
+				`- Kind: \`${decisionTrace.source === 'classifier' ? result.decision.outcome.kind : `${result.decision.outcome.kind} (${decisionTrace.source})`}\``,
 				`- Reason: ${result.decision.outcome.reason}`,
-				`- Decision source: \`${result.decision.trace.source}\``,
-				result.decision.trace.heuristicName
-					? `- Heuristic: \`${result.decision.trace.heuristicName}\``
+				decisionTrace.heuristicName
+					? `- Heuristic: \`${decisionTrace.heuristicName}\``
 					: undefined,
-				result.decision.trace.model
-					? `- Decision model: \`${result.decision.trace.model}\``
-					: undefined,
-				result.execution?.trace.model
-					? `- Model: ${result.execution.trace.model}`
-					: undefined,
-				artifactUploaded
-					? `- Artifact: \`port-bot-run-${result.runId}\``
-					: '- Artifact: skipped (runtime token unavailable)',
-				`- Tool calls: ${String(toolCalls.length)}`,
-				`- Decision tool calls: ${String(decisionToolCalls.length)}`,
-				`- Run ID: \`${result.runId}\``,
+				decisionLog ? '' : undefined,
+				decisionLog ? '<details><summary>Log</summary>' : undefined,
+				decisionLog ? '' : undefined,
+				decisionLog,
+				decisionLog ? '' : undefined,
+				decisionLog ? '</details>' : undefined,
 				'',
 				'</details>',
 				'',
@@ -110,6 +117,54 @@ async function main(): Promise<void> {
 				.filter(line => line !== undefined)
 				.join('\n'),
 		)
+
+		if (result.execution) {
+			const executionLog = renderExecutionLogSummary(result.execution)
+			const execDuration =
+				result.execution.trace.durationMs !== undefined
+					? ` · ${formatDuration(result.execution.trace.durationMs)}`
+					: ''
+			const executionLabel = `Execution (${String(executionToolCalls.length)} tool call${executionToolCalls.length === 1 ? '' : 's'}${execDuration})`
+
+			core.summary.addRaw(
+				[
+					`<details><summary>${executionLabel}</summary>`,
+					'',
+					model ? `- Model: \`${model}\`` : undefined,
+					artifactUploaded ? `- Artifact: \`port-bot-run-${result.runId}\`` : undefined,
+					`- Run ID: \`${result.runId}\``,
+					executionLog ? '' : undefined,
+					executionLog ? '<details><summary>Log</summary>' : undefined,
+					executionLog ? '' : undefined,
+					executionLog,
+					executionLog ? '' : undefined,
+					executionLog ? '</details>' : undefined,
+					'',
+					'</details>',
+					'',
+				]
+					.filter(line => line !== undefined)
+					.join('\n'),
+			)
+		} else {
+			core.summary.addRaw(
+				[
+					`<details><summary>Execution</summary>`,
+					'',
+					model ? `- Model: \`${model}\`` : undefined,
+					artifactUploaded ? `- Artifact: \`port-bot-run-${result.runId}\`` : undefined,
+					`- Run ID: \`${result.runId}\``,
+					'- _No execution (skipped or needs-human)_',
+					'',
+					'</details>',
+					'',
+				]
+					.filter(line => line !== undefined)
+					.join('\n'),
+			)
+		}
+
+		core.summary.addRaw(`\n<sub>Job summary generated at run-time</sub>\n`)
 		await core.summary.write()
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
@@ -121,41 +176,39 @@ async function main(): Promise<void> {
 void main()
 
 /**
- * Build a one-liner with short linked ref and duration.
+ * Build a one-liner with short linked ref.
  *
  * @param result - Pipeline result.
  * @returns Markdown one-liner.
  */
 function buildOutcomeLine(result: Awaited<ReturnType<typeof runAction>>): string {
-	const duration = formatMs(result.durationMs)
-
 	switch (result.outcome) {
 		case 'pr_opened': {
 			const link = result.targetPullRequestUrl
 				? `[${shortRef(result.targetPullRequestUrl, 'pull')}](${result.targetPullRequestUrl})`
 				: 'target PR'
 
-			return `Ported to ${link} (${duration})`
+			return `Ported to ${link}`
 		}
 		case 'draft_pr_opened': {
 			const link = result.targetPullRequestUrl
 				? `[${shortRef(result.targetPullRequestUrl, 'pull')}](${result.targetPullRequestUrl})`
 				: 'target PR (draft)'
 
-			return `Draft PR: ${link} — validation failed (${duration})`
+			return `Draft PR: ${link} — validation failed`
 		}
 		case 'needs_human': {
 			const link = result.followUpIssueUrl
 				? `[${shortRef(result.followUpIssueUrl, 'issues')}](${result.followUpIssueUrl})`
 				: 'follow-up issue'
 
-			return `Opened ${link} for manual review (${duration})`
+			return `Opened ${link} for manual review`
 		}
 		case 'skipped_not_required': {
-			return `Skipped (${duration})`
+			return 'Skipped — port not required'
 		}
 		case 'failed': {
-			return `Failed (${duration})`
+			return 'Failed'
 		}
 		default: {
 			return result.summary

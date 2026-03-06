@@ -122,18 +122,19 @@ The action writes a summary via `core.summary` with a clean layout:
 - **H1**: source PR title (e.g. `# Port: Add formatting/date helpers`)
 - **One-liner**: outcome with linked target PR (e.g. `Ported to [target-repo#6](url)`)
 - **Timing table**: horizontal stage breakdown showing where time was spent
-- **Collapsible Decision & diagnostics**: decision kind/reason, decision source (`heuristic`/`classifier`/`fallback`), heuristic name when present, model, artifact, tool call counts, run ID
-- **Collapsible Decision Log** (classifier only): humanized event trace from the classifier session — assistant reasoning in _italics_, tool calls in fenced code blocks, with summary provenance in the label (tool call count + duration)
-- **Collapsible Work Log**: humanized event trace from the execution session — same formatting as the Decision Log, with summary provenance in the label (attempts + tool call count + duration). For multi-attempt runs, per-attempt headings (`### Attempt 1`, etc.)
+- **Collapsible Decision** (`<n> tool calls · <duration>`): decision kind, reason, heuristic name when applicable. When the classifier ran, a nested collapsible **Log** shows the humanized event trace.
+- **Collapsible Execution** (`<n> tool calls · <duration>`): model, artifact name, run ID. A nested collapsible **Log** shows the humanized execution event trace. For multi-attempt runs, per-attempt headings (`### Attempt 1`, etc.) inside the log.
 
-The Decision Log and Work Log use the same humanization:
+The Decision and Execution sections are grouped by stage so the summary reads top-to-bottom: decision facts + decision log, then execution facts + execution log. Tool call counts and duration appear on the parent label; the nested log just contains the event narrative.
+
+Both logs use the same humanization:
 
 - assistant reasoning rendered as `_italic text_`
 - tool events grouped into fenced code blocks
 - `Glob` and `Grep` filtered out as low-signal
 - capped at a per-section block limit
 
-The Decision Log is only shown when the classifier ran (not for heuristic decisions). The Work Log is only shown when execution happened (not for skipped or needs-human outcomes).
+The Decision log is only shown when the classifier ran (not for heuristic decisions). The Execution section is omitted entirely when no execution happened (skipped or needs-human outcomes).
 
 This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log, while keeping the target PR body focused on what a reviewer needs (the decision reason + change summary).
 

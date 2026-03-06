@@ -138,7 +138,7 @@ Key design choices:
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
 
-Decision and execution event logs (Decision Log, Work Log) are surfaced in the **job summary** rather than the PR body — see [observability.md](observability.md) for the layout. This keeps the PR focused on what a reviewer needs (the blockquote reason + change summary) without duplicating trace data.
+Detailed event logs are surfaced in the **job summary** as nested collapsible "Log" sections inside the Decision and Execution blocks — see [observability.md](observability.md) for the layout. This keeps the PR focused on what a reviewer needs (the blockquote reason + change summary) without duplicating trace data.
 
 For **multi-attempt runs** (stalled ports), the `Work Log` section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) so retries are easy to follow.
 

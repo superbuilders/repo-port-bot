@@ -6,6 +6,7 @@ import type {
 	AgentSessionEvent,
 	AttemptEvent,
 	DecidePortResult,
+	DecisionTrace,
 	ExecutePortAttemptResult,
 	ExecutePortResult,
 	PortContext,
@@ -616,4 +617,47 @@ export function renderRunSummary(input: RenderRunSummaryInput): string {
 			return 'Port run completed.'
 		}
 	}
+}
+
+/**
+ * Render the decision event log body for the action job summary.
+ *
+ * Only produces output when the decision came from the LLM classifier.
+ * Heuristic/fallback decisions return `undefined`.
+ *
+ * @param trace - Decision trace from the run result.
+ * @returns Humanized event markdown or undefined.
+ */
+export function renderDecisionLogSummary(trace: DecisionTrace): string | undefined {
+	if (trace.source !== 'classifier' || trace.events.length === 0) {
+		return undefined
+	}
+
+	return renderEventBlocks(trace.events)
+}
+
+/**
+ * Render the execution event log body for the action job summary.
+ *
+ * @param execution - Execution result from the run.
+ * @returns Humanized event markdown or undefined when no execution happened.
+ */
+export function renderExecutionLogSummary(execution: ExecutePortResult): string | undefined {
+	if (execution.trace.attempts.length === 0) {
+		return undefined
+	}
+
+	const lastAttemptNumber = execution.trace.attempts.at(-1)?.attempt
+	const attemptSections = execution.trace.attempts.map(attempt => {
+		const isLastAttempt = attempt.attempt === lastAttemptNumber
+		const body = renderEventBlocks(attempt.trace.events, {
+			stripLastAssistantNote: isLastAttempt,
+		})
+
+		return execution.trace.attempts.length > 1
+			? [`### Attempt ${String(attempt.attempt)}`, '', body].join('\n')
+			: body
+	})
+
+	return attemptSections.join('\n\n')
 }
