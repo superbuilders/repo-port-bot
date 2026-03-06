@@ -220,6 +220,7 @@ describe('render-body', () => {
 			{
 				...execution.history[0]!,
 				attempt: 1,
+				notes: 'First attempt notes.',
 				events: [
 					{
 						kind: 'assistant_note',
@@ -230,6 +231,7 @@ describe('render-body', () => {
 			{
 				...execution.history[0]!,
 				attempt: 2,
+				notes: 'Final attempt summary.',
 				events: [
 					{
 						kind: 'assistant_note',
@@ -249,6 +251,13 @@ describe('render-body', () => {
 		expect(body).toContain('First attempt.')
 		expect(body).toContain('### Attempt 2')
 		expect(body).toContain('Second attempt.')
+
+		const whatWasPortedIndex = body.indexOf('### What was ported')
+		const workLogIndex = body.indexOf('Agent Work Log')
+		const sectionBetween = body.slice(whatWasPortedIndex, workLogIndex)
+
+		expect(sectionBetween).toContain('Final attempt summary.')
+		expect(sectionBetween).not.toContain('### Attempt')
 	})
 
 	test('renders needs-human issue title and body with rationale and signals', () => {

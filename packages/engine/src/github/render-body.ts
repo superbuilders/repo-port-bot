@@ -189,32 +189,13 @@ function renderExecutionMetrics(execution: ExecutionResult): string {
  */
 function renderAttemptNotes(execution: ExecutionResult): string {
 	if (execution.history.length === 0) {
-		return '- None.'
+		return '_No notes recorded._'
 	}
 
-	if (execution.history.length === 1) {
-		const notes = execution.history[0]?.notes?.trim() || '_No notes recorded._'
+	const lastAttempt = execution.history.at(-1)
+	const notes = lastAttempt?.notes?.trim() || '_No notes recorded._'
 
-		return notes
-	}
-
-	return execution.history
-		.map(attempt => {
-			const touchedInAttempt =
-				attempt.touchedFiles.length > 0
-					? attempt.touchedFiles.map(path => `\`${path}\``).join(', ')
-					: 'none'
-			const notes = attempt.notes?.trim() || '_No notes recorded._'
-
-			return [
-				`### Attempt ${String(attempt.attempt)}`,
-				'',
-				`- Touched in attempt: ${touchedInAttempt}`,
-				'',
-				notes,
-			].join('\n')
-		})
-		.join('\n\n')
+	return notes
 }
 
 /**
