@@ -216,6 +216,43 @@ describe('decide', () => {
 		expect(result.trace.source).toBe('classifier')
 	})
 
+	test('uses provider-backed classifier to return NEEDS_HUMAN on mixed changes', async () => {
+		const context = makeContext({
+			labels: [],
+			files: [
+				{ path: 'docs/guide.md', status: 'modified', additions: 2, deletions: 0 },
+				{ path: 'src/app.ts', status: 'modified', additions: 4, deletions: 1 },
+			],
+		})
+		const provider: AgentProvider = {
+			async decidePort() {
+				return {
+					outcome: {
+						kind: 'NEEDS_HUMAN',
+						reason: 'The target mapping is ambiguous and should be reviewed manually.',
+					},
+					trace: {
+						source: 'classifier',
+						toolCallLog: [],
+						events: [],
+					},
+				}
+			},
+			async executePort() {
+				throw new Error('not used in decide test')
+			},
+		}
+
+		const result = await decide(context, {
+			agentProvider: provider,
+			targetWorkingDirectory: '/tmp/target',
+		})
+
+		expect(result.outcome.kind).toBe('NEEDS_HUMAN')
+		expect(result.outcome.reason).toContain('ambiguous')
+		expect(result.trace.source).toBe('classifier')
+	})
+
 	test('forwards decision-stage streamed messages to caller', async () => {
 		const context = makeContext({
 			labels: [],

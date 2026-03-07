@@ -34,10 +34,13 @@ const DECIDE_PORT_OUTPUT_FORMAT = {
 	schema: {
 		type: 'object',
 		properties: {
-			required: { type: 'boolean' },
+			decision: {
+				type: 'string',
+				enum: ['required', 'not_required', 'needs_human'],
+			},
 			reason: { type: 'string' },
 		},
-		required: ['required', 'reason'],
+		required: ['decision', 'reason'],
 	},
 }
 
@@ -551,7 +554,7 @@ function normalizeToolInputForEvent(
  * @returns Validated decide port output.
  */
 function readStructuredDecideOutput(message: SDKResultMessage): {
-	kind: 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED'
+	kind: 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED' | 'NEEDS_HUMAN'
 	reason: string
 } {
 	if (message.subtype !== 'success') {
@@ -564,12 +567,29 @@ function readStructuredDecideOutput(message: SDKResultMessage): {
 		throw new Error('Claude decidePort result missing structured_output.')
 	}
 
-	const required = (output as Record<string, unknown>).required
+	const decision = (output as Record<string, unknown>).decision
 	const reason = (output as Record<string, unknown>).reason
 
-	if (typeof required !== 'boolean' || typeof reason !== 'string') {
+	if (
+		typeof decision !== 'string' ||
+		!['required', 'not_required', 'needs_human'].includes(decision) ||
+		typeof reason !== 'string'
+	) {
 		throw new Error('Claude decidePort structured_output has invalid shape.')
 	}
 
-	return { kind: required ? 'PORT_REQUIRED' : 'PORT_NOT_REQUIRED', reason }
+	const DECISION_MAP: Record<string, 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED' | 'NEEDS_HUMAN'> = {
+		required: 'PORT_REQUIRED',
+		not_required: 'PORT_NOT_REQUIRED',
+		needs_human: 'NEEDS_HUMAN',
+	}
+
+	if (!DECISION_MAP[decision]) {
+		return {
+			kind: 'NEEDS_HUMAN',
+			reason: `Claude \`decidePort\` \`structured_output\` has invalid decision: ${decision}`,
+		}
+	}
+
+	return { kind: DECISION_MAP[decision], reason }
 }

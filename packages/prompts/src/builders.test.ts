@@ -175,7 +175,7 @@ describe('buildDecideSystemPrompt', () => {
 			diffFilePath: '/tmp/source/port-diff.patch',
 		})
 
-		expect(prompt).toContain('classification mode')
+		expect(prompt).toContain('classification agent')
 		expect(prompt).toContain('/tmp/source')
 		expect(prompt).toContain('/tmp/source/port-diff.patch')
 		expect(prompt).not.toContain('strict JSON')

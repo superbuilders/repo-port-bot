@@ -80,7 +80,7 @@ describe('renderPrompt', () => {
 			additionalInstructions: undefined,
 		})
 
-		expect(result).toContain('classification mode')
+		expect(result).toContain('classification agent')
 		expect(result).toContain('/tmp/source')
 		expect(result).not.toContain('{{')
 	})

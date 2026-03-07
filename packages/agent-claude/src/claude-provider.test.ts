@@ -93,7 +93,7 @@ describe('ClaudeAgentProvider', () => {
 						modelUsage: {},
 						permission_denials: [],
 						structured_output: {
-							required: false,
+							decision: 'not_required',
 							reason: 'No matching target module to port.',
 						},
 						uuid: 'uuid-result',
@@ -126,10 +126,13 @@ describe('ClaudeAgentProvider', () => {
 				schema: {
 					type: 'object',
 					properties: {
-						required: { type: 'boolean' },
+						decision: {
+							type: 'string',
+							enum: ['required', 'not_required', 'needs_human'],
+						},
 						reason: { type: 'string' },
 					},
-					required: ['required', 'reason'],
+					required: ['decision', 'reason'],
 				},
 			},
 		})
@@ -202,7 +205,7 @@ describe('ClaudeAgentProvider', () => {
 						modelUsage: {},
 						permission_denials: [],
 						structured_output: {
-							required: true,
+							decision: 'required',
 							reason: 'Port required for target parity.',
 						},
 						uuid: 'uuid-result',
@@ -248,6 +251,52 @@ describe('ClaudeAgentProvider', () => {
 			toolName: 'Read',
 			toolInput: { file_path: 'src/example.ts' },
 		})
+	})
+
+	test('decidePort maps needs_human decision to NEEDS_HUMAN outcome', async () => {
+		const provider = new ClaudeAgentProvider({
+			queryFn: () =>
+				(async function* queryFn(): AsyncGenerator<SDKMessage, void> {
+					yield {
+						type: 'result',
+						subtype: 'success',
+						duration_ms: 10,
+						duration_api_ms: 8,
+						is_error: false,
+						num_turns: 1,
+						result: '',
+						stop_reason: null,
+						total_cost_usd: 0.001,
+						usage: {
+							input_tokens: 1,
+							output_tokens: 1,
+							cache_creation_input_tokens: 0,
+							cache_read_input_tokens: 0,
+							service_tier: 'standard',
+						},
+						modelUsage: {},
+						permission_denials: [],
+						structured_output: {
+							decision: 'needs_human',
+							reason: 'The target mapping is ambiguous and should be reviewed manually.',
+						},
+						uuid: 'uuid-result',
+						session_id: 'session-1',
+					} as unknown as SDKMessage
+				})(),
+		})
+
+		const output = await provider.decidePort({
+			files: makeInput().files,
+			targetWorkingDirectory: '/tmp/target',
+			pluginConfig: makePluginConfig(),
+		})
+
+		expect(output.outcome.kind).toBe('NEEDS_HUMAN')
+		expect(output.outcome.reason).toBe(
+			'The target mapping is ambiguous and should be reviewed manually.',
+		)
+		expect(output.trace.source).toBe('classifier')
 	})
 
 	test('decidePort throws when SDK cannot produce valid structured output', async () => {
