@@ -1,11 +1,10 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
-
 import {
 	buildDecideSystemPrompt,
 	buildDecideUserPrompt,
 	buildSystemPrompt,
 	buildUserPrompt,
-} from './build-prompt.ts'
+} from '@repo-port-bot/prompts'
 
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'

@@ -49,6 +49,7 @@
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.66",
         "@repo-port-bot/engine": "workspace:*",
+        "@repo-port-bot/prompts": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -77,6 +78,19 @@
     "packages/logger": {
       "name": "@repo-port-bot/logger",
       "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/prompts": {
+      "name": "@repo-port-bot/prompts",
+      "version": "0.0.0",
+      "dependencies": {
+        "@repo-port-bot/engine": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "latest",
       },
@@ -402,6 +416,8 @@
     "@repo-port-bot/engine": ["@repo-port-bot/engine@workspace:packages/engine"],
 
     "@repo-port-bot/logger": ["@repo-port-bot/logger@workspace:packages/logger"],
+
+    "@repo-port-bot/prompts": ["@repo-port-bot/prompts@workspace:packages/prompts"],
 
     "@repo-port-bot/utils": ["@repo-port-bot/utils@workspace:packages/utils"],
 
@@ -1063,6 +1079,8 @@
 
     "@repo-port-bot/logger/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
 
+    "@repo-port-bot/prompts/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
     "cli-truncate/string-width": ["string-width@8.2.0", "", { "dependencies": { "get-east-asian-width": "^1.5.0", "strip-ansi": "^7.1.2" } }, "sha512-6hJPQ8N0V0P3SNmP6h2J99RLuzrWz2gvT7VnK5tKvrNqJoyS9W4/Fb8mo31UiPvy00z7DQXkP2hnKBVav76thw=="],
 
     "eslint/eslint-visitor-keys": ["eslint-visitor-keys@5.0.1", "", {}, "sha512-tD40eHxA35h0PEIZNeIjkHoDR4YjjJp34biM0mDvplBe//mB+IHCqHDGV7pxF+7MklTvighcCPPZC7ynWyjdTA=="],
@@ -1172,6 +1190,8 @@
     "@repo-port-bot/engine/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
 
     "@repo-port-bot/logger/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@repo-port-bot/prompts/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
 
     "eslint-plugin-jsdoc/espree/eslint-visitor-keys": ["eslint-visitor-keys@5.0.1", "", {}, "sha512-tD40eHxA35h0PEIZNeIjkHoDR4YjjJp34biM0mDvplBe//mB+IHCqHDGV7pxF+7MklTvighcCPPZC7ynWyjdTA=="],
 

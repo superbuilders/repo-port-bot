@@ -5,7 +5,7 @@ import {
 	buildDecideUserPrompt,
 	buildSystemPrompt,
 	buildUserPrompt,
-} from './build-prompt.ts'
+} from './builders.ts'
 
 import type { ExecutePortAttemptInput, PluginConfig } from '@repo-port-bot/engine'
 

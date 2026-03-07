@@ -112,7 +112,7 @@ interface AgentProvider {
 
 - **Swappable backends**: Claude Agent SDK today, Codex or another framework tomorrow — without touching orchestration code.
 - **Testable**: mock the provider in tests to verify retry logic, summary rendering, PR creation, etc. without hitting a real LLM.
-- **Clean boundary**: the engine owns the "what" (retry policy, validation, workspace, delivery). The provider owns the "how" (prompt format, tool wiring, model interaction).
+- **Clean boundary**: the engine owns the "what" (retry policy, validation, workspace, delivery). Prompt content lives in the shared `@repo-port-bot/prompts` package (provider-agnostic templates + section renderers). The provider owns the "how" (tool wiring, SDK options, model interaction).
 
 ### `decidePort` — classification
 
