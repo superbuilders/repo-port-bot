@@ -655,12 +655,5 @@ function readStructuredDecideOutput(message: SDKResultMessage): {
 		needs_human: 'NEEDS_HUMAN',
 	}
 
-	if (!DECISION_MAP[decision]) {
-		return {
-			kind: 'NEEDS_HUMAN',
-			reason: `Claude \`decidePort\` \`structured_output\` has invalid decision: ${decision}`,
-		}
-	}
-
-	return { kind: DECISION_MAP[decision], reason }
+	return { kind: DECISION_MAP[decision]!, reason }
 }
