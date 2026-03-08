@@ -84,15 +84,17 @@ Port: <source PR title>
 ```md
 ## Cross-repo port
 
-> <decision reason as blockquote>
->
-> — [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) (2 files changed · 1 attempt · 5 tool calls · 18.6s)
+<decision reason as prose paragraph>
 
 Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
 
 ## What was ported
 
-<agent summary — per-file descriptions of changes>
+> <agent summary overview>
+>
+> — [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) _(2 files changed · 1 attempt · 5 tool calls · 18.6s)_
+
+- `<path>`: <per-file description>
 
 <details><summary>Work Log</summary>
 _I'll start by reading the source diff and target files._
@@ -130,10 +132,10 @@ Ported by: [Repo Port Bot](<bot repo url>)
 
 Key design choices:
 
-- **`## Cross-repo port`** heading with decision blockquote immediately below — the "why" is the first thing a reviewer reads
-- **Decision blockquote** includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`), keeping "who, why, and how much" together
-- **Source narrative** follows the blockquote — links back to the source PR and repo for traceability
+- **`## Cross-repo port`** heading starts with the decision rationale as plain prose — the "why" is still first, but it reads more naturally as explanation than as quoted metadata
+- **Source narrative** follows the rationale — links back to the source PR and repo for traceability
 - **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing
+- **The overview under `## What was ported` is blockquoted with attribution attached** — model name and at-a-glance execution stats stay visually grouped with the result summary, not with the decision rationale
 - **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks. The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
@@ -155,11 +157,11 @@ Source: GitHub REST API (`POST /repos/{owner}/{repo}/pulls`).
 
 ### Issue creation (NEEDS_HUMAN)
 
-When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the target repo instead of attempting a port.
+When the decision stage returns `NEEDS_HUMAN`, the engine opens or updates an issue in the target repo instead of attempting a port.
 
 - Tagged `needs-human`
 - Compact title: `Needs review: <source PR title (truncated to 60 chars)>`
-- Body is a short narrative with the source PR link, reason, and file count
+- Body is a short narrative with the source PR link, reason, file count, and machine-readable source identity lines (`Source-PR`, `Source-Commit`) so reruns can reuse the same open issue
 
 **Example body:**
 
@@ -234,24 +236,24 @@ The root action supports two token modes:
 
 1. **Single token mode**
     - Input: `github-token`
-    - One PAT is used for both source reads and target writes.
+    - One GitHub API token is used for both source reads and target writes.
 
 2. **Split token mode**
     - Inputs: `source-github-token`, `target-github-token`
     - Source token is used for source-repo API reads.
-    - Target token is used for git push + target-repo PR/issue/label writes.
+    - Target token is used for git push + target-repo PR/issue/label writes and source PR notification comments.
 
 `llm-api-key` is always required and is not used for GitHub API auth.
 
-These inputs accept any GitHub token that has the required permissions. Today most users provide PATs, but installation tokens from a GitHub App also work with the current action surface. That means an org-owned, consumer-managed GitHub App can replace PATs without engine or action code changes: the workflow generates installation tokens with `actions/create-github-app-token` and passes them through the existing token inputs.
+These inputs accept any GitHub token that has the required permissions. Today most users provide PATs, but installation tokens from a GitHub App already work with the current action surface. That means an org-owned, consumer-managed GitHub App can replace PATs without engine or action code changes: the workflow generates installation tokens with `actions/create-github-app-token` and passes them through the existing token inputs.
 
 ### Future: GitHub App
 
-- **Near-term path**: org-owned, consumer-managed app. The company owns the app and generates installation tokens in the workflow, then passes them through `github-token` or the split token inputs. No code changes required.
-- **Long-term path**: first-party Repo Port Bot app. The consumer installs the app and the action authenticates internally with no token inputs. This requires a hosted token exchange service and additional action logic.
+- **Supported today**: org-owned, consumer-managed app. The company owns the app and generates installation tokens in the workflow, then passes them through `github-token` or the split token inputs. No code changes required.
+- **Future path**: first-party Repo Port Bot app. The consumer installs the app and the action authenticates internally with no token inputs. This requires a hosted token exchange service and additional action logic.
 - Permissions needed:
-    - Source repo: `contents:read`, `pull_requests:read`, `pull_requests:write`
-    - Target repo: `contents:write`, `pull_requests:write`, `issues:write`
+    - Source repo: `contents:read`, `pull_requests:read`
+    - Target repo: `contents:write`, `pull_requests:write`, `issues:write` (plus the ability to comment on the source PR when split-token mode is used)
 
 ## GitHub Action surface
 
@@ -302,7 +304,7 @@ Users reference `@v1` which always points to the latest release commit on `main`
 
 ### workflow_dispatch for port re-runs (v2)
 
-Not in scope for v1 but the engine should accept a PR number as input rather than only discovering it from the push event.
+The action supports manual replay through `workflow_dispatch` using the existing event SHA or an explicit `commit-sha` override. The next likely expansion is supporting a source PR number directly rather than only discovering the source PR from a commit SHA.
 
 ## Plain pushes (no PR)
 

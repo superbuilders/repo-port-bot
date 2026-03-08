@@ -165,6 +165,16 @@ export function createOctokitWriter(octokit: Octokit): GitHubWriter {
 
 			return response.data.html_url
 		},
+		async updateComment(params) {
+			const response = await octokit.rest.issues.updateComment({
+				owner: params.owner,
+				repo: params.repo,
+				comment_id: params.commentId,
+				body: params.body,
+			})
+
+			return response.data.html_url
+		},
 		async listComments(params) {
 			const comments = await octokit.paginate(octokit.rest.issues.listComments, {
 				owner: params.owner,
@@ -174,6 +184,7 @@ export function createOctokitWriter(octokit: Octokit): GitHubWriter {
 			})
 
 			return comments.map(comment => ({
+				id: comment.id,
 				url: comment.html_url,
 				body: comment.body ?? '',
 				createdAt: comment.created_at,
@@ -242,6 +253,62 @@ export function createOctokitWriter(octokit: Octokit): GitHubWriter {
 					)
 				}
 			}
+		},
+		async findNeedsHumanIssueForSource(params) {
+			const issues = await octokit.paginate(octokit.rest.issues.listForRepo, {
+				owner: params.owner,
+				repo: params.repo,
+				state: 'open',
+				labels: 'needs-human',
+				per_page: 100,
+			})
+
+			const match = issues.find(issue => {
+				if ('pull_request' in issue && issue.pull_request) {
+					return false
+				}
+
+				/**
+				 * Read a machine-readable source reference from an issue body.
+				 *
+				 * @param body - Markdown issue body.
+				 * @param key - Reference key to extract.
+				 * @returns Extracted value when present.
+				 */
+				function readSourceReference(
+					body: string,
+					key: 'Source-PR' | 'Source-Commit',
+				): string | undefined {
+					const match = new RegExp(`^${key}:\\s+(.+)$`, 'mu').exec(body)
+
+					return match?.[1]?.trim()
+				}
+
+				const body = issue.body ?? ''
+				const sourcePr = readSourceReference(body, 'Source-PR')
+				const sourceCommit = readSourceReference(body, 'Source-Commit')
+
+				if (params.sourcePullRequestUrl && sourcePr === params.sourcePullRequestUrl) {
+					return true
+				}
+
+				return sourceCommit === params.sourceCommitSha
+			})
+
+			if (!match) {
+				return undefined
+			}
+
+			return { number: match.number, url: match.html_url }
+		},
+		async updateIssue(params) {
+			await octokit.rest.issues.update({
+				owner: params.owner,
+				repo: params.repo,
+				issue_number: params.issueNumber,
+				title: params.title,
+				body: params.body,
+			})
 		},
 	}
 }

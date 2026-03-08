@@ -50,6 +50,7 @@ interface CommentOnSourcePrOptions {
 }
 
 interface PreviousFailedCommentContext {
+	id: number
 	url: string
 	runId?: string
 }
@@ -196,36 +197,58 @@ export async function commentOnSourcePr(
 ): Promise<string | undefined> {
 	const logger = options.logger ?? createConsoleLogger('info')
 
-	let previousFailedComment: PreviousFailedCommentContext | undefined = undefined
-
-	if (options.outcome !== 'failed') {
-		try {
-			previousFailedComment = await findPreviousFailedComment({
-				writer: options.writer,
-				owner: options.context.sourceRepo.owner,
-				repo: options.context.sourceRepo.name,
-				issueNumber: options.pullRequestNumber,
-			})
-		} catch (lookupError) {
-			logger.warn('[port-bot] Unable to look up prior failed comments.', lookupError)
-		}
-	}
+	let existingComment: PreviousFailedCommentContext | undefined = undefined
 
 	try {
+		existingComment = await findExistingSourceComment({
+			writer: options.writer,
+			owner: options.context.sourceRepo.owner,
+			repo: options.context.sourceRepo.name,
+			issueNumber: options.pullRequestNumber,
+			targetRepo: `${options.context.pluginConfig.targetRepo.owner}/${options.context.pluginConfig.targetRepo.name}`,
+		})
+	} catch (lookupError) {
+		logger.warn('[port-bot] Unable to look up prior source comments.', lookupError)
+	}
+
+	const shouldUpdateExisting =
+		existingComment?.id !== undefined && options.writer.updateComment !== undefined
+	const body = renderSourceComment({
+		context: options.context,
+		decision: options.decision,
+		outcome: options.outcome,
+		targetPullRequestUrl: options.targetPullRequestUrl,
+		followUpIssueUrl: options.followUpIssueUrl,
+		runId: options.runId,
+		supersededFailureCommentUrl:
+			!shouldUpdateExisting && existingComment?.runId ? existingComment.url : undefined,
+		supersededFailureRunId: !shouldUpdateExisting ? existingComment?.runId : undefined,
+	})
+
+	try {
+		if (shouldUpdateExisting) {
+			const existingManagedComment = existingComment
+			const updateComment = options.writer.updateComment
+
+			if (!existingManagedComment || !updateComment) {
+				throw new Error(
+					'Source comment update path was selected without update capability.',
+				)
+			}
+
+			return await updateComment({
+				owner: options.context.sourceRepo.owner,
+				repo: options.context.sourceRepo.name,
+				commentId: existingManagedComment.id,
+				body,
+			})
+		}
+
 		return await options.writer.createComment({
 			owner: options.context.sourceRepo.owner,
 			repo: options.context.sourceRepo.name,
 			issueNumber: options.pullRequestNumber,
-			body: renderSourceComment({
-				context: options.context,
-				decision: options.decision,
-				outcome: options.outcome,
-				targetPullRequestUrl: options.targetPullRequestUrl,
-				followUpIssueUrl: options.followUpIssueUrl,
-				runId: options.runId,
-				supersededFailureCommentUrl: previousFailedComment?.url,
-				supersededFailureRunId: previousFailedComment?.runId,
-			}),
+			body,
 		})
 	} catch (error) {
 		logger.warn('[port-bot] Unable to comment on source pull request.', error)
@@ -235,21 +258,22 @@ export async function commentOnSourcePr(
 }
 
 /**
- * Find the most recent engine-failure source comment so follow-up comments can
- * explicitly supersede it on successful reruns.
+ * Find the current bot-managed source comment for this target repo, if any.
  *
  * @param input - Lookup options.
  * @param input.writer - GitHub writer adapter.
  * @param input.owner - Source repository owner.
  * @param input.repo - Source repository name.
  * @param input.issueNumber - Source pull request number.
- * @returns Latest failed comment context when found.
+ * @param input.targetRepo - Target repository identifier.
+ * @returns Existing source comment context when found.
  */
-async function findPreviousFailedComment(input: {
+async function findExistingSourceComment(input: {
 	writer: GitHubWriter
 	owner: string
 	repo: string
 	issueNumber: number
+	targetRepo: string
 }): Promise<PreviousFailedCommentContext | undefined> {
 	if (!input.writer.listComments) {
 		return undefined
@@ -260,23 +284,21 @@ async function findPreviousFailedComment(input: {
 		repo: input.repo,
 		issueNumber: input.issueNumber,
 	})
-	const failedComments = comments
-		.filter(
-			comment =>
-				comment.body.includes('failed due to an engine error') &&
-				comment.body.includes('Run ID: `'),
-		)
+	const marker = `<!-- repo-port-bot:source-comment target=${input.targetRepo} -->`
+	const matchingComments = comments
+		.filter(comment => comment.body.includes(marker))
 		.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-	const latestFailedComment = failedComments[0]
+	const latestMatchingComment = matchingComments[0]
 
-	if (!latestFailedComment) {
+	if (!latestMatchingComment) {
 		return undefined
 	}
 
-	const runIdMatch = /Run ID: `([^`]+)`/u.exec(latestFailedComment.body)
+	const runIdMatch = /Run ID: `([^`]+)`/u.exec(latestMatchingComment.body)
 
 	return {
-		url: latestFailedComment.url,
+		id: latestMatchingComment.id,
+		url: latestMatchingComment.url,
 		runId: runIdMatch?.[1],
 	}
 }
@@ -354,6 +376,69 @@ async function upsertPullRequest(params: {
 }
 
 /**
+ * Create a new needs-human issue or update an existing open one for the same source change.
+ *
+ * @param params - Issue upsert parameters.
+ * @param params.writer - GitHub writer adapter.
+ * @param params.owner - Target repository owner.
+ * @param params.repo - Target repository name.
+ * @param params.title - Issue title.
+ * @param params.body - Issue body markdown.
+ * @param params.labels - Labels to apply to the issue.
+ * @param params.sourcePullRequestUrl - Source PR URL when available.
+ * @param params.sourceCommitSha - Source merge commit SHA used as fallback identity.
+ * @returns Created or existing issue metadata.
+ */
+async function upsertNeedsHumanIssue(params: {
+	writer: GitHubWriter
+	owner: string
+	repo: string
+	title: string
+	body: string
+	labels: string[]
+	sourcePullRequestUrl?: string
+	sourceCommitSha: string
+}): Promise<{ number: number; url: string }> {
+	const existing = params.writer.findNeedsHumanIssueForSource
+		? await params.writer.findNeedsHumanIssueForSource({
+				owner: params.owner,
+				repo: params.repo,
+				sourcePullRequestUrl: params.sourcePullRequestUrl,
+				sourceCommitSha: params.sourceCommitSha,
+			})
+		: undefined
+
+	if (existing) {
+		if (params.writer.updateIssue) {
+			await params.writer.updateIssue({
+				owner: params.owner,
+				repo: params.repo,
+				issueNumber: existing.number,
+				title: params.title,
+				body: params.body,
+			})
+		}
+
+		await params.writer.addLabels({
+			owner: params.owner,
+			repo: params.repo,
+			issueNumber: existing.number,
+			labels: params.labels,
+		})
+
+		return existing
+	}
+
+	return params.writer.createIssue({
+		owner: params.owner,
+		repo: params.repo,
+		title: params.title,
+		body: params.body,
+		labels: params.labels,
+	})
+}
+
+/**
  * Check whether a PR creation error indicates a PR already exists for the head branch.
  *
  * @param error - Error from createPullRequest.
@@ -391,7 +476,8 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	}
 
 	if (options.decision.kind === 'NEEDS_HUMAN') {
-		const issue = await options.writer.createIssue({
+		const issue = await upsertNeedsHumanIssue({
+			writer: options.writer,
 			owner: targetRepo.owner,
 			repo: targetRepo.name,
 			title: renderNeedsHumanIssueTitle(options.context),
@@ -400,6 +486,8 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 				decision: options.decision,
 			}),
 			labels: ['needs-human'],
+			sourcePullRequestUrl: options.context.sourceChange.pullRequest?.url,
+			sourceCommitSha: options.context.sourceChange.mergedCommitSha,
 		})
 
 		return {

@@ -52,10 +52,10 @@ Best for: least-privilege setups, or when source and target repos are in differe
 
 Create two tokens:
 
-| Token        | Repository  | Permissions                                                  |
-| ------------ | ----------- | ------------------------------------------------------------ |
-| Source token | Source repo | `contents:read`, `pull_requests:read`, `pull_requests:write` |
-| Target token | Target repo | `contents:write`, `pull_requests:write`, `issues:write`      |
+| Token        | Repository  | Permissions                                                                                          |
+| ------------ | ----------- | ---------------------------------------------------------------------------------------------------- |
+| Source token | Source repo | `contents:read`, `pull_requests:read`                                                                |
+| Target token | Target repo | `contents:write`, `pull_requests:write`, `issues:write`, plus permission to comment on the source PR |
 
 Store them as repository secrets:
 
@@ -288,19 +288,20 @@ with:
     log-level: info
 ```
 
-| Input                   | Default             | Description                                                  |
-| ----------------------- | ------------------- | ------------------------------------------------------------ |
-| `target-default-branch` | `main`              | Default branch for target repo checkout and PR base          |
-| `validation-commands`   | —                   | Newline-separated commands to validate the agent's work      |
-| `path-mappings`         | `{}`                | JSON object mapping source paths to target paths             |
-| `naming-conventions`    | —                   | Naming convention guidance (e.g., `camelCase -> snake_case`) |
-| `prompt`                | —                   | Additional custom instructions for the agent                 |
-| `skip-port-bot-json`    | `false`             | Skip fetching `port-bot.json` from source repo               |
-| `model`                 | `claude-sonnet-4-6` | Claude model to use                                          |
-| `max-attempts`          | `3`                 | Maximum execution attempts before opening a draft PR         |
-| `max-turns`             | `50`                | Maximum Claude SDK turns per attempt                         |
-| `max-budget-usd`        | —                   | Optional budget cap (USD) per attempt                        |
-| `log-level`             | `info`              | Minimum log level (`error`, `warn`, `info`, `debug`)         |
+| Input                   | Default             | Description                                                                    |
+| ----------------------- | ------------------- | ------------------------------------------------------------------------------ |
+| `target-default-branch` | `main`              | Default branch for target repo checkout and PR base                            |
+| `validation-commands`   | —                   | Newline-separated commands to validate the agent's work                        |
+| `path-mappings`         | `{}`                | JSON object mapping source paths to target paths                               |
+| `naming-conventions`    | —                   | Naming convention guidance (e.g., `camelCase -> snake_case`)                   |
+| `prompt`                | —                   | Additional custom instructions for the agent                                   |
+| `skip-port-bot-json`    | `false`             | Skip fetching `port-bot.json` from source repo                                 |
+| `commit-sha`            | —                   | Override the source commit SHA to process (defaults to the workflow event SHA) |
+| `model`                 | `claude-sonnet-4-6` | Claude model to use                                                            |
+| `max-attempts`          | `3`                 | Maximum execution attempts before opening a draft PR                           |
+| `max-turns`             | `50`                | Maximum Claude SDK turns per attempt                                           |
+| `max-budget-usd`        | —                   | Optional budget cap (USD) per attempt                                          |
+| `log-level`             | `info`              | Minimum log level (`error`, `warn`, `info`, `debug`)                           |
 
 ### port-bot.json
 

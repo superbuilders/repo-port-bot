@@ -134,7 +134,7 @@ Both logs use the same humanization:
 - `Glob` and `Grep` filtered out as low-signal
 - capped at a per-section block limit
 
-The Decision log is only shown when the classifier ran (not for heuristic decisions). The Execution section is omitted entirely when no execution happened (skipped or needs-human outcomes).
+The Decision log is only shown when the classifier ran (not for heuristic decisions). When no execution happens (skipped or needs-human outcomes), the summary still includes an `Execution` section with run metadata and a `No execution (skipped or needs-human)` note; only the nested execution log is absent.
 
 This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log, while keeping the target PR body focused on what a reviewer needs (the decision reason + change summary).
 

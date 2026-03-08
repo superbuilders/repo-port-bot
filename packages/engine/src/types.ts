@@ -605,6 +605,11 @@ export interface CreatedIssue {
  */
 export interface IssueCommentRef {
 	/**
+	 * Numeric GitHub comment identifier.
+	 */
+	id: number
+
+	/**
 	 * Canonical HTML URL of the comment.
 	 */
 	url: string
@@ -737,6 +742,20 @@ export interface GitHubWriter {
 	}): Promise<string | undefined>
 
 	/**
+	 * Update an existing comment on an issue or pull request.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 *
+	 * @param params - Comment update parameters.
+	 */
+	updateComment?(params: {
+		owner: string
+		repo: string
+		commentId: number
+		body: string
+	}): Promise<string | undefined>
+
+	/**
 	 * List existing comments on an issue or pull request.
 	 *
 	 * Optional so existing adapters/tests can omit this capability.
@@ -794,6 +813,36 @@ export interface GitHubWriter {
 		title: string
 		body: string
 		draft?: boolean
+	}): Promise<void>
+
+	/**
+	 * Find an existing open needs-human issue for the same source change.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 *
+	 * @param params - Search parameters.
+	 * @returns Matching issue metadata, or `undefined` when none exists.
+	 */
+	findNeedsHumanIssueForSource?(params: {
+		owner: string
+		repo: string
+		sourcePullRequestUrl?: string
+		sourceCommitSha: string
+	}): Promise<CreatedIssue | undefined>
+
+	/**
+	 * Update the title and body of an existing issue.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 *
+	 * @param params - Update parameters.
+	 */
+	updateIssue?(params: {
+		owner: string
+		repo: string
+		issueNumber: number
+		title: string
+		body: string
 	}): Promise<void>
 }
 

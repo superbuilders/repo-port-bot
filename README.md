@@ -124,8 +124,8 @@ For cross-org setups, generate separate source and target installation tokens an
 
 **Required token permissions:**
 
-- Source repo: `contents:read`, `pull_requests:read`, `pull_requests:write` (for notification comments)
-- Target repo: `contents:write`, `pull_requests:write`, `issues:write`
+- Source repo: `contents:read`, `pull_requests:read`
+- Target repo: `contents:write`, `pull_requests:write`, `issues:write`, plus permission to comment on the source PR
 
 ### 4. Configure your repo pair
 
@@ -169,24 +169,25 @@ Note: `ignore` patterns are only configurable via `port-bot.json`, not as an act
 
 ## Action inputs reference
 
-| Input                   | Required | Default             | Description                                                 |
-| ----------------------- | -------- | ------------------- | ----------------------------------------------------------- |
-| `llm-api-key`           | yes      | —                   | Anthropic API key                                           |
-| `target-repo`           | yes      | —                   | Target repository (`owner/name`)                            |
-| `github-token`          | no       | —                   | Fallback GitHub API token for source reads + target writes  |
-| `source-github-token`   | no       | —                   | GitHub API token for source repository reads                |
-| `target-github-token`   | no       | —                   | GitHub API token for target repository writes               |
-| `target-default-branch` | no       | `main`              | Default branch for target repo checkout and PR base         |
-| `validation-commands`   | no       | —                   | Newline-separated validation commands to run in target repo |
-| `path-mappings`         | no       | `{}`                | JSON object mapping source paths to target paths            |
-| `naming-conventions`    | no       | —                   | Naming convention guidance for the agent                    |
-| `prompt`                | no       | —                   | Additional custom prompt instructions                       |
-| `skip-port-bot-json`    | no       | `false`             | Skip fetching `port-bot.json` from source repo              |
-| `model`                 | no       | `claude-sonnet-4-6` | Claude model to use                                         |
-| `max-attempts`          | no       | `3`                 | Maximum execution attempts before stalling                  |
-| `max-turns`             | no       | `50`                | Maximum Claude SDK turns per attempt                        |
-| `max-budget-usd`        | no       | —                   | Optional budget cap (USD) for a single attempt              |
-| `log-level`             | no       | `info`              | Minimum log level (`error`, `warn`, `info`, `debug`)        |
+| Input                   | Required | Default             | Description                                                                    |
+| ----------------------- | -------- | ------------------- | ------------------------------------------------------------------------------ |
+| `llm-api-key`           | yes      | —                   | Anthropic API key                                                              |
+| `target-repo`           | yes      | —                   | Target repository (`owner/name`)                                               |
+| `github-token`          | no       | —                   | Fallback GitHub API token for source reads + target writes                     |
+| `source-github-token`   | no       | —                   | GitHub API token for source repository reads                                   |
+| `target-github-token`   | no       | —                   | GitHub API token for target repository writes                                  |
+| `target-default-branch` | no       | `main`              | Default branch for target repo checkout and PR base                            |
+| `validation-commands`   | no       | —                   | Newline-separated validation commands to run in target repo                    |
+| `path-mappings`         | no       | `{}`                | JSON object mapping source paths to target paths                               |
+| `naming-conventions`    | no       | —                   | Naming convention guidance for the agent                                       |
+| `prompt`                | no       | —                   | Additional custom prompt instructions                                          |
+| `skip-port-bot-json`    | no       | `false`             | Skip fetching `port-bot.json` from source repo                                 |
+| `commit-sha`            | no       | —                   | Override the source commit SHA to process (defaults to the workflow event SHA) |
+| `model`                 | no       | `claude-sonnet-4-6` | Claude model to use                                                            |
+| `max-attempts`          | no       | `3`                 | Maximum execution attempts before stalling                                     |
+| `max-turns`             | no       | `50`                | Maximum Claude SDK turns per attempt                                           |
+| `max-budget-usd`        | no       | —                   | Optional budget cap (USD) for a single attempt                                 |
+| `log-level`             | no       | `info`              | Minimum log level (`error`, `warn`, `info`, `debug`)                           |
 
 ## Action outputs
 

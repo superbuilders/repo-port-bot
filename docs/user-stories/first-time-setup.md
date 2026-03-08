@@ -57,10 +57,10 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
     - In the source repo's Settings > Secrets and variables > Actions:
         - `PORT_BOT_LLM_API_KEY` — Anthropic API key.
     - PAT path:
-        - `PORT_BOT_GITHUB_TOKEN` — PAT with `contents:write`, `pull-requests:write`, and `issues:write` on the target repo, plus `contents:read` and `pull-requests:read` on the source repo.
+        - `PORT_BOT_GITHUB_TOKEN` — token with `contents:write`, `pull-requests:write`, and `issues:write` on the target repo, plus `contents:read` and `pull-requests:read` on the source repo.
     - If the maintainer prefers split tokens (different permissions or different owners for source vs target):
         - `PORT_BOT_SOURCE_GITHUB_TOKEN` — read-only access to source repo.
-        - `PORT_BOT_TARGET_GITHUB_TOKEN` — write access to target repo.
+        - `PORT_BOT_TARGET_GITHUB_TOKEN` — write access to target repo and the ability to comment on the source PR.
         - The workflow uses `source-github-token` and `target-github-token` inputs instead of `github-token`.
     - Org-owned GitHub App path:
         - The company creates a GitHub App and stores its `PORT_BOT_APP_ID` and `PORT_BOT_APP_PRIVATE_KEY` as org-level Actions secrets / variables.
