@@ -4,13 +4,13 @@ author: superbuilders
 
 inputs:
     github-token:
-        description: Fallback GitHub token used for source reads and target writes.
+        description: Fallback GitHub API token used for source reads and target writes.
         required: false
     source-github-token:
-        description: Optional GitHub token for source repository reads.
+        description: Optional GitHub API token for source repository reads.
         required: false
     target-github-token:
-        description: Optional GitHub token for target repository writes.
+        description: Optional GitHub API token for target repository writes.
         required: false
     llm-api-key:
         description: Anthropic API key used by the Claude agent provider.

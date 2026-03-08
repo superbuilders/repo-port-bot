@@ -243,13 +243,14 @@ The root action supports two token modes:
 
 `llm-api-key` is always required and is not used for GitHub API auth.
 
+These inputs accept any GitHub token that has the required permissions. Today most users provide PATs, but installation tokens from a GitHub App also work with the current action surface. That means an org-owned, consumer-managed GitHub App can replace PATs without engine or action code changes: the workflow generates installation tokens with `actions/create-github-app-token` and passes them through the existing token inputs.
+
 ### Future: GitHub App
 
-- Replaces both tokens with a single GitHub App installation
-- App is installed on both repos with fine-grained permissions
-- No personal tokens; org-level management
+- **Near-term path**: org-owned, consumer-managed app. The company owns the app and generates installation tokens in the workflow, then passes them through `github-token` or the split token inputs. No code changes required.
+- **Long-term path**: first-party Repo Port Bot app. The consumer installs the app and the action authenticates internally with no token inputs. This requires a hosted token exchange service and additional action logic.
 - Permissions needed:
-    - Source repo: `contents:read`, `pull_requests:read`
+    - Source repo: `contents:read`, `pull_requests:read`, `pull_requests:write`
     - Target repo: `contents:write`, `pull_requests:write`, `issues:write`
 
 ## GitHub Action surface

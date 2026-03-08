@@ -21,7 +21,9 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
 - Two repositories exist that share overlapping functionality (e.g., SDKs for the same API in different languages).
 - The maintainer has admin or write access to both repos.
 - The maintainer has an Anthropic API key for the Claude agent.
-- The maintainer has a GitHub personal access token (PAT) with access to both repos, or separate tokens for each.
+- The maintainer has either:
+    - a GitHub personal access token (PAT) with access to both repos, or separate tokens for each, or
+    - access to an org-owned GitHub App whose installation tokens can be generated in the workflow.
 
 ## Narrative
 
@@ -51,14 +53,19 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
     - This is the minimal configuration. Only three inputs are required: `llm-api-key`, a GitHub token, and `target-repo`.
     - Everything else has defaults: `target-default-branch` defaults to `main`, `max-attempts` to `3`, `model` to `claude-sonnet-4-6`, `log-level` to `info`.
 
-2. **Maintainer configures secrets**
+2. **Maintainer configures GitHub auth**
     - In the source repo's Settings > Secrets and variables > Actions:
         - `PORT_BOT_LLM_API_KEY` — Anthropic API key.
+    - PAT path:
         - `PORT_BOT_GITHUB_TOKEN` — PAT with `contents:write`, `pull-requests:write`, and `issues:write` on the target repo, plus `contents:read` and `pull-requests:read` on the source repo.
     - If the maintainer prefers split tokens (different permissions or different owners for source vs target):
         - `PORT_BOT_SOURCE_GITHUB_TOKEN` — read-only access to source repo.
         - `PORT_BOT_TARGET_GITHUB_TOKEN` — write access to target repo.
         - The workflow uses `source-github-token` and `target-github-token` inputs instead of `github-token`.
+    - Org-owned GitHub App path:
+        - The company creates a GitHub App and stores its `APP_ID` and `APP_PRIVATE_KEY` as org-level Actions secrets / variables.
+        - The workflow generates an installation token with `actions/create-github-app-token` and passes the result to `github-token`.
+        - For cross-org setups, the workflow generates separate source and target installation tokens and passes them to `source-github-token` and `target-github-token`.
 
 3. **Maintainer optionally adds `port-bot.json`**
     - At the root of the **source** repo, the maintainer can create `port-bot.json` to configure behavior beyond action inputs:
@@ -103,7 +110,7 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
 
 The maintainer experiences onboarding as "three required inputs and the bot works":
 
-- A minimal workflow file with `llm-api-key`, `github-token`, and `target-repo` is enough to get a first run.
+- A minimal workflow file with `llm-api-key`, a GitHub token input, and `target-repo` is enough to get a first run.
 - The first run produces an observable result — a PR, draft PR, issue, or skip comment — that confirms the bot is working.
 - The maintainer can iterate on config without re-deploying anything; changes to `port-bot.json` take effect on the next merge.
 - There are no manual label creation steps, no target-repo workflow to install, and no database or external service to provision.
@@ -111,7 +118,7 @@ The maintainer experiences onboarding as "three required inputs and the bot work
 ## Acceptance criteria
 
 1. **Minimal viable config**
-    - The bot runs successfully with only `llm-api-key`, a GitHub token, and `target-repo`. All other inputs have working defaults.
+    - The bot runs successfully with only `llm-api-key`, a GitHub token input, and `target-repo`. All other inputs have working defaults.
 
 2. **Clear first-run feedback**
     - The job summary in the Actions run shows the run outcome, decision reason, and any produced URLs. The maintainer can tell whether the bot worked without reading raw logs.
@@ -127,13 +134,13 @@ The maintainer experiences onboarding as "three required inputs and the bot work
 
 ## Common pitfalls
 
-- **Token permissions too narrow**: the PAT needs write access to the target repo for PR creation and git push. A read-only token will fail at the delivery stage. The error appears in the Actions log as a push or API 403.
+- **Token permissions too narrow**: the GitHub token needs write access to the target repo for PR creation and git push. A read-only token will fail at the delivery stage. The error appears in the Actions log as a push or API 403.
 - **No validation commands configured**: the bot defaults to no validation. The PR body omits the Validation & Diagnostics section entirely (rather than showing pass/fail results), and the PR is opened as ready-for-review even if the code doesn't compile. Adding at least one validation command (type check, lint, test) is strongly recommended.
 - **Wrong `target-repo` format**: must be `owner/name` (e.g., `acme/python-sdk`). A bare repo name without the owner will fail at input parsing.
-- **Source repo is private, target is in a different org**: split tokens are needed because a single PAT may not have cross-org access.
+- **Source repo is private, target is in a different org**: split tokens are needed because a single PAT or single-installation token may not have cross-org access.
 
 ## What this story does not cover
 
 - Installing the workflow in the target repo. The target repo does not need a port bot workflow — the bot operates entirely from the source repo's Actions runner.
-- GitHub App authentication. v1 uses personal access tokens. A future GitHub App mode will simplify auth but the onboarding steps will change.
+- A first-party Repo Port Bot GitHub App that consumers install directly. Today the supported no-code path is PATs or consumer-generated installation tokens from an org-owned app.
 - Configuring the `no-port` label convention for the team. This is a team workflow decision, not a setup step.
