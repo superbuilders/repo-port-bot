@@ -81,6 +81,17 @@ describe('buildSystemPrompt', () => {
 		expect(prompt).toContain('Prefer target repository helper abstractions.')
 	})
 
+	test('includes structured summary section and approach guidance', () => {
+		const prompt = buildSystemPrompt({ pluginConfig: makePluginConfig() })
+
+		expect(prompt).toContain('## Structured summary')
+		expect(prompt).toContain('`summary`')
+		expect(prompt).toContain('`files`')
+		expect(prompt).toContain('Include all touched files')
+		expect(prompt).toContain('## How to approach the port')
+		expect(prompt).toContain("Adapt, don't copy")
+	})
+
 	test('omits optional sections when absent', () => {
 		const prompt = buildSystemPrompt({ pluginConfig: makePluginConfig() })
 

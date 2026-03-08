@@ -66,8 +66,9 @@ describe('renderPrompt', () => {
 		})
 
 		expect(result).toContain('You are a code porting agent')
-		expect(result).toContain('Rules:')
+		expect(result).toContain('Workspace rules')
 		expect(result).toContain('Do NOT run validation commands')
+		expect(result).toContain('Structured summary')
 		expect(result).not.toContain('{{')
 	})
 

@@ -16,6 +16,7 @@ import type {
 	DecidePortResult,
 	ExecutePortAttemptInput,
 	ExecutePortAttemptOutput,
+	PortSummary,
 	ToolCallEntry,
 } from '@repo-port-bot/engine'
 
@@ -41,6 +42,28 @@ const DECIDE_PORT_OUTPUT_FORMAT = {
 			reason: { type: 'string' },
 		},
 		required: ['decision', 'reason'],
+	},
+}
+
+const EXECUTE_PORT_OUTPUT_FORMAT = {
+	type: 'json_schema' as const,
+	schema: {
+		type: 'object',
+		properties: {
+			summary: { type: 'string' },
+			files: {
+				type: 'array',
+				items: {
+					type: 'object',
+					properties: {
+						path: { type: 'string' },
+						description: { type: 'string' },
+					},
+					required: ['path', 'description'],
+				},
+			},
+		},
+		required: ['summary', 'files'],
 	},
 }
 
@@ -249,6 +272,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 			maxBudgetUsd: this.options.maxBudgetUsd,
 			allowedTools: ['Read', EDIT_TOOL, WRITE_TOOL, 'Glob', 'Grep', 'Bash'],
 			tools: ['Read', EDIT_TOOL, WRITE_TOOL, 'Glob', 'Grep', 'Bash'],
+			outputFormat: EXECUTE_PORT_OUTPUT_FORMAT,
 			permissionMode: 'bypassPermissions',
 			allowDangerouslySkipPermissions: true,
 			env: this.options.apiKey
@@ -373,10 +397,12 @@ export class ClaudeAgentProvider implements AgentProvider {
 			assistantNotes.length === 0 ? undefined : assistantNotes.join('\n'),
 			resultNotes,
 		])
+		const summary = readStructuredExecuteOutput(resultMessage)
 
 		return {
 			touchedFiles: [...touchedFiles],
 			complete: resultMessage.subtype === 'success',
+			summary,
 			trace: {
 				notes,
 				model: this.options.model ?? DEFAULT_MODEL,
@@ -384,6 +410,51 @@ export class ClaudeAgentProvider implements AgentProvider {
 				events,
 			},
 		}
+	}
+}
+
+/**
+ * Extract validated structured output from an executePort result message.
+ *
+ * @param message - SDK result message with potential structured_output.
+ * @returns Structured execution summary when present.
+ */
+function readStructuredExecuteOutput(message: SDKResultMessage): PortSummary | undefined {
+	if (message.subtype !== 'success') {
+		return undefined
+	}
+
+	const output = (message as unknown as { structured_output?: unknown }).structured_output
+
+	if (!output || typeof output !== 'object') {
+		throw new Error('Claude executePort result missing structured_output.')
+	}
+
+	const summary = (output as Record<string, unknown>).summary
+	const files = (output as Record<string, unknown>).files
+
+	if (typeof summary !== 'string' || !Array.isArray(files)) {
+		throw new Error('Claude executePort structured_output has invalid shape.')
+	}
+
+	const parsedFiles = files.map(file => {
+		if (!file || typeof file !== 'object') {
+			throw new Error('Claude executePort structured_output contains invalid file entry.')
+		}
+
+		const path = (file as Record<string, unknown>).path
+		const description = (file as Record<string, unknown>).description
+
+		if (typeof path !== 'string' || typeof description !== 'string') {
+			throw new Error('Claude executePort structured_output file entry has invalid shape.')
+		}
+
+		return { path, description }
+	})
+
+	return {
+		text: summary,
+		files: parsedFiles,
 	}
 }
 

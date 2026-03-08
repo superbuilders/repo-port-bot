@@ -133,7 +133,7 @@ Key design choices:
 - **`## Cross-repo port`** heading with decision blockquote immediately below — the "why" is the first thing a reviewer reads
 - **Decision blockquote** includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`), keeping "who, why, and how much" together
 - **Source narrative** follows the blockquote — links back to the source PR and repo for traceability
-- **`## What was ported`** is the main content — the agent's per-file summary gets top billing
+- **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing
 - **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks. The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
@@ -142,7 +142,7 @@ Detailed event logs are surfaced in the **job summary** as nested collapsible "L
 
 For **multi-attempt runs** (stalled ports), the `Work Log` section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) so retries are easy to follow.
 
-**How summaries/logs are captured:** The provider keeps only the text from the _last_ assistant message as the polished `## What was ported` summary. In parallel, it records ordered attempt events (assistant text + tool start/end lifecycle) so the PR renderer can build the collapsed, humanized `Work Log` narrative.
+**How summaries/logs are captured:** The provider requests structured output (`PortSummary`) from the model — a prose overview plus per-file descriptions — which the PR renderer uses for `## What was ported`. When structured output is unavailable, the renderer falls back to the last assistant message text (`trace.notes`). In parallel, the provider records ordered attempt events (assistant text + tool start/end lifecycle) so the PR renderer can build the collapsed, humanized `Work Log` narrative.
 
 **PR state:**
 

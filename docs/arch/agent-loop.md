@@ -95,6 +95,7 @@ The agent uses absolute paths to read source files and the diff, and relative pa
 An `ExecutePortResult` containing:
 
 - `outcome`: final execution status, attempt count, touched files, and optional failure reason
+- `summary`: structured `PortSummary` from the last attempt when available — prose overview plus per-file descriptions for PR body rendering
 - `trace`: stage observability including model, duration, aggregate tool calls/events, and per-attempt diagnostics
 
 ## Provider interface
@@ -148,6 +149,7 @@ Called by the execution stage for each attempt.
 
 - Files touched
 - Whether the agent believes edits are complete
+- Optional structured `summary` (`PortSummary`) with a prose overview and per-file descriptions, used for PR body rendering
 - `trace` payload with notes, tool calls, events, and optional model
 
 The orchestrator (`execute-port.ts`) calls the provider, runs validation itself, and decides whether to retry based on the retry policy. The provider never runs validation commands — it only produces edits.
@@ -167,6 +169,7 @@ Uses `@anthropic-ai/claude-agent-sdk` via the `ClaudeAgentProvider` class.
 
 - **Conversation model**: fresh per attempt (new `query()` call each retry).
 - **Tools**: `Read`, `Edit`, `Write`, `Glob`, `Grep`, `Bash` — built-in SDK tools.
+- **Structured output**: uses the SDK's `outputFormat` option with a JSON schema (`{ summary: string, files: Array<{ path, description }> }`). The structured summary is extracted from `resultMessage.structured_output` and returned as `summary` on the attempt output.
 - **Permissions**: runs in `bypassPermissions` mode for non-interactive CI usage.
 - **Observability**: both decision and execution return a shared trace shape (`notes`, `model`, `toolCallLog`, `events`), while execution also aggregates per-attempt traces under the stage trace.
 - **Default model**: `claude-sonnet-4-6` (configurable via action input).
@@ -259,6 +262,12 @@ Record decisions here as they're made.
 - **Question**: How should the classifier return its decision — free-form text with prompt-based JSON enforcement, or SDK-level structured output?
 - **Decision**: Use the Claude Agent SDK's `outputFormat` option with a JSON schema. The SDK guarantees validated `structured_output` on the result message.
 - **Rationale**: Eliminates manual JSON parsing, code fence stripping, and retry-on-malformed-output logic. The SDK handles validation retries internally. Output is always well-typed and directly usable.
+
+### 2026-03-06 — Structured execution output
+
+- **Question**: How should the execution summary for the PR body be captured — emergent last-assistant-text or explicit structured output?
+- **Decision**: Use the Claude SDK's `outputFormat` with a JSON schema (`{ summary, files }`) to request a validated structured summary alongside tool-use edits. The engine type is `PortSummary`.
+- **Rationale**: Last-assistant-text worked in practice but was entirely emergent — nothing guaranteed the shape, completeness, or presence of a summary. Structured output makes the summary an explicit contract: guaranteed shape, per-file granularity, and graceful degradation when unavailable. `trace.notes` remains the canonical observability trail; structured summaries are specifically for reviewer-facing PR content.
 
 ### Decision template
 

@@ -437,6 +437,15 @@ describe('ClaudeAgentProvider', () => {
 						},
 						modelUsage: {},
 						permission_denials: [],
+						structured_output: {
+							summary: 'Ported parity updates across source files.',
+							files: [
+								{
+									path: 'src/ported.ts',
+									description: 'Applied source logic and updated imports.',
+								},
+							],
+						},
 						uuid: 'uuid-result',
 						session_id: 'session-1',
 					} as unknown as SDKMessage
@@ -451,6 +460,15 @@ describe('ClaudeAgentProvider', () => {
 		expect(queryCalls).toHaveLength(1)
 		expect(output.complete).toBe(true)
 		expect(output.touchedFiles).toEqual(['src/ported.ts'])
+		expect(output.summary).toEqual({
+			text: 'Ported parity updates across source files.',
+			files: [
+				{
+					path: 'src/ported.ts',
+					description: 'Applied source logic and updated imports.',
+				},
+			],
+		})
 		expect(output.trace.toolCallLog).toHaveLength(2)
 		expect(output.trace.toolCallLog[0]?.toolName).toBe('Read')
 		expect(output.trace.toolCallLog[1]?.toolName).toBe('Edit')
@@ -503,6 +521,29 @@ describe('ClaudeAgentProvider', () => {
 			toolName: 'Edit',
 			durationMs: expect.any(Number),
 		})
+		expect(queryCalls[0]!.options).toMatchObject({
+			outputFormat: {
+				type: 'json_schema',
+				schema: {
+					type: 'object',
+					properties: {
+						summary: { type: 'string' },
+						files: {
+							type: 'array',
+							items: {
+								type: 'object',
+								properties: {
+									path: { type: 'string' },
+									description: { type: 'string' },
+								},
+								required: ['path', 'description'],
+							},
+						},
+					},
+					required: ['summary', 'files'],
+				},
+			},
+		})
 	})
 
 	test('returns incomplete output with error notes on max-turns result', async () => {
@@ -543,6 +584,7 @@ describe('ClaudeAgentProvider', () => {
 		const output = await provider.executePort(makeInput())
 
 		expect(output.complete).toBe(false)
+		expect(output.summary).toBeUndefined()
 		expect(output.trace.notes).toContain('Attempted update but hit constraints.')
 		expect(output.trace.notes).toContain('Reached max turns.')
 		expect(output.trace.events).toEqual([

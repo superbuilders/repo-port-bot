@@ -110,6 +110,7 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 					attempt: attemptNumber,
 					status: allValidationPassed ? 'VALIDATED' : 'VALIDATION_FAILED',
 					touchedFiles: agentOutput.touchedFiles,
+					summary: agentOutput.summary,
 					validation,
 					trace: {
 						notes: attemptNotes,
@@ -154,6 +155,7 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 							attempts: attempts.length,
 							touchedFiles: [...touchedFiles],
 						},
+						summary: attempts.at(-1)?.summary,
 						trace: {
 							model: agentModel,
 							durationMs: Date.now() - executionStartedAtMs,
@@ -175,6 +177,7 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 							touchedFiles: [...touchedFiles],
 							reason,
 						},
+						summary: attempts.at(-1)?.summary,
 						trace: {
 							model: agentModel,
 							durationMs: Date.now() - executionStartedAtMs,
@@ -230,6 +233,7 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 						touchedFiles: [...touchedFiles],
 						reason: `Agent provider failed on attempt ${String(attemptNumber)}: ${errorMessage}`,
 					},
+					summary: attempts.at(-1)?.summary,
 					trace: {
 						model: agentModel,
 						durationMs: Date.now() - executionStartedAtMs,
@@ -252,6 +256,7 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 			touchedFiles: [...touchedFiles],
 			reason: `Execution stopped before completing after ${String(attempts.length)} attempts.`,
 		},
+		summary: attempts.at(-1)?.summary,
 		trace: {
 			model: agentModel,
 			durationMs: Date.now() - executionStartedAtMs,

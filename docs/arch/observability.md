@@ -138,6 +138,10 @@ The Decision log is only shown when the classifier ran (not for heuristic decisi
 
 This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log, while keeping the target PR body focused on what a reviewer needs (the decision reason + change summary).
 
+## Structured summaries vs trace notes
+
+`trace.notes` and event streams are the canonical observability trail — they feed the Work Log, action job summary logs, and retry diagnostics. Structured summaries (`PortSummary`) are a separate, PR-facing concern: they provide a validated prose overview and per-file descriptions for `## What was ported` in the target PR body. The two do not replace each other — `trace.notes` captures what the agent _said during_ execution; `summary` captures what the agent _concluded_ at the end.
+
 ## Tool call artifact
 
 The agent's `ToolCallEntry[]` is the most valuable debugging artifact but also the noisiest (50–200 entries per attempt across multiple retries). It should not go to stdout at `info` level.

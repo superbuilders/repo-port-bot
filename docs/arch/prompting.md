@@ -37,6 +37,16 @@ packages/prompts/
 - To change how sections are composed, edit `builders.ts`.
 - Provider-specific changes (tool surface, output format) stay in `agent-claude`.
 
+### Structured output instructions
+
+The execution system prompt (`execution-system.md`) includes instructions for the structured summary the model produces at the end of each attempt. The model is told to:
+
+- End with a `summary` field (one-sentence overview of the port) and a `files` array (per-file descriptions).
+- Include all touched files — including non-obvious edits like imports, exports, tests, and config changes.
+- Capture uncertainty directly in the summary text when applicable.
+
+The JSON schema enforcing this shape is provider-level concern (`EXECUTE_PORT_OUTPUT_FORMAT` in `agent-claude`), but the prompt wording that tells the model _what makes a good summary_ lives here in the shared templates.
+
 ### Testing
 
 The prompts package has its own test suite:
