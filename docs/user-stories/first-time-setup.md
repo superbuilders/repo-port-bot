@@ -63,7 +63,7 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
         - `PORT_BOT_TARGET_GITHUB_TOKEN` — write access to target repo.
         - The workflow uses `source-github-token` and `target-github-token` inputs instead of `github-token`.
     - Org-owned GitHub App path:
-        - The company creates a GitHub App and stores its `APP_ID` and `APP_PRIVATE_KEY` as org-level Actions secrets / variables.
+        - The company creates a GitHub App and stores its `PORT_BOT_APP_ID` and `PORT_BOT_APP_PRIVATE_KEY` as org-level Actions secrets / variables.
         - The workflow generates an installation token with `actions/create-github-app-token` and passes the result to `github-token`.
         - For cross-org setups, the workflow generates separate source and target installation tokens and passes them to `source-github-token` and `target-github-token`.
 

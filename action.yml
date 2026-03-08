@@ -62,6 +62,10 @@ inputs:
         description: Minimum log level for stdout output (error, warn, info, debug).
         required: false
         default: info
+    commit-sha:
+        description: Override the merge commit SHA to process (defaults to GITHUB_SHA from the workflow event).
+        required: false
+        default: ''
 
 outputs:
     run-id:
@@ -116,3 +120,4 @@ runs:
               INPUT_MAX-TURNS: ${{ inputs.max-turns }}
               INPUT_MAX-BUDGET-USD: ${{ inputs.max-budget-usd }}
               INPUT_LOG-LEVEL: ${{ inputs.log-level }}
+              INPUT_COMMIT-SHA: ${{ inputs.commit-sha }}

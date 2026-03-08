@@ -23,6 +23,8 @@ A notification comment is posted on the source PR for every outcome.
 
 ## Setup
 
+> For detailed step-by-step instructions with workflow templates for each auth method, see **[INSTALL.md](INSTALL.md)**.
+
 ### 1. Install the GitHub Action
 
 Add a workflow to your source repo:
@@ -80,7 +82,7 @@ with:
 
 #### Org-owned GitHub App (recommended)
 
-Avoids tying auth to a personal account. Create a GitHub App under the org, store `APP_ID` and `APP_PRIVATE_KEY` as org-level Actions variables/secrets, and generate installation tokens in the workflow:
+Avoids tying auth to a personal account. Create a GitHub App under the org, store `PORT_BOT_APP_ID` and `PORT_BOT_APP_PRIVATE_KEY` as org-level Actions variables/secrets, and generate installation tokens in the workflow:
 
 ```yaml
 steps:
@@ -88,8 +90,8 @@ steps:
       id: app-token
       uses: actions/create-github-app-token@v1
       with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.PORT_BOT_APP_ID }}
+          private-key: ${{ secrets.PORT_BOT_APP_PRIVATE_KEY }}
           repositories: source-repo,target-repo
 
     - uses: superbuilders/repo-port-bot@v1
@@ -114,11 +116,11 @@ For cross-org setups, generate separate source and target installation tokens an
 
 **GitHub App mode:**
 
-| Secret / variable      | Purpose                                 |
-| ---------------------- | --------------------------------------- |
-| `PORT_BOT_LLM_API_KEY` | Anthropic API key                       |
-| `APP_ID`               | GitHub App ID (Actions variable)        |
-| `APP_PRIVATE_KEY`      | GitHub App private key (Actions secret) |
+| Secret / variable          | Purpose                                 |
+| -------------------------- | --------------------------------------- |
+| `PORT_BOT_LLM_API_KEY`     | Anthropic API key                       |
+| `PORT_BOT_APP_ID`          | GitHub App ID (Actions variable)        |
+| `PORT_BOT_APP_PRIVATE_KEY` | GitHub App private key (Actions secret) |
 
 **Required token permissions:**
 

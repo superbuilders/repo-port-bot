@@ -90,8 +90,8 @@ For orgs that can't install third-party apps (policy restrictions, air-gapped en
   id: app-token
   uses: actions/create-github-app-token@v1
   with:
-      app-id: ${{ secrets.APP_ID }}
-      private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      app-id: ${{ secrets.PORT_BOT_APP_ID }}
+      private-key: ${{ secrets.PORT_BOT_APP_PRIVATE_KEY }}
       repositories: source-repo,target-repo
 
 - uses: superbuilders/repo-port-bot@v1
@@ -112,17 +112,17 @@ For cross-org setups, the consumer generates two tokens — one per org — mirr
   id: source-token
   uses: actions/create-github-app-token@v1
   with:
-      app-id: ${{ secrets.APP_ID }}
-      private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      app-id: ${{ secrets.PORT_BOT_APP_ID }}
+      private-key: ${{ secrets.PORT_BOT_APP_PRIVATE_KEY }}
       owner: source-org
       repositories: source-repo
 
-- name: Target repo token
-  id: target-token
-  uses: actions/create-github-app-token@v1
-  with:
-      app-id: ${{ secrets.APP_ID }}
-      private-key: ${{ secrets.APP_PRIVATE_KEY }}
+  - name: Target repo token
+    id: target-token
+    uses: actions/create-github-app-token@v1
+    with:
+      app-id: ${{ secrets.PORT_BOT_APP_ID }}
+      private-key: ${{ secrets.PORT_BOT_APP_PRIVATE_KEY }}
       owner: target-org
       repositories: target-repo
 
@@ -139,7 +139,7 @@ For cross-org setups, the consumer generates two tokens — one per org — mirr
 The recommended next step is an **org-owned, consumer-managed GitHub App**:
 
 - the company creates and owns the app
-- the company stores `APP_ID` and `APP_PRIVATE_KEY` in org-level Actions secrets / variables
+- the company stores `PORT_BOT_APP_ID` and `PORT_BOT_APP_PRIVATE_KEY` in org-level Actions secrets / variables
 - the consumer workflow uses `actions/create-github-app-token`
 - repo-port-bot receives the resulting installation token through the existing `github-token` or split-token inputs
 
