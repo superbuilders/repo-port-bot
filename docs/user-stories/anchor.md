@@ -46,7 +46,7 @@ Define what "working" means from a maintainer perspective when a change in one r
         - `no-port` label → `PORT_NOT_REQUIRED`
         - `auto-port` label → `PORT_NOT_REQUIRED` (loop prevention)
     - If no heuristic matches, the LLM classifier makes the call:
-        - `PORT_REQUIRED` or `PORT_NOT_REQUIRED`
+        - `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
     - In the happy path, the result is `PORT_REQUIRED`.
 
 5. **Agent executes port** (see [agent loop spec](../arch/agent-loop.md))

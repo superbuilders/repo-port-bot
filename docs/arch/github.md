@@ -234,24 +234,24 @@ The root action supports two token modes:
 
 1. **Single token mode**
     - Input: `github-token`
-    - One PAT is used for both source reads and target writes.
+    - One GitHub API token is used for both source reads and target writes.
 
 2. **Split token mode**
     - Inputs: `source-github-token`, `target-github-token`
     - Source token is used for source-repo API reads.
-    - Target token is used for git push + target-repo PR/issue/label writes.
+    - Target token is used for git push + target-repo PR/issue/label writes and source PR notification comments.
 
 `llm-api-key` is always required and is not used for GitHub API auth.
 
-These inputs accept any GitHub token that has the required permissions. Today most users provide PATs, but installation tokens from a GitHub App also work with the current action surface. That means an org-owned, consumer-managed GitHub App can replace PATs without engine or action code changes: the workflow generates installation tokens with `actions/create-github-app-token` and passes them through the existing token inputs.
+These inputs accept any GitHub token that has the required permissions. Today most users provide PATs, but installation tokens from a GitHub App already work with the current action surface. That means an org-owned, consumer-managed GitHub App can replace PATs without engine or action code changes: the workflow generates installation tokens with `actions/create-github-app-token` and passes them through the existing token inputs.
 
 ### Future: GitHub App
 
-- **Near-term path**: org-owned, consumer-managed app. The company owns the app and generates installation tokens in the workflow, then passes them through `github-token` or the split token inputs. No code changes required.
-- **Long-term path**: first-party Repo Port Bot app. The consumer installs the app and the action authenticates internally with no token inputs. This requires a hosted token exchange service and additional action logic.
+- **Supported today**: org-owned, consumer-managed app. The company owns the app and generates installation tokens in the workflow, then passes them through `github-token` or the split token inputs. No code changes required.
+- **Future path**: first-party Repo Port Bot app. The consumer installs the app and the action authenticates internally with no token inputs. This requires a hosted token exchange service and additional action logic.
 - Permissions needed:
-    - Source repo: `contents:read`, `pull_requests:read`, `pull_requests:write`
-    - Target repo: `contents:write`, `pull_requests:write`, `issues:write`
+    - Source repo: `contents:read`, `pull_requests:read`
+    - Target repo: `contents:write`, `pull_requests:write`, `issues:write` (plus the ability to comment on the source PR when split-token mode is used)
 
 ## GitHub Action surface
 
@@ -302,7 +302,7 @@ Users reference `@v1` which always points to the latest release commit on `main`
 
 ### workflow_dispatch for port re-runs (v2)
 
-Not in scope for v1 but the engine should accept a PR number as input rather than only discovering it from the push event.
+The action supports manual replay through `workflow_dispatch` using the existing event SHA or an explicit `commit-sha` override. The next likely expansion is supporting a source PR number directly rather than only discovering the source PR from a commit SHA.
 
 ## Plain pushes (no PR)
 
