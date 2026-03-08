@@ -178,28 +178,6 @@ function renderDiagnosticsBlock(execution: ExecutePortResult): string {
 }
 
 /**
- * Render compact execution metrics for PR notes.
- *
- * @param execution - Execution details.
- * @returns One-line metrics string.
- */
-function renderExecutionMetrics(execution: ExecutePortResult): string {
-	const toolCallCount = execution.trace.attempts.reduce(
-		(count, attempt) => count + attempt.trace.toolCallLog.length,
-		0,
-	)
-
-	const durationSuffix =
-		execution.trace.durationMs !== undefined
-			? ` · ${formatDuration(execution.trace.durationMs)}`
-			: ''
-
-	const fileCount = execution.outcome.touchedFiles.length
-
-	return `${String(fileCount)} file${fileCount === 1 ? '' : 's'} changed · ${String(execution.outcome.attempts)} attempt${execution.outcome.attempts === 1 ? '' : 's'} · ${String(toolCallCount)} tool call${toolCallCount === 1 ? '' : 's'}${durationSuffix}`
-}
-
-/**
  * Render the reviewer-facing execution summary parts for the PR body.
  *
  * @param execution - Execution details.
@@ -231,19 +209,6 @@ function renderAttemptSummaryParts(execution: ExecutePortResult): {
 	const notes = lastAttempt?.trace.notes?.trim() || '_No notes recorded._'
 
 	return { summary: notes }
-}
-
-/**
- * Render a summary blockquote for the "What was ported" section.
- *
- * @param summary - Reviewer-facing summary text.
- * @param attribution - Execution attribution line.
- * @returns Markdown blockquote.
- */
-function renderAttemptSummaryBlockquote(summary: string, attribution: string): string {
-	const summaryLines = summary.split('\n').map(line => `> ${line}`)
-
-	return [...summaryLines, '>', `> — ${attribution}`].join('\n')
 }
 
 /**
@@ -433,15 +398,47 @@ function renderAgentWorkLog(execution: ExecutePortResult): string {
  * @returns Attribution line.
  */
 function renderExecutionAttribution(execution: ExecutePortResult): string {
-	const atAGlance = renderExecutionMetrics(execution)
-
 	if (execution.trace.model) {
 		const modelUrl = `https://models.dev/?search=${encodeURIComponent(execution.trace.model)}`
 
-		return `[${execution.trace.model}](${modelUrl}) _(${atAGlance})_`
+		return `${renderExecutionSentencePrefix(execution)} by [${execution.trace.model}](${modelUrl}) ${renderExecutionSentenceSuffix(execution)}`
 	}
 
-	return atAGlance
+	return `${renderExecutionSentencePrefix(execution)} ${renderExecutionSentenceSuffix(execution)}`
+}
+
+/**
+ * Render a natural-language execution metrics prefix.
+ *
+ * @param execution - Execution details.
+ * @returns Sentence prefix.
+ */
+function renderExecutionSentencePrefix(execution: ExecutePortResult): string {
+	const fileCount = execution.outcome.touchedFiles.length
+	const durationPhrase =
+		execution.trace.durationMs !== undefined
+			? ` over ${formatDuration(execution.trace.durationMs)}`
+			: ''
+
+	return `This port updated ${String(fileCount)} file${fileCount === 1 ? '' : 's'}${durationPhrase} and was completed`
+}
+
+/**
+ * Render a natural-language execution metrics suffix.
+ *
+ * @param execution - Execution details.
+ * @returns Sentence fragment.
+ */
+function renderExecutionSentenceSuffix(execution: ExecutePortResult): string {
+	const attemptCount = execution.outcome.attempts
+	const toolCallCount = execution.trace.attempts.reduce(
+		(count, attempt) => count + attempt.trace.toolCallLog.length,
+		0,
+	)
+	const attemptPhrase =
+		attemptCount === 1 ? 'a single attempt' : `${String(attemptCount)} attempts`
+
+	return `in ${attemptPhrase}, using ${String(toolCallCount)} tool call${toolCallCount === 1 ? '' : 's'}.`
 }
 
 /**
@@ -458,16 +455,16 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	const sourceRepo = `${input.context.sourceRepo.owner}/${input.context.sourceRepo.name}`
 	const sourceRepoUrl = `https://github.com/${sourceRepo}`
 	const sourceRepoLink = `[\`${sourceRepo}\`](${sourceRepoUrl})`
-	const sourceNarrative = sourcePullRequest
+	const sourceNarrativePrefix = sourcePullRequest
 		? `Ported from [${sourcePullRequest.title}](${sourcePullRequest.url}) in ${sourceRepoLink}.`
 		: `Ported from commit \`${input.context.sourceChange.mergedCommitSha}\` in ${sourceRepoLink}.`
 	const summaryParts = renderAttemptSummaryParts(input.execution)
-	const reasonText = input.decision.reason
+	const reasonBlockquote = input.decision.reason
+		.split('\n')
+		.map(line => `> ${line}`)
+		.join('\n')
 	const executionAttribution = renderExecutionAttribution(input.execution)
-	const summaryBlockquote = renderAttemptSummaryBlockquote(
-		summaryParts.summary,
-		executionAttribution,
-	)
+	const sourceNarrative = `${sourceNarrativePrefix} ${executionAttribution}`
 
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
 
@@ -477,15 +474,15 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	const agentWorkLog = renderAgentWorkLog(input.execution)
 
 	return [
-		'## Cross-repo port',
+		'## Port rationale',
 		'',
-		reasonText,
+		reasonBlockquote,
 		'',
 		sourceNarrative,
 		'',
 		'## What was ported',
 		'',
-		summaryBlockquote,
+		summaryParts.summary,
 		summaryParts.details,
 		'',
 		agentWorkLog,
