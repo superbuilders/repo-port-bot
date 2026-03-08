@@ -483,6 +483,10 @@ export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput)
 		`**Why:** ${input.decision.reason}`,
 		'',
 		`**Changed files:** ${fileCount}`,
+		'',
+		'---',
+		sourcePullRequest ? `Source-PR: ${sourcePullRequest.url}` : undefined,
+		`Source-Commit: ${input.context.sourceChange.mergedCommitSha}`,
 	]
 		.filter(isDefinedLine)
 		.join('\n')

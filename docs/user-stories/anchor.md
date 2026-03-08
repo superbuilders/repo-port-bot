@@ -57,6 +57,7 @@ Define what "working" means from a maintainer perspective when a change in one r
 
 6. **PR is opened (or updated) in target repo**
     - On first run, a new PR is created. On re-runs where the port branch already has an open PR, the existing PR is updated with fresh output rather than failing.
+    - The maintainer should experience one stable target PR for a given source change, not a stream of duplicate PRs on each rerun.
     - PR title follows predictable format:
         - `Port: <source PR title>`
     - PR body follows a compact layout:
@@ -87,23 +88,26 @@ The maintainer experiences porting as "automatic and reviewable":
 1. **Automation**
     - Given a qualifying merged source PR, bot opens exactly one target PR without manual intervention. Re-runs update the existing PR rather than creating duplicates.
 
-2. **Traceability**
+2. **Idempotent target artifact**
+    - For a given source change, the bot maintains one stable target artifact for the successful port path: the same deterministic branch and the same open PR are reused across reruns.
+
+3. **Traceability**
     - Target PR contains a link to source PR in the body and source PR title in the PR title.
     - For all outcomes (including skips), source PR receives a bot comment using GitHub admonitions (`[!TIP]` for success, `[!WARNING]` for stalled/needs-human, `[!CAUTION]` for failures) with a collapsible reason.
     - On reruns, newer comments include a `[!NOTE]` supersede line linking the prior failed comment so maintainers can follow the latest state.
 
-3. **Correctness gate**
+4. **Correctness gate**
     - Target PR is only marked "ready" when configured validation commands pass.
 
-4. **Iteration behavior**
+5. **Iteration behavior**
     - At least one validation failure can be auto-recovered in-run (fix + rerun) when within retry budget.
 
-5. **Loop safety**
+6. **Loop safety**
     - Bot-created port PR merges do not re-trigger an opposite-direction echo port.
 
-6. **Fallback quality**
+7. **Fallback quality**
     - If retries are exhausted, bot opens a draft PR with `port-stalled` label and clear "where it got stuck" notes.
-    - If the decision stage returns `NEEDS_HUMAN`, bot opens an issue tagged `needs-human` linking to the source PR.
+    - If the decision stage returns `NEEDS_HUMAN`, bot opens or updates one issue tagged `needs-human` linking to the source PR rather than creating duplicate issues on rerun.
 
 ## Non-goals for this story (v1)
 

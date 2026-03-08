@@ -92,6 +92,12 @@ Define what a productive debugging session looks like. The maintainer should be 
     - **Infrastructure issue** (API 403, rate limit, timeout): fix token permissions or retry. The run ID correlates the failure across the source comment, job summary, and artifact.
     - **Classifier issue** (wrong decision): the classifier's reason string reveals its reasoning. Adjust ignore patterns or prompt to steer future decisions.
 
+10. **Maintainer expects stable target artifacts on rerun**
+    - If they rerun the same source change, they should not have to hunt across duplicate target PRs or duplicate `needs-human` issues.
+    - A stalled rerun should refresh the same draft PR.
+    - A `needs-human` rerun should refresh the same open issue.
+    - This keeps debugging focused on the latest state instead of forcing the maintainer to reconstruct history across duplicated artifacts.
+
 ## User-visible definition of success
 
 The maintainer experiences debugging as "layered and proportional":

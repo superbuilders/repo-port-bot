@@ -155,11 +155,11 @@ Source: GitHub REST API (`POST /repos/{owner}/{repo}/pulls`).
 
 ### Issue creation (NEEDS_HUMAN)
 
-When the decision stage returns `NEEDS_HUMAN`, the engine opens an issue in the target repo instead of attempting a port.
+When the decision stage returns `NEEDS_HUMAN`, the engine opens or updates an issue in the target repo instead of attempting a port.
 
 - Tagged `needs-human`
 - Compact title: `Needs review: <source PR title (truncated to 60 chars)>`
-- Body is a short narrative with the source PR link, reason, and file count
+- Body is a short narrative with the source PR link, reason, file count, and machine-readable source identity lines (`Source-PR`, `Source-Commit`) so reruns can reuse the same open issue
 
 **Example body:**
 

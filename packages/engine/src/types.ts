@@ -795,6 +795,36 @@ export interface GitHubWriter {
 		body: string
 		draft?: boolean
 	}): Promise<void>
+
+	/**
+	 * Find an existing open needs-human issue for the same source change.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 *
+	 * @param params - Search parameters.
+	 * @returns Matching issue metadata, or `undefined` when none exists.
+	 */
+	findNeedsHumanIssueForSource?(params: {
+		owner: string
+		repo: string
+		sourcePullRequestUrl?: string
+		sourceCommitSha: string
+	}): Promise<CreatedIssue | undefined>
+
+	/**
+	 * Update the title and body of an existing issue.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 *
+	 * @param params - Update parameters.
+	 */
+	updateIssue?(params: {
+		owner: string
+		repo: string
+		issueNumber: number
+		title: string
+		body: string
+	}): Promise<void>
 }
 
 // ---------------------------------------------------------------------------

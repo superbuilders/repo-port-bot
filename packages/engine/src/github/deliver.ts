@@ -354,6 +354,69 @@ async function upsertPullRequest(params: {
 }
 
 /**
+ * Create a new needs-human issue or update an existing open one for the same source change.
+ *
+ * @param params - Issue upsert parameters.
+ * @param params.writer - GitHub writer adapter.
+ * @param params.owner - Target repository owner.
+ * @param params.repo - Target repository name.
+ * @param params.title - Issue title.
+ * @param params.body - Issue body markdown.
+ * @param params.labels - Labels to apply to the issue.
+ * @param params.sourcePullRequestUrl - Source PR URL when available.
+ * @param params.sourceCommitSha - Source merge commit SHA used as fallback identity.
+ * @returns Created or existing issue metadata.
+ */
+async function upsertNeedsHumanIssue(params: {
+	writer: GitHubWriter
+	owner: string
+	repo: string
+	title: string
+	body: string
+	labels: string[]
+	sourcePullRequestUrl?: string
+	sourceCommitSha: string
+}): Promise<{ number: number; url: string }> {
+	const existing = params.writer.findNeedsHumanIssueForSource
+		? await params.writer.findNeedsHumanIssueForSource({
+				owner: params.owner,
+				repo: params.repo,
+				sourcePullRequestUrl: params.sourcePullRequestUrl,
+				sourceCommitSha: params.sourceCommitSha,
+			})
+		: undefined
+
+	if (existing) {
+		if (params.writer.updateIssue) {
+			await params.writer.updateIssue({
+				owner: params.owner,
+				repo: params.repo,
+				issueNumber: existing.number,
+				title: params.title,
+				body: params.body,
+			})
+		}
+
+		await params.writer.addLabels({
+			owner: params.owner,
+			repo: params.repo,
+			issueNumber: existing.number,
+			labels: params.labels,
+		})
+
+		return existing
+	}
+
+	return params.writer.createIssue({
+		owner: params.owner,
+		repo: params.repo,
+		title: params.title,
+		body: params.body,
+		labels: params.labels,
+	})
+}
+
+/**
  * Check whether a PR creation error indicates a PR already exists for the head branch.
  *
  * @param error - Error from createPullRequest.
@@ -391,7 +454,8 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	}
 
 	if (options.decision.kind === 'NEEDS_HUMAN') {
-		const issue = await options.writer.createIssue({
+		const issue = await upsertNeedsHumanIssue({
+			writer: options.writer,
 			owner: targetRepo.owner,
 			repo: targetRepo.name,
 			title: renderNeedsHumanIssueTitle(options.context),
@@ -400,6 +464,8 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 				decision: options.decision,
 			}),
 			labels: ['needs-human'],
+			sourcePullRequestUrl: options.context.sourceChange.pullRequest?.url,
+			sourceCommitSha: options.context.sourceChange.mergedCommitSha,
 		})
 
 		return {

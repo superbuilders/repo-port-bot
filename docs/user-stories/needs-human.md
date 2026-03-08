@@ -40,7 +40,7 @@ The classifier uses `needs_human` when a source change likely applies to the tar
 This is distinct from `PORT_NOT_REQUIRED`, which means the change genuinely does not apply to the target repo. The difference matters because:
 
 - `PORT_NOT_REQUIRED` ends the run with a skip comment. No issue, no action item.
-- `NEEDS_HUMAN` opens an issue in the target repo. The maintainer has something to act on.
+- `NEEDS_HUMAN` opens or updates an issue in the target repo. The maintainer has something to act on.
 
 ### Engine failure fallback
 
@@ -62,8 +62,9 @@ Regardless of which path produces the `NEEDS_HUMAN` decision, no agent execution
 3. **No execution**
     - The engine skips the execution stage entirely. No agent is invoked, no edits are attempted, no target branch is created.
 
-4. **Issue is opened in target repo**
+4. **Issue is opened (or updated) in target repo**
     - A follow-up issue is created in the target repository.
+    - On reruns for the same source change, the maintainer should see the same open `needs-human` issue updated with fresh context rather than a new duplicate issue.
     - Issue title: `Needs review: <source PR title>` (truncated if long).
     - Issue label: `needs-human`.
     - Issue body includes:
@@ -101,18 +102,21 @@ The maintainer experiences the escalation as "the bot told me it couldn't do thi
 ## Acceptance criteria
 
 1. **Issue, not PR**
-    - When the decision is `NEEDS_HUMAN`, the bot creates an issue in the target repo. No branch is pushed, no PR is opened, no agent execution occurs.
+    - When the decision is `NEEDS_HUMAN`, the bot creates or updates an issue in the target repo. No branch is pushed, no PR is opened, no agent execution occurs.
 
-2. **Needs-human label**
+2. **Idempotent issue reuse**
+    - For the same source change, reruns reuse the same open `needs-human` issue instead of creating duplicates. The issue acts as the stable handoff artifact for human follow-up.
+
+3. **Needs-human label**
     - The issue carries the `needs-human` label.
 
-3. **Actionable body**
+4. **Actionable body**
     - Issue body includes a link to the source PR, the decision reason, and the changed file count. A maintainer should be able to decide whether to port immediately, defer, or dismiss without opening any other page.
 
-4. **Source notification**
+5. **Source notification**
     - Source PR receives a comment linking to the issue. The maintainer who merged the source PR gets notified through GitHub's existing subscription model.
 
-5. **No side effects**
+6. **No side effects**
     - No target repo code is modified. No branch exists. If the maintainer dismisses the issue, the target repo is exactly as it was before.
 
 ## When this outcome is most likely

@@ -27,6 +27,7 @@ const TARGET_REPO: RepoRef = {
 
 const SOURCE_PULL_REQUEST_NUMBER = 42
 const EXISTING_PORT_PR_NUMBER = 555
+const EXISTING_NEEDS_HUMAN_ISSUE_NUMBER = 778
 
 /**
  * Build a synthetic port context for delivery tests.
@@ -134,12 +135,16 @@ function createWriterFake(): {
 	writer: GitHubWriter
 	createPrCalls: unknown[]
 	createIssueCalls: unknown[]
+	findNeedsHumanIssueCalls: unknown[]
+	updateIssueCalls: unknown[]
 	addLabelsCalls: unknown[]
 	createCommentCalls: unknown[]
 	listCommentsCalls: unknown[]
 } {
 	const createPrCalls: unknown[] = []
 	const createIssueCalls: unknown[] = []
+	const findNeedsHumanIssueCalls: unknown[] = []
+	const updateIssueCalls: unknown[] = []
 	const addLabelsCalls: unknown[] = []
 	const createCommentCalls: unknown[] = []
 	const listCommentsCalls: unknown[] = []
@@ -154,6 +159,14 @@ function createWriterFake(): {
 			createIssueCalls.push(params)
 
 			return { number: 777, url: 'https://github.com/acme/target-repo/issues/777' }
+		},
+		async findNeedsHumanIssueForSource(params) {
+			findNeedsHumanIssueCalls.push(params)
+
+			return undefined
+		},
+		async updateIssue(params) {
+			updateIssueCalls.push(params)
 		},
 		async addLabels(params): Promise<void> {
 			addLabelsCalls.push(params)
@@ -174,6 +187,8 @@ function createWriterFake(): {
 		writer,
 		createPrCalls,
 		createIssueCalls,
+		findNeedsHumanIssueCalls,
+		updateIssueCalls,
 		addLabelsCalls,
 		createCommentCalls,
 		listCommentsCalls,
@@ -205,7 +220,13 @@ describe('deliverResult', () => {
 	})
 
 	test('creates needs-human issue and does not run git for NEEDS_HUMAN', async () => {
-		const { writer, createPrCalls, createIssueCalls, addLabelsCalls } = createWriterFake()
+		const {
+			writer,
+			createPrCalls,
+			createIssueCalls,
+			findNeedsHumanIssueCalls,
+			addLabelsCalls,
+		} = createWriterFake()
 		let commandInvoked = false
 
 		const result = await deliverResult({
@@ -223,9 +244,52 @@ describe('deliverResult', () => {
 		expect(result.outcome).toBe('needs_human')
 		expect(result.followUpIssueUrl).toContain('/issues/777')
 		expect(commandInvoked).toBe(false)
+		expect(findNeedsHumanIssueCalls).toHaveLength(1)
 		expect((createIssueCalls[0] as { labels: string[] }).labels).toEqual(['needs-human'])
 		expect(createPrCalls).toEqual([])
 		expect(addLabelsCalls).toEqual([])
+	})
+
+	test('updates existing needs-human issue instead of creating duplicate', async () => {
+		const {
+			writer,
+			createIssueCalls,
+			findNeedsHumanIssueCalls,
+			updateIssueCalls,
+			addLabelsCalls,
+		} = createWriterFake()
+
+		writer.findNeedsHumanIssueForSource = async params => {
+			findNeedsHumanIssueCalls.push(params)
+
+			return {
+				number: EXISTING_NEEDS_HUMAN_ISSUE_NUMBER,
+				url: `https://github.com/acme/target-repo/issues/${String(EXISTING_NEEDS_HUMAN_ISSUE_NUMBER)}`,
+			}
+		}
+
+		const result = await deliverResult({
+			writer,
+			context: makeContext(),
+			decision: makeDecision('NEEDS_HUMAN'),
+			targetWorkingDirectory: '/tmp/unused',
+			runCommand: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
+		})
+
+		expect(result.outcome).toBe('needs_human')
+		expect(result.followUpIssueUrl).toBe(
+			`https://github.com/acme/target-repo/issues/${String(EXISTING_NEEDS_HUMAN_ISSUE_NUMBER)}`,
+		)
+		expect(findNeedsHumanIssueCalls).toHaveLength(1)
+		expect(createIssueCalls).toEqual([])
+		expect(updateIssueCalls).toHaveLength(1)
+		expect((updateIssueCalls[0] as { issueNumber: number }).issueNumber).toBe(
+			EXISTING_NEEDS_HUMAN_ISSUE_NUMBER,
+		)
+		expect((addLabelsCalls[0] as { issueNumber: number }).issueNumber).toBe(
+			EXISTING_NEEDS_HUMAN_ISSUE_NUMBER,
+		)
+		expect((addLabelsCalls[0] as { labels: string[] }).labels).toEqual(['needs-human'])
 	})
 
 	test('creates ready PR with auto-port label for successful execution', async () => {

@@ -371,6 +371,8 @@ describe('render-body', () => {
 		)
 		expect(body).toContain('**Why:** Decision reason')
 		expect(body).toContain('**Changed files:** 1')
+		expect(body).toContain('Source-PR: https://github.com/acme/source-repo/pull/42')
+		expect(body).toContain('Source-Commit: abc123456789')
 	})
 
 	test('renders source comment for skipped outcome with note admonition', () => {
