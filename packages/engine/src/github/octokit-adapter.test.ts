@@ -103,4 +103,52 @@ describe('createOctokitWriter', () => {
 			},
 		])
 	})
+
+	test('updateComment forwards body to issues.updateComment', async () => {
+		const updateCalls: unknown[] = []
+		const octokit = {
+			paginate: async () => [],
+			rest: {
+				issues: {
+					listForRepo: {},
+					update: async () => {},
+					updateComment: async (params: unknown) => {
+						updateCalls.push(params)
+
+						return {
+							data: {
+								html_url:
+									'https://github.com/acme/source-repo/pull/42#issuecomment-5',
+							},
+						}
+					},
+				},
+				pulls: {
+					create: async () => ({ data: {} }),
+					update: async () => {},
+					get: async () => ({ data: { draft: false } }),
+					list: async () => ({ data: [] }),
+				},
+			},
+			graphql: async () => ({}),
+		} as const
+
+		const writer = createOctokitWriter(octokit as never)
+		const url = await writer.updateComment?.({
+			owner: 'acme',
+			repo: 'source-repo',
+			commentId: 5,
+			body: 'Updated comment body',
+		})
+
+		expect(url).toBe('https://github.com/acme/source-repo/pull/42#issuecomment-5')
+		expect(updateCalls).toEqual([
+			{
+				owner: 'acme',
+				repo: 'source-repo',
+				comment_id: 5,
+				body: 'Updated comment body',
+			},
+		])
+	})
 })

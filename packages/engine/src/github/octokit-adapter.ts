@@ -165,6 +165,16 @@ export function createOctokitWriter(octokit: Octokit): GitHubWriter {
 
 			return response.data.html_url
 		},
+		async updateComment(params) {
+			const response = await octokit.rest.issues.updateComment({
+				owner: params.owner,
+				repo: params.repo,
+				comment_id: params.commentId,
+				body: params.body,
+			})
+
+			return response.data.html_url
+		},
 		async listComments(params) {
 			const comments = await octokit.paginate(octokit.rest.issues.listComments, {
 				owner: params.owner,
@@ -174,6 +184,7 @@ export function createOctokitWriter(octokit: Octokit): GitHubWriter {
 			})
 
 			return comments.map(comment => ({
+				id: comment.id,
 				url: comment.html_url,
 				body: comment.body ?? '',
 				createdAt: comment.created_at,

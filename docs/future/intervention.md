@@ -63,7 +63,7 @@ Minimum useful version:
 - reuse the same deterministic port branch
 - update the same target PR when it already exists
 - update the same open `needs-human` issue when the rerun still ends in `NEEDS_HUMAN`
-- preserve current source comment supersede behavior
+- update the same source PR comment rather than appending duplicates
 
 Possible follow-ups:
 

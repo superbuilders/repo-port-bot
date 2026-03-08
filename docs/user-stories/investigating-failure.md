@@ -26,9 +26,9 @@ Define what a productive debugging session looks like. The maintainer should be 
 ### Layer 1: Source PR comment (seconds)
 
 1. **Maintainer sees the source PR comment**
-    - Every outcome (including skips) produces a comment on the merged source PR when a source PR exists. The comment includes the outcome, a link to the target PR/issue (if created), and the decision reason.
+    - Every outcome (including skips) produces a bot-managed comment on the merged source PR when a source PR exists. The comment includes the outcome, a link to the target PR/issue (if created), and the decision reason.
     - For `failed` outcomes, the comment includes the run ID for correlation.
-    - On reruns that succeed (or otherwise move past failure), the newer comment can explicitly supersede the prior failed comment and link back to it.
+    - On reruns, the same source PR comment is updated in place for this target repo, so the maintainer always reads the latest state first.
     - This is the fastest signal. The maintainer knows something went wrong and has a reason string to start with.
 
 2. **Maintainer evaluates whether to dig deeper**
@@ -112,6 +112,7 @@ The maintainer experiences debugging as "layered and proportional":
 
 1. **Source comment always present**
     - Every outcome produces a source comment with the outcome and reason when a source PR exists. `failed` outcomes include the run ID. Even `skipped_not_required` posts a comment explaining the skip.
+    - Reruns update the same bot-managed source comment for the target repo instead of appending duplicates.
 
 2. **Job summary is self-contained**
     - The summary tab shows outcome, decision, execution stats, and stage timings in a single glanceable view. No log expansion needed for the high-level picture.

@@ -94,7 +94,7 @@ The maintainer experiences porting as "automatic and reviewable":
 3. **Traceability**
     - Target PR contains a link to source PR in the body and source PR title in the PR title.
     - For all outcomes (including skips), source PR receives a bot comment using GitHub admonitions (`[!TIP]` for success, `[!WARNING]` for stalled/needs-human, `[!CAUTION]` for failures) with a collapsible reason.
-    - On reruns, newer comments include a `[!NOTE]` supersede line linking the prior failed comment so maintainers can follow the latest state.
+    - On reruns, the bot updates the same source PR comment for this target repo so maintainers always see one stable latest-status artifact rather than a growing comment chain.
 
 4. **Correctness gate**
     - Target PR is only marked "ready" when configured validation commands pass.

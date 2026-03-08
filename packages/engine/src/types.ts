@@ -605,6 +605,11 @@ export interface CreatedIssue {
  */
 export interface IssueCommentRef {
 	/**
+	 * Numeric GitHub comment identifier.
+	 */
+	id: number
+
+	/**
 	 * Canonical HTML URL of the comment.
 	 */
 	url: string
@@ -733,6 +738,20 @@ export interface GitHubWriter {
 		owner: string
 		repo: string
 		issueNumber: number
+		body: string
+	}): Promise<string | undefined>
+
+	/**
+	 * Update an existing comment on an issue or pull request.
+	 *
+	 * Optional so existing adapters/tests can omit this capability.
+	 *
+	 * @param params - Comment update parameters.
+	 */
+	updateComment?(params: {
+		owner: string
+		repo: string
+		commentId: number
 		body: string
 	}): Promise<string | undefined>
 

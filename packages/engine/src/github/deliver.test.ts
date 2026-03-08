@@ -28,6 +28,7 @@ const TARGET_REPO: RepoRef = {
 const SOURCE_PULL_REQUEST_NUMBER = 42
 const EXISTING_PORT_PR_NUMBER = 555
 const EXISTING_NEEDS_HUMAN_ISSUE_NUMBER = 778
+const EXISTING_SOURCE_COMMENT_ID = 101
 
 /**
  * Build a synthetic port context for delivery tests.
@@ -139,6 +140,7 @@ function createWriterFake(): {
 	updateIssueCalls: unknown[]
 	addLabelsCalls: unknown[]
 	createCommentCalls: unknown[]
+	updateCommentCalls: unknown[]
 	listCommentsCalls: unknown[]
 } {
 	const createPrCalls: unknown[] = []
@@ -147,6 +149,7 @@ function createWriterFake(): {
 	const updateIssueCalls: unknown[] = []
 	const addLabelsCalls: unknown[] = []
 	const createCommentCalls: unknown[] = []
+	const updateCommentCalls: unknown[] = []
 	const listCommentsCalls: unknown[] = []
 
 	const writer: GitHubWriter = {
@@ -176,6 +179,11 @@ function createWriterFake(): {
 
 			return 'https://github.com/acme/source-repo/pull/42#issuecomment-1'
 		},
+		async updateComment(params): Promise<string | undefined> {
+			updateCommentCalls.push(params)
+
+			return 'https://github.com/acme/source-repo/pull/42#issuecomment-1'
+		},
 		async listComments(params) {
 			listCommentsCalls.push(params)
 
@@ -191,6 +199,7 @@ function createWriterFake(): {
 		updateIssueCalls,
 		addLabelsCalls,
 		createCommentCalls,
+		updateCommentCalls,
 		listCommentsCalls,
 	}
 }
@@ -444,6 +453,9 @@ describe('commentOnSourcePr', () => {
 		expect(String((createCommentCalls[0] as { body: string }).body)).toContain(
 			'Ported to https://github.com/acme/target-repo/pull/901',
 		)
+		expect(String((createCommentCalls[0] as { body: string }).body)).toContain(
+			'<!-- repo-port-bot:source-comment target=acme/target-repo -->',
+		)
 	})
 
 	test('returns undefined when comment creation throws', async () => {
@@ -476,21 +488,21 @@ describe('commentOnSourcePr', () => {
 		expect(commentUrl).toBeUndefined()
 	})
 
-	test('includes supersedes context when prior failed source comment exists', async () => {
-		const { createCommentCalls, writer } = createWriterFake()
+	test('updates existing managed source comment instead of appending duplicate', async () => {
+		const { createCommentCalls, updateCommentCalls, writer } = createWriterFake()
 		const context = makeContext()
 
 		writer.listComments = async () => [
 			{
-				url: 'https://github.com/acme/source-repo/pull/42#issuecomment-0',
+				id: EXISTING_SOURCE_COMMENT_ID,
+				url: 'https://github.com/acme/source-repo/pull/42#issuecomment-101',
 				body: [
-					'Port to `acme/target-repo` failed due to an engine error.',
+					'<!-- repo-port-bot:source-comment target=acme/target-repo -->',
 					'',
-					'**Why:** something failed',
-					'',
-					'Run ID: `run-old`',
+					'> [!WARNING]',
+					'> Could not automatically port to `acme/target-repo`.',
 				].join('\n'),
-				createdAt: '2026-03-05T00:00:00Z',
+				createdAt: '2026-03-08T00:00:00Z',
 			},
 		]
 
@@ -501,11 +513,19 @@ describe('commentOnSourcePr', () => {
 			decision: makeDecision('PORT_REQUIRED'),
 			outcome: 'pr_opened',
 			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
-			runId: 'run-new',
+			runId: 'run-3',
 		})
 
-		expect(String((createCommentCalls[0] as { body: string }).body)).toContain(
-			'Supersedes [prior attempt](https://github.com/acme/source-repo/pull/42#issuecomment-0) (run `run-old`).',
+		expect(createCommentCalls).toEqual([])
+		expect(updateCommentCalls).toHaveLength(1)
+		expect((updateCommentCalls[0] as { commentId: number }).commentId).toBe(
+			EXISTING_SOURCE_COMMENT_ID,
+		)
+		expect(String((updateCommentCalls[0] as { body: string }).body)).not.toContain(
+			'Supersedes [prior attempt]',
+		)
+		expect(String((updateCommentCalls[0] as { body: string }).body)).toContain(
+			'<!-- repo-port-bot:source-comment target=acme/target-repo -->',
 		)
 	})
 })

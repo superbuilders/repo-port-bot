@@ -52,6 +52,18 @@ const MAX_WORK_LOG_BLOCKS = 24
 const LOW_SIGNAL_TOOL_NAMES = new Set(['Glob', 'Grep'])
 
 /**
+ * Build the hidden marker used to identify one stable source PR comment per target repo.
+ *
+ * @param context - Port context.
+ * @returns HTML comment marker.
+ */
+function buildSourceCommentMarker(context: PortContext): string {
+	const targetRepo = `${context.pluginConfig.targetRepo.owner}/${context.pluginConfig.targetRepo.name}`
+
+	return `<!-- repo-port-bot:source-comment target=${targetRepo} -->`
+}
+
+/**
  * Filter predicate that removes `undefined` while preserving empty strings
  * (used as markdown paragraph separators).
  *
@@ -529,6 +541,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 	switch (input.outcome) {
 		case 'skipped_not_required': {
 			return [
+				buildSourceCommentMarker(input.context),
+				'',
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!NOTE]\n> Port bot skipped this for \`${targetRepo}\`.`,
@@ -544,6 +558,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			const shape = `${String(fileCount)} file${fileCount === 1 ? '' : 's'}`
 
 			return [
+				buildSourceCommentMarker(input.context),
+				'',
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!TIP]\n> Ported to ${prLink} (${shape}, validation passed).`,
@@ -561,6 +577,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			const shape = `${String(fileCount)} file${fileCount === 1 ? '' : 's'}`
 
 			return [
+				buildSourceCommentMarker(input.context),
+				'',
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!WARNING]\n> Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
@@ -576,6 +594,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				: `an issue in \`${targetRepo}\``
 
 			return [
+				buildSourceCommentMarker(input.context),
+				'',
 				supersededNote,
 				supersededNote ? '' : undefined,
 				`> [!WARNING]\n> Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
@@ -587,6 +607,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 		}
 		case 'failed': {
 			return [
+				buildSourceCommentMarker(input.context),
+				'',
 				`> [!CAUTION]\n> Port to \`${targetRepo}\` failed due to an engine error. Run ID: \`${input.runId}\``,
 				'>',
 				buildReasonDetails('What went wrong?'),
@@ -594,6 +616,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 		}
 		default: {
 			return [
+				buildSourceCommentMarker(input.context),
+				'',
 				`> [!NOTE]\n> Port bot ran for \`${targetRepo}\`.`,
 				'>',
 				buildReasonDetails('Details'),
