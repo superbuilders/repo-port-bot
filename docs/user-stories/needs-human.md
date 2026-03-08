@@ -26,26 +26,25 @@ Define what "good escalation" looks like. The maintainer should receive enough c
 
 ## How the decision is reached
 
-### Current: engine failure fallback
+`NEEDS_HUMAN` comes from two paths:
 
-Today, `NEEDS_HUMAN` comes from one path: the pipeline crashes before producing a decision (e.g., GitHub API error during context gathering, config resolution failure). The engine falls back to a `NEEDS_HUMAN` decision with a reason describing the failure. This ensures no source change is silently dropped — even infrastructure failures produce a visible artifact.
+1. Classifier escalation, and
+2. Engine failure fallback
 
-### Why the classifier can't produce `NEEDS_HUMAN` yet
+### Classifier escalation
 
-The LLM classifier currently returns a binary output: `{ required: boolean, reason: string }`. The engine maps `required: true` to `PORT_REQUIRED` and `required: false` to `PORT_NOT_REQUIRED`. There is no way for the classifier to say "this change does need porting, but I shouldn't attempt it myself."
+The LLM classifier returns a three-way output: `{ decision: 'required' | 'not_required' | 'needs_human', reason: string }`. When it returns `needs_human`, the engine maps that to `NEEDS_HUMAN` and skips execution entirely.
 
-This matters because `PORT_NOT_REQUIRED` and `NEEDS_HUMAN` have very different meanings:
+The classifier uses `needs_human` when a source change likely applies to the target repo but looks too risky, ambiguous, or complex for automation to handle safely.
 
-- `PORT_NOT_REQUIRED` → "this change doesn't apply to the target repo." The run ends with a skip comment. No issue, no action item.
-- `NEEDS_HUMAN` → "this change does apply, but is too complex or risky for automation." An issue is created in the target repo. The maintainer has something to act on.
+This is distinct from `PORT_NOT_REQUIRED`, which means the change genuinely does not apply to the target repo. The difference matters because:
 
-Collapsing these into a single `false` means the classifier can't distinguish "this is a source-internal refactor that doesn't affect the target" from "this is a major API change that absolutely needs porting but I'd get it wrong if I tried."
+- `PORT_NOT_REQUIRED` ends the run with a skip comment. No issue, no action item.
+- `NEEDS_HUMAN` opens an issue in the target repo. The maintainer has something to act on.
 
-### Roadmap: three-way classifier output
+### Engine failure fallback
 
-Adding a third output to the classifier is a high-value future enhancement. The `DecidePortOutput` would gain a third state — something like `{ decision: 'required' | 'not_required' | 'needs_human', reason: string }` — letting the classifier explicitly escalate when it recognizes a change that needs porting but exceeds its confidence threshold.
-
-This would make `NEEDS_HUMAN` the primary deliberate escalation path rather than just a crash recovery mechanism. It would also give the team a natural feedback loop: tracking the ratio of `needs_human` issues that get manually ported vs dismissed tells you whether the classifier's confidence threshold is calibrated correctly.
+If the pipeline crashes before producing a decision (e.g., GitHub API error, config resolution failure), the engine falls back to a `NEEDS_HUMAN` decision with a reason describing the failure. This ensures no source change is silently dropped -- even infrastructure failures produce a visible artifact.
 
 ### In all cases
 
@@ -118,15 +117,10 @@ The maintainer experiences the escalation as "the bot told me it couldn't do thi
 
 ## When this outcome is most likely
 
-Today:
-
-- The engine encountered an infrastructure failure (API timeout, auth error, malformed config) before it could make a real decision. The `NEEDS_HUMAN` fallback ensures nothing is silently dropped.
-
-Once the classifier gains three-way output:
-
 - The source change is a large refactor or architecture shift that doesn't map cleanly to the target repo's structure (new module patterns, renamed abstractions, fundamental API changes).
 - The source and target repos use different languages or frameworks, and the change involves idioms that don't translate directly.
 - The classifier inspects both repos and determines its confidence is too low to attempt an automated port.
+- The engine encountered an infrastructure failure (API timeout, auth error, malformed config) before it could make a real decision. The `NEEDS_HUMAN` fallback ensures nothing is silently dropped.
 
 ## Non-goals
 

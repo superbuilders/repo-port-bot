@@ -226,6 +226,52 @@ describe('render-body', () => {
 		expect(body).toContain('Failure reason: Validation failed after retries.')
 	})
 
+	test('renders structured summary overview and per-file bullets when available', () => {
+		const execution = makeExecution(true)
+
+		execution.summary = {
+			text: 'Ported scheduling behavior and synced related tests.',
+			files: [
+				{
+					path: 'src/app.ts',
+					description: 'Updated scheduling logic to mirror source changes.',
+				},
+				{
+					path: 'src/app.test.ts',
+					description: 'Adjusted assertions for new scheduling behavior.',
+				},
+			],
+		}
+
+		const body = renderPortPullRequestBody({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			execution,
+		})
+
+		expect(body).toContain('Ported scheduling behavior and synced related tests.')
+		expect(body).toContain('- `src/app.ts`: Updated scheduling logic to mirror source changes.')
+		expect(body).toContain(
+			'- `src/app.test.ts`: Adjusted assertions for new scheduling behavior.',
+		)
+		expect(body).not.toContain('_No notes recorded._')
+	})
+
+	test('falls back to last attempt notes when structured summary is unavailable', () => {
+		const execution = makeExecution(true)
+
+		execution.summary = undefined
+		execution.trace.attempts[0]!.trace.notes = 'Fallback attempt summary from notes.'
+
+		const body = renderPortPullRequestBody({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			execution,
+		})
+
+		expect(body).toContain('Fallback attempt summary from notes.')
+	})
+
 	test('omits diagnostics block when no validation commands configured', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContextWithoutValidationCommands(),

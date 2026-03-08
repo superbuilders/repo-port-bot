@@ -4,13 +4,13 @@ author: superbuilders
 
 inputs:
     github-token:
-        description: Fallback GitHub token used for source reads and target writes.
+        description: Fallback GitHub API token used for source reads and target writes.
         required: false
     source-github-token:
-        description: Optional GitHub token for source repository reads.
+        description: Optional GitHub API token for source repository reads.
         required: false
     target-github-token:
-        description: Optional GitHub token for target repository writes.
+        description: Optional GitHub API token for target repository writes.
         required: false
     llm-api-key:
         description: Anthropic API key used by the Claude agent provider.
@@ -62,6 +62,10 @@ inputs:
         description: Minimum log level for stdout output (error, warn, info, debug).
         required: false
         default: info
+    commit-sha:
+        description: Override the merge commit SHA to process (defaults to GITHUB_SHA from the workflow event).
+        required: false
+        default: ''
 
 outputs:
     run-id:
@@ -116,3 +120,4 @@ runs:
               INPUT_MAX-TURNS: ${{ inputs.max-turns }}
               INPUT_MAX-BUDGET-USD: ${{ inputs.max-budget-usd }}
               INPUT_LOG-LEVEL: ${{ inputs.log-level }}
+              INPUT_COMMIT-SHA: ${{ inputs.commit-sha }}

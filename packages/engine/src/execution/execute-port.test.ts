@@ -92,6 +92,15 @@ describe('executePort', () => {
 				return {
 					touchedFiles: ['src/ported.ts'],
 					complete: true,
+					summary: {
+						text: 'Ported source updates to target implementation.',
+						files: [
+							{
+								path: 'src/ported.ts',
+								description: 'Updated logic to match source behavior.',
+							},
+						],
+					},
 					trace: {
 						notes: 'Applied source changes.',
 						toolCallLog: [],
@@ -114,6 +123,24 @@ describe('executePort', () => {
 		expect(result.outcome.attempts).toBe(1)
 		expect(result.trace.attempts).toHaveLength(1)
 		expect(result.trace.attempts[0]?.validation[0]?.ok).toBe(true)
+		expect(result.trace.attempts[0]?.summary).toEqual({
+			text: 'Ported source updates to target implementation.',
+			files: [
+				{
+					path: 'src/ported.ts',
+					description: 'Updated logic to match source behavior.',
+				},
+			],
+		})
+		expect(result.summary).toEqual({
+			text: 'Ported source updates to target implementation.',
+			files: [
+				{
+					path: 'src/ported.ts',
+					description: 'Updated logic to match source behavior.',
+				},
+			],
+		})
 		expect(result.outcome.touchedFiles).toEqual(['src/ported.ts'])
 		expect(receivedInput).toBeDefined()
 		expect(receivedInput!.sourceWorkingDirectory).toBe('/tmp/source-repo')
@@ -144,6 +171,21 @@ describe('executePort', () => {
 				return {
 					touchedFiles: callCount === 1 ? ['src/first-pass.ts'] : ['src/fix-pass.ts'],
 					complete: callCount === 2,
+					summary: {
+						text:
+							callCount === 1
+								? 'Initial port attempt with partial updates.'
+								: 'Follow-up attempt fixed validation errors.',
+						files: [
+							{
+								path: callCount === 1 ? 'src/first-pass.ts' : 'src/fix-pass.ts',
+								description:
+									callCount === 1
+										? 'Added first-pass implementation changes.'
+										: 'Adjusted implementation to satisfy validation.',
+							},
+						],
+					},
 					trace: {
 						toolCallLog: [
 							{
@@ -182,6 +224,15 @@ describe('executePort', () => {
 		expect(result.trace.attempts[1]?.trace.events[0]).toEqual({
 			kind: 'assistant_note',
 			text: 'Attempt 2 update.',
+		})
+		expect(result.summary).toEqual({
+			text: 'Follow-up attempt fixed validation errors.',
+			files: [
+				{
+					path: 'src/fix-pass.ts',
+					description: 'Adjusted implementation to satisfy validation.',
+				},
+			],
 		})
 		expect(previousAttemptLengths).toEqual([0, 1])
 		expect(result.outcome.touchedFiles.sort()).toEqual(['src/first-pass.ts', 'src/fix-pass.ts'])

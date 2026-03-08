@@ -484,6 +484,36 @@ export interface ExecutePortAttemptInput {
 export type ExecutePortAttemptTrace = StageTrace
 
 /**
+ * Per-file summary entry for the "What was ported" section.
+ */
+export interface PortSummaryFile {
+	/**
+	 * Repository-relative file path.
+	 */
+	path: string
+
+	/**
+	 * Short description of what changed in this file.
+	 */
+	description: string
+}
+
+/**
+ * Structured PR-facing summary for one execution attempt.
+ */
+export interface PortSummary {
+	/**
+	 * One-paragraph overview of the ported change set.
+	 */
+	text: string
+
+	/**
+	 * File-level change descriptions.
+	 */
+	files: PortSummaryFile[]
+}
+
+/**
  * What the agent provider returns after one edit attempt.
  *
  * The provider only produces edits — it never runs validation commands.
@@ -499,6 +529,11 @@ export interface ExecutePortAttemptOutput {
 	 * Whether the agent believes its edits fully address the port.
 	 */
 	complete: boolean
+
+	/**
+	 * Optional structured summary used for PR body rendering.
+	 */
+	summary?: PortSummary
 
 	/**
 	 * Observability payload captured during the attempt.
@@ -826,6 +861,11 @@ export interface ExecutePortAttemptResult {
 	touchedFiles: string[]
 
 	/**
+	 * Structured summary captured for this attempt when available.
+	 */
+	summary?: PortSummary
+
+	/**
 	 * Validation results for this attempt.
 	 */
 	validation: ValidationCommandResult[]
@@ -884,6 +924,11 @@ export interface ExecutePortResult {
 	 * Domain outcome from the execution stage.
 	 */
 	outcome: ExecutePortOutcome
+
+	/**
+	 * Structured summary from the final attempt when available.
+	 */
+	summary?: PortSummary
 
 	/**
 	 * Execution-stage trace metadata.

@@ -1,11 +1,10 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
-
 import {
 	buildDecideSystemPrompt,
 	buildDecideUserPrompt,
 	buildSystemPrompt,
 	buildUserPrompt,
-} from './build-prompt.ts'
+} from '@repo-port-bot/prompts'
 
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
@@ -17,6 +16,7 @@ import type {
 	DecidePortResult,
 	ExecutePortAttemptInput,
 	ExecutePortAttemptOutput,
+	PortSummary,
 	ToolCallEntry,
 } from '@repo-port-bot/engine'
 
@@ -35,10 +35,35 @@ const DECIDE_PORT_OUTPUT_FORMAT = {
 	schema: {
 		type: 'object',
 		properties: {
-			required: { type: 'boolean' },
+			decision: {
+				type: 'string',
+				enum: ['required', 'not_required', 'needs_human'],
+			},
 			reason: { type: 'string' },
 		},
-		required: ['required', 'reason'],
+		required: ['decision', 'reason'],
+	},
+}
+
+const EXECUTE_PORT_OUTPUT_FORMAT = {
+	type: 'json_schema' as const,
+	schema: {
+		type: 'object',
+		properties: {
+			summary: { type: 'string' },
+			files: {
+				type: 'array',
+				items: {
+					type: 'object',
+					properties: {
+						path: { type: 'string' },
+						description: { type: 'string' },
+					},
+					required: ['path', 'description'],
+				},
+			},
+		},
+		required: ['summary', 'files'],
 	},
 }
 
@@ -247,6 +272,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 			maxBudgetUsd: this.options.maxBudgetUsd,
 			allowedTools: ['Read', EDIT_TOOL, WRITE_TOOL, 'Glob', 'Grep', 'Bash'],
 			tools: ['Read', EDIT_TOOL, WRITE_TOOL, 'Glob', 'Grep', 'Bash'],
+			outputFormat: EXECUTE_PORT_OUTPUT_FORMAT,
 			permissionMode: 'bypassPermissions',
 			allowDangerouslySkipPermissions: true,
 			env: this.options.apiKey
@@ -371,10 +397,12 @@ export class ClaudeAgentProvider implements AgentProvider {
 			assistantNotes.length === 0 ? undefined : assistantNotes.join('\n'),
 			resultNotes,
 		])
+		const summary = readStructuredExecuteOutput(resultMessage)
 
 		return {
 			touchedFiles: [...touchedFiles],
 			complete: resultMessage.subtype === 'success',
+			summary,
 			trace: {
 				notes,
 				model: this.options.model ?? DEFAULT_MODEL,
@@ -382,6 +410,51 @@ export class ClaudeAgentProvider implements AgentProvider {
 				events,
 			},
 		}
+	}
+}
+
+/**
+ * Extract validated structured output from an executePort result message.
+ *
+ * @param message - SDK result message with potential structured_output.
+ * @returns Structured execution summary when present.
+ */
+function readStructuredExecuteOutput(message: SDKResultMessage): PortSummary | undefined {
+	if (message.subtype !== 'success') {
+		return undefined
+	}
+
+	const output = (message as unknown as { structured_output?: unknown }).structured_output
+
+	if (!output || typeof output !== 'object') {
+		throw new Error('Claude executePort result missing structured_output.')
+	}
+
+	const summary = (output as Record<string, unknown>).summary
+	const files = (output as Record<string, unknown>).files
+
+	if (typeof summary !== 'string' || !Array.isArray(files)) {
+		throw new Error('Claude executePort structured_output has invalid shape.')
+	}
+
+	const parsedFiles = files.map(file => {
+		if (!file || typeof file !== 'object') {
+			throw new Error('Claude executePort structured_output contains invalid file entry.')
+		}
+
+		const path = (file as Record<string, unknown>).path
+		const description = (file as Record<string, unknown>).description
+
+		if (typeof path !== 'string' || typeof description !== 'string') {
+			throw new Error('Claude executePort structured_output file entry has invalid shape.')
+		}
+
+		return { path, description }
+	})
+
+	return {
+		text: summary,
+		files: parsedFiles,
 	}
 }
 
@@ -552,7 +625,7 @@ function normalizeToolInputForEvent(
  * @returns Validated decide port output.
  */
 function readStructuredDecideOutput(message: SDKResultMessage): {
-	kind: 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED'
+	kind: 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED' | 'NEEDS_HUMAN'
 	reason: string
 } {
 	if (message.subtype !== 'success') {
@@ -565,12 +638,22 @@ function readStructuredDecideOutput(message: SDKResultMessage): {
 		throw new Error('Claude decidePort result missing structured_output.')
 	}
 
-	const required = (output as Record<string, unknown>).required
+	const decision = (output as Record<string, unknown>).decision
 	const reason = (output as Record<string, unknown>).reason
 
-	if (typeof required !== 'boolean' || typeof reason !== 'string') {
+	if (
+		typeof decision !== 'string' ||
+		!['required', 'not_required', 'needs_human'].includes(decision) ||
+		typeof reason !== 'string'
+	) {
 		throw new Error('Claude decidePort structured_output has invalid shape.')
 	}
 
-	return { kind: required ? 'PORT_REQUIRED' : 'PORT_NOT_REQUIRED', reason }
+	const DECISION_MAP: Record<string, 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED' | 'NEEDS_HUMAN'> = {
+		required: 'PORT_REQUIRED',
+		not_required: 'PORT_NOT_REQUIRED',
+		needs_human: 'NEEDS_HUMAN',
+	}
+
+	return { kind: DECISION_MAP[decision]!, reason }
 }

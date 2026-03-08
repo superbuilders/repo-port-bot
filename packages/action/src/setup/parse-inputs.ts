@@ -190,7 +190,8 @@ export function parseActionInputs(
 	const sourceOwner = context.repo.owner
 	const sourceName = context.repo.repo
 	const defaultBranch = (context.payload.repository?.default_branch ?? '').trim() || 'main'
-	const commitSha = context.sha.trim()
+	const commitShaOverride = getInput('commit-sha').trim()
+	const commitSha = commitShaOverride || context.sha.trim()
 
 	if (!sourceOwner || !sourceName || !commitSha) {
 		throw new Error('Unable to resolve source repository or commit SHA from workflow context.')

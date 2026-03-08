@@ -194,6 +194,22 @@ function renderExecutionMetrics(execution: ExecutePortResult): string {
  * @returns Markdown sections for each attempt.
  */
 function renderAttemptNotes(execution: ExecutePortResult): string {
+	const structuredSummary = execution.summary
+
+	if (structuredSummary) {
+		const summaryText = structuredSummary.text.trim()
+		const fileLines = structuredSummary.files.map(
+			file => `- \`${file.path}\`: ${file.description}`,
+		)
+
+		return [
+			summaryText.length > 0 ? summaryText : undefined,
+			fileLines.length > 0 ? fileLines.join('\n') : undefined,
+		]
+			.filter(isDefinedLine)
+			.join('\n\n')
+	}
+
 	if (execution.trace.attempts.length === 0) {
 		return '_No notes recorded._'
 	}
@@ -502,7 +518,6 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			`> <details><summary>${summary}</summary>`,
 			'>',
 			...reasonLines,
-			'>',
 			'> </details>',
 		].join('\n')
 	}

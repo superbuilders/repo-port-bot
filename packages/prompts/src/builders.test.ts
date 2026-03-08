@@ -5,7 +5,7 @@ import {
 	buildDecideUserPrompt,
 	buildSystemPrompt,
 	buildUserPrompt,
-} from './build-prompt.ts'
+} from './builders.ts'
 
 import type { ExecutePortAttemptInput, PluginConfig } from '@repo-port-bot/engine'
 
@@ -79,6 +79,17 @@ describe('buildSystemPrompt', () => {
 		expect(prompt).toContain('snake_case for python modules')
 		expect(prompt).toContain('Additional instructions')
 		expect(prompt).toContain('Prefer target repository helper abstractions.')
+	})
+
+	test('includes structured summary section and approach guidance', () => {
+		const prompt = buildSystemPrompt({ pluginConfig: makePluginConfig() })
+
+		expect(prompt).toContain('## Structured summary')
+		expect(prompt).toContain('`summary`')
+		expect(prompt).toContain('`files`')
+		expect(prompt).toContain('Include all touched files')
+		expect(prompt).toContain('## How to approach the port')
+		expect(prompt).toContain("Adapt, don't copy")
 	})
 
 	test('omits optional sections when absent', () => {
@@ -175,7 +186,7 @@ describe('buildDecideSystemPrompt', () => {
 			diffFilePath: '/tmp/source/port-diff.patch',
 		})
 
-		expect(prompt).toContain('classification mode')
+		expect(prompt).toContain('classification agent')
 		expect(prompt).toContain('/tmp/source')
 		expect(prompt).toContain('/tmp/source/port-diff.patch')
 		expect(prompt).not.toContain('strict JSON')

@@ -37,6 +37,8 @@ export type {
 	GitHubWriter,
 	PartialPluginConfig,
 	PluginConfig,
+	PortSummary,
+	PortSummaryFile,
 	PortContext,
 	PortDecision,
 	PortDecisionKind,
