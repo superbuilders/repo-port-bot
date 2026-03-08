@@ -164,7 +164,6 @@ async function main(): Promise<void> {
 			)
 		}
 
-		core.summary.addRaw(`\n<sub>Job summary generated at run-time</sub>\n`)
 		await core.summary.write()
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
