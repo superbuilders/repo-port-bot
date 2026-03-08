@@ -200,12 +200,15 @@ function renderExecutionMetrics(execution: ExecutePortResult): string {
 }
 
 /**
- * Render attempt notes with stable per-attempt headings.
+ * Render the reviewer-facing execution summary parts for the PR body.
  *
  * @param execution - Execution details.
- * @returns Markdown sections for each attempt.
+ * @returns Summary overview plus optional per-file details.
  */
-function renderAttemptNotes(execution: ExecutePortResult): string {
+function renderAttemptSummaryParts(execution: ExecutePortResult): {
+	details?: string
+	summary: string
+} {
 	const structuredSummary = execution.summary
 
 	if (structuredSummary) {
@@ -214,22 +217,33 @@ function renderAttemptNotes(execution: ExecutePortResult): string {
 			file => `- \`${file.path}\`: ${file.description}`,
 		)
 
-		return [
-			summaryText.length > 0 ? summaryText : undefined,
-			fileLines.length > 0 ? fileLines.join('\n') : undefined,
-		]
-			.filter(isDefinedLine)
-			.join('\n\n')
+		return {
+			summary: summaryText.length > 0 ? summaryText : '_No notes recorded._',
+			details: fileLines.length > 0 ? fileLines.join('\n') : undefined,
+		}
 	}
 
 	if (execution.trace.attempts.length === 0) {
-		return '_No notes recorded._'
+		return { summary: '_No notes recorded._' }
 	}
 
 	const lastAttempt = execution.trace.attempts.at(-1)
 	const notes = lastAttempt?.trace.notes?.trim() || '_No notes recorded._'
 
-	return notes
+	return { summary: notes }
+}
+
+/**
+ * Render a summary blockquote for the "What was ported" section.
+ *
+ * @param summary - Reviewer-facing summary text.
+ * @param attribution - Execution attribution line.
+ * @returns Markdown blockquote.
+ */
+function renderAttemptSummaryBlockquote(summary: string, attribution: string): string {
+	const summaryLines = summary.split('\n').map(line => `> ${line}`)
+
+	return [...summaryLines, '>', `> — ${attribution}`].join('\n')
 }
 
 /**
@@ -413,6 +427,24 @@ function renderAgentWorkLog(execution: ExecutePortResult): string {
 }
 
 /**
+ * Render compact model + execution metrics attribution for the port result.
+ *
+ * @param execution - Execution details.
+ * @returns Attribution line.
+ */
+function renderExecutionAttribution(execution: ExecutePortResult): string {
+	const atAGlance = renderExecutionMetrics(execution)
+
+	if (execution.trace.model) {
+		const modelUrl = `https://models.dev/?search=${encodeURIComponent(execution.trace.model)}`
+
+		return `[${execution.trace.model}](${modelUrl}) _(${atAGlance})_`
+	}
+
+	return atAGlance
+}
+
+/**
  * Render the markdown body for a target pull request.
  *
  * @param input - Rendering input.
@@ -429,20 +461,13 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	const sourceNarrative = sourcePullRequest
 		? `Ported from [${sourcePullRequest.title}](${sourcePullRequest.url}) in ${sourceRepoLink}.`
 		: `Ported from commit \`${input.context.sourceChange.mergedCommitSha}\` in ${sourceRepoLink}.`
-
-	const atAGlance = renderExecutionMetrics(input.execution)
-
-	const reasonLines = input.decision.reason.split('\n').map(line => `> ${line}`)
-
-	if (input.execution.trace.model) {
-		const modelUrl = `https://models.dev/?search=${encodeURIComponent(input.execution.trace.model)}`
-
-		reasonLines.push('>', `> — [${input.execution.trace.model}](${modelUrl}) _(${atAGlance})_`)
-	} else {
-		reasonLines.push('>', `> ${atAGlance}`)
-	}
-
-	const reasonBlockquote = reasonLines.join('\n')
+	const summaryParts = renderAttemptSummaryParts(input.execution)
+	const reasonText = input.decision.reason
+	const executionAttribution = renderExecutionAttribution(input.execution)
+	const summaryBlockquote = renderAttemptSummaryBlockquote(
+		summaryParts.summary,
+		executionAttribution,
+	)
 
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
 
@@ -454,13 +479,14 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	return [
 		'## Cross-repo port',
 		'',
-		reasonBlockquote,
+		reasonText,
 		'',
 		sourceNarrative,
 		'',
 		'## What was ported',
 		'',
-		renderAttemptNotes(input.execution),
+		summaryBlockquote,
+		summaryParts.details,
 		'',
 		agentWorkLog,
 		'',

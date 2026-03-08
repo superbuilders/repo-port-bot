@@ -51,9 +51,10 @@ Define what "good failure" looks like when an automated port is attempted but ca
     - The maintainer should experience one stable draft PR for the stalled port, with reruns refreshing that artifact rather than scattering work across multiple draft PRs.
     - Labels applied: `auto-port` + `port-stalled`.
     - PR body follows the same compact layout as successful ports, but with key differences:
-        - `## Cross-repo port` heading with decision blockquote immediately below (model + stats on the attribution line)
-        - source narrative below the blockquote
+        - `## Cross-repo port` heading with the decision rationale as plain prose
+        - source narrative directly below
         - `### What was ported` — polished summary of what changed
+        - the overall summary under `### What was ported` is blockquoted, with model name and at-a-glance execution stats attached to that quoted summary
         - collapsed `Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (not repeated in the log). For retries, per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.)
         - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes and failure reason
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention remains the git trailer `Ported-By: repo-port-bot`)

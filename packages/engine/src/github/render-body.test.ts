@@ -174,7 +174,7 @@ describe('render-body', () => {
 		expect(title).toBe('Port: Add execution orchestration')
 	})
 
-	test('renders compact PR body with cross-repo heading, blockquote reason, and collapsible diagnostics', () => {
+	test('renders compact PR body with plain rationale and quoted port summary', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
@@ -182,16 +182,21 @@ describe('render-body', () => {
 		})
 
 		expect(body).toContain('## Cross-repo port')
-		expect(body).toContain('> Decision reason')
+		expect(body).toContain('Decision reason')
 		expect(body).toContain(
 			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in [`acme/source-repo`](https://github.com/acme/source-repo).',
 		)
 		expect(body).toContain('## What was ported')
 
-		const blockquoteIndex = body.indexOf('> Decision reason')
+		const reasonIndex = body.indexOf('Decision reason')
 		const sourceIndex = body.indexOf('Ported from')
+		const attributionIndex = body.indexOf('1 file changed · 1 attempt · 0 tool calls')
+		const whatWasPortedIndex = body.indexOf('## What was ported')
 
-		expect(blockquoteIndex).toBeLessThan(sourceIndex)
+		expect(reasonIndex).toBeLessThan(sourceIndex)
+		expect(whatWasPortedIndex).toBeLessThan(attributionIndex)
+		expect(body).toContain('> Looks good.')
+		expect(body).toContain('> — 1 file changed · 1 attempt · 0 tool calls')
 		expect(body).toContain('Looks good.')
 		expect(body).toContain('<details><summary>Work Log</summary>')
 		expect(body).toContain('_Starting out the port..._')
@@ -249,6 +254,7 @@ describe('render-body', () => {
 			execution,
 		})
 
+		expect(body).toContain('> Ported scheduling behavior and synced related tests.')
 		expect(body).toContain('Ported scheduling behavior and synced related tests.')
 		expect(body).toContain('- `src/app.ts`: Updated scheduling logic to mirror source changes.')
 		expect(body).toContain(

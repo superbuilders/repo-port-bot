@@ -84,15 +84,17 @@ Port: <source PR title>
 ```md
 ## Cross-repo port
 
-> <decision reason as blockquote>
->
-> — [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) (2 files changed · 1 attempt · 5 tool calls · 18.6s)
+<decision reason as prose paragraph>
 
 Ported from [<source PR title>](url) in [`<owner>/<repo>`](<repo url>).
 
 ## What was ported
 
-<agent summary — per-file descriptions of changes>
+> <agent summary overview>
+>
+> — [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) _(2 files changed · 1 attempt · 5 tool calls · 18.6s)_
+
+- `<path>`: <per-file description>
 
 <details><summary>Work Log</summary>
 _I'll start by reading the source diff and target files._
@@ -130,10 +132,10 @@ Ported by: [Repo Port Bot](<bot repo url>)
 
 Key design choices:
 
-- **`## Cross-repo port`** heading with decision blockquote immediately below — the "why" is the first thing a reviewer reads
-- **Decision blockquote** includes the model name and at-a-glance stats on the attribution line (e.g. `— claude-sonnet-4-6 (2 files changed · 1 attempt · 5 tool calls · 18.6s)`), keeping "who, why, and how much" together
-- **Source narrative** follows the blockquote — links back to the source PR and repo for traceability
+- **`## Cross-repo port`** heading starts with the decision rationale as plain prose — the "why" is still first, but it reads more naturally as explanation than as quoted metadata
+- **Source narrative** follows the rationale — links back to the source PR and repo for traceability
 - **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing
+- **The overview under `## What was ported` is blockquoted with attribution attached** — model name and at-a-glance execution stats stay visually grouped with the result summary, not with the decision rationale
 - **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks. The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
