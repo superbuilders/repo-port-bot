@@ -19,6 +19,23 @@ const CONFIG_PATTERNS = [
 ]
 
 /**
+ * Skip when no changed files remain after pipeline-level filtering.
+ *
+ * @param context - Decision context.
+ * @returns `PORT_NOT_REQUIRED` when there are no changed files to evaluate.
+ */
+function checkNoRemainingFiles(context: PortContext): PortDecision | null {
+	if (context.sourceChange.files.length === 0) {
+		return {
+			kind: 'PORT_NOT_REQUIRED',
+			reason: 'Skipping because no changed files remain after ignore filtering.',
+		}
+	}
+
+	return null
+}
+
+/**
  * Skip when the push event has no associated pull request.
  *
  * Without PR metadata the pipeline lacks a changed-file list, labels, and
@@ -188,4 +205,5 @@ export const DECISION_HEURISTICS: DecisionHeuristic[] = [
 	checkNoPortLabel,
 	checkDocsOnly,
 	checkConfigOnly,
+	checkNoRemainingFiles,
 ]

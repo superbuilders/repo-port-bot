@@ -189,35 +189,34 @@ Labels are created on first use via the GitHub API (no manual pre-creation neede
 
 ### Source PR notification
 
-The engine posts a best-effort comment on the source PR for every outcome (including skips) to close the traceability loop. Comments use GitHub admonitions for visual clarity and include a collapsible reason section.
+The engine posts a best-effort comment on the source PR for every outcome (including skips) to close the traceability loop. Stalled, needs-human, skipped, and failed outcomes use GitHub admonitions for visual clarity. Successful `pr_opened` comments are plain markdown with a collapsible reason section.
 
 This notification is non-blocking: comment failures never change the terminal run outcome.
 
-On reruns, non-failure comments include a `[!NOTE]` admonition linking the prior failed comment, for example: `Supersedes [prior attempt](url) (run <id>).`
+On reruns, the bot updates the same managed source PR comment for that target repo in place. A `Supersedes [prior attempt]` note is now a fallback case that only appears when the bot has to create a new comment instead of updating the existing managed one.
 
 **Admonition mapping:**
 
 | Outcome                | Admonition   | Tone                       |
 | ---------------------- | ------------ | -------------------------- |
-| `pr_opened`            | `[!TIP]`     | Success — ready for review |
+| `pr_opened`            | none         | Success — ready for review |
 | `skipped_not_required` | `[!NOTE]`    | Informational — no action  |
 | `draft_pr_opened`      | `[!WARNING]` | Needs attention — stalled  |
 | `needs_human`          | `[!WARNING]` | Needs attention — manual   |
 | `failed`               | `[!CAUTION]` | Engine error               |
 
-The decision reason is rendered in a collapsible `<details>` block nested inside the admonition body so comments stay compact while the full rationale remains accessible.
+The decision reason is rendered in a collapsible `<details>` block so comments stay compact while the full rationale remains accessible. For admonition-backed outcomes, the details block is nested inside the admonition body.
 
 **Example comment** (`pr_opened`):
 
 ```md
-> [!TIP]
-> Ported to https://github.com/acme/target-repo/pull/901 (2 files, validation passed).
->
-> <details><summary>Why was this ported?</summary>
->
-> Source changes affect shared API surface that exists in both repos.
->
-> </details>
+Ported to https://github.com/acme/target-repo/pull/901 (2 files, validation passed).
+
+<details><summary>Why was this ported?</summary>
+
+Source changes affect shared API surface that exists in both repos.
+
+</details>
 ```
 
 ## Loop prevention

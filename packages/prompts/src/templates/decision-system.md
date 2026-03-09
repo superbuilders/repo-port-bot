@@ -12,6 +12,8 @@ You have read-only access to both the source and target repositories. Use it to 
 
 {{additionalInstructions}}
 
+{{ignorePatterns}}
+
 ## Decision framework
 
 Make your decision in two steps:

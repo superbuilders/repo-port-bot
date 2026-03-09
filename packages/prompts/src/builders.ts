@@ -3,6 +3,7 @@ import {
 	renderAdditionalInstructions,
 	renderChangedFiles,
 	renderDiffFileSection,
+	renderIgnorePatterns,
 	renderNamingConventions,
 	renderPathMappings,
 	renderRetryFeedback,
@@ -30,6 +31,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
 		pathMappings: renderPathMappings(input.pluginConfig),
 		namingConventions: renderNamingConventions(input.pluginConfig),
 		additionalInstructions: renderAdditionalInstructions(input.pluginConfig),
+		ignorePatterns: renderIgnorePatterns(input.pluginConfig),
 	})
 }
 
@@ -46,6 +48,7 @@ export function buildDecideSystemPrompt(input: SystemPromptInput): string {
 		pathMappings: renderPathMappings(input.pluginConfig),
 		namingConventions: renderNamingConventions(input.pluginConfig),
 		additionalInstructions: renderAdditionalInstructions(input.pluginConfig),
+		ignorePatterns: renderIgnorePatterns(input.pluginConfig),
 	})
 }
 

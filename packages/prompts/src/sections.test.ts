@@ -4,6 +4,7 @@ import {
 	renderAdditionalInstructions,
 	renderChangedFiles,
 	renderDiffFileSection,
+	renderIgnorePatterns,
 	renderNamingConventions,
 	renderPathMappings,
 	renderRetryFeedback,
@@ -69,6 +70,24 @@ describe('renderAdditionalInstructions', () => {
 
 		expect(result).toContain('Additional instructions')
 		expect(result).toContain('Use helper abstractions.')
+	})
+})
+
+describe('renderIgnorePatterns', () => {
+	test('returns undefined when no ignore patterns', () => {
+		expect(renderIgnorePatterns(makeConfig())).toBeUndefined()
+	})
+
+	test('renders ignore patterns', () => {
+		const result = renderIgnorePatterns(
+			makeConfig({
+				ignorePatterns: ['.github/**', 'scripts/**'],
+			}),
+		)
+
+		expect(result).toContain('excluded from porting scope')
+		expect(result).toContain('`.github/**`')
+		expect(result).toContain('`scripts/**`')
 	})
 })
 

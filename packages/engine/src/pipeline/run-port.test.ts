@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { createConsoleLogger } from '@repo-port-bot/logger'
 
@@ -92,14 +95,16 @@ function makeSourceChange(): SourceChange {
 /**
  * Build a resolved plugin config fixture.
  *
+ * @param overrides - Partial config overrides.
  * @returns Plugin config payload.
  */
-function makePluginConfig(): PluginConfig {
+function makePluginConfig(overrides?: Partial<PluginConfig>): PluginConfig {
 	return {
 		targetRepo: TARGET_REPO,
 		ignorePatterns: [],
 		validationCommands: ['bun run check'],
 		pathMappings: {},
+		...overrides,
 	}
 }
 
@@ -323,6 +328,81 @@ describe('runPort', () => {
 		expect(executeCalled).toBe(false)
 		expect(deliverCalled).toBe(false)
 		expect(commentOutcomes).toEqual(['skipped_not_required'])
+	})
+
+	test('filters ignored files before decision and strips ignored diff sections', async () => {
+		const tempDirectory = await mkdtemp(join(tmpdir(), 'repo-port-bot-'))
+		const diffFilePath = join(tempDirectory, 'port-diff.patch')
+		const diffContent = [
+			'diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml',
+			'index 0000000..1111111 100644',
+			'--- a/.github/workflows/ci.yml',
+			'+++ b/.github/workflows/ci.yml',
+			'@@ -1 +1 @@',
+			'-name: old',
+			'+name: new',
+			'diff --git a/src/feature.ts b/src/feature.ts',
+			'index 0000000..1111111 100644',
+			'--- a/src/feature.ts',
+			'+++ b/src/feature.ts',
+			'@@ -1 +1 @@',
+			'-old',
+			'+new',
+			'',
+		].join('\n')
+
+		await writeFile(diffFilePath, diffContent, 'utf8')
+
+		const sourceChange: SourceChange = {
+			...makeSourceChange(),
+			files: [
+				{
+					path: '.github/workflows/ci.yml',
+					status: 'modified',
+					additions: 1,
+					deletions: 1,
+				},
+				{
+					path: 'src/feature.ts',
+					status: 'modified',
+					additions: 1,
+					deletions: 1,
+				},
+			],
+		}
+		const pluginConfig = makePluginConfig({
+			ignorePatterns: ['.github/**'],
+		})
+		let decidedFiles: string[] = []
+
+		await runPort({
+			reader: createReaderFake(),
+			writer: createWriterFake(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			diffFilePath,
+			stageOverrides: {
+				readSourceContext: async () => sourceChange,
+				resolvePluginConfig: () => pluginConfig,
+				decide: async context => {
+					decidedFiles = context.sourceChange.files.map(file => file.path)
+
+					return makeDecisionResult(
+						'PORT_NOT_REQUIRED',
+						'Skipping because no changed files require porting.',
+						'heuristic',
+					)
+				},
+			},
+		})
+
+		const filteredDiff = await readFile(diffFilePath, 'utf8')
+
+		expect(decidedFiles).toEqual(['src/feature.ts'])
+		expect(filteredDiff).not.toContain('.github/workflows/ci.yml')
+		expect(filteredDiff).toContain('diff --git a/src/feature.ts b/src/feature.ts')
 	})
 
 	test('routes NEEDS_HUMAN to issue delivery and returns needs_human', async () => {

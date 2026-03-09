@@ -49,7 +49,7 @@ interface RenderRunSummaryInput {
 const SHORT_SHA_LENGTH = 7
 const MAX_NEEDS_HUMAN_SOURCE_TITLE_LENGTH = 60
 const MAX_WORK_LOG_BLOCKS = 24
-const LOW_SIGNAL_TOOL_NAMES = new Set(['Glob', 'Grep'])
+const LOW_SIGNAL_TOOL_NAMES = new Set(['Glob', 'Grep', 'StructuredOutput'])
 
 /**
  * Build the hidden marker used to identify one stable source PR comment per target repo.
@@ -585,9 +585,13 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				'',
 				supersededNote,
 				supersededNote ? '' : undefined,
-				`> [!TIP]\n> Ported to ${prLink} (${shape}, validation passed).`,
-				'>',
-				buildReasonDetails('Why was this ported?'),
+				`Ported to ${prLink} (${shape}, validation passed).`,
+				'',
+				`<details><summary>Why was this ported?</summary>`,
+				'',
+				input.decision.reason,
+				'',
+				'</details>',
 			]
 				.filter(isDefinedLine)
 				.join('\n')

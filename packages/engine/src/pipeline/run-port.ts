@@ -1,3 +1,5 @@
+import { readFile, writeFile } from 'node:fs/promises'
+
 import { createConsoleLogger } from '@repo-port-bot/logger'
 
 import { fetchPortBotJson } from '../config/fetch-port-bot-json.ts'
@@ -8,6 +10,7 @@ import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
 import { renderRunSummary } from '../github/render-body.ts'
 import { getDurationMs, logAgentMessage, toErrorMessage } from '../utils.ts'
+import { filterDiffContent, filterIgnoredFiles } from './filter-ignored.ts'
 import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
 import { runNeedsHumanFlow } from './needs-human.ts'
 import { runPortRequiredFlow } from './port-required.ts'
@@ -147,11 +150,25 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			}
 		})()
 
+		const filteredSourceChange: SourceChange = {
+			...sourceChange,
+			files: filterIgnoredFiles(sourceChange.files, pluginConfig.ignorePatterns),
+		}
+
+		if (options.diffFilePath && pluginConfig.ignorePatterns.length > 0) {
+			const currentDiff = await readFile(options.diffFilePath, 'utf8')
+			const filteredDiff = filterDiffContent(currentDiff, pluginConfig.ignorePatterns)
+
+			if (filteredDiff !== currentDiff) {
+				await writeFile(options.diffFilePath, filteredDiff, 'utf8')
+			}
+		}
+
 		context = {
 			runId,
 			startedAt,
 			sourceRepo: options.sourceRepo,
-			sourceChange,
+			sourceChange: filteredSourceChange,
 			pluginConfig,
 		}
 
