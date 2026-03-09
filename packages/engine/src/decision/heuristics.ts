@@ -200,10 +200,10 @@ function checkConfigOnly(context: PortContext): PortDecision | null {
  * Ordered list of fast heuristics for the decision stage.
  */
 export const DECISION_HEURISTICS: DecisionHeuristic[] = [
-	checkNoRemainingFiles,
 	checkMissingPullRequest,
 	checkLoopPrevention,
 	checkNoPortLabel,
 	checkDocsOnly,
 	checkConfigOnly,
+	checkNoRemainingFiles,
 ]
