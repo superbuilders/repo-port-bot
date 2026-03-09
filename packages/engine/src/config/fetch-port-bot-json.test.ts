@@ -24,11 +24,13 @@ function createReaderFake(getFileContent: GitHubReader['getFileContent']): GitHu
 
 describe('fetchPortBotJson', () => {
 	test('returns decoded config when file exists', async () => {
-		const reader = createReaderFake(async () =>
-			JSON.stringify({
-				target: 'acme/target-repo',
-				validation: ['bun run check'],
-			}),
+		const reader = createReaderFake(async (_owner, _repo, path) =>
+			path === 'port-bot.json'
+				? JSON.stringify({
+						target: 'acme/target-repo',
+						validation: ['bun run check'],
+					})
+				: undefined,
 		)
 
 		const result = await fetchPortBotJson({
@@ -79,5 +81,64 @@ describe('fetchPortBotJson', () => {
 		expect(result).toBeUndefined()
 		expect(warned).toBe(true)
 		console.warn = originalWarn
+	})
+
+	test('falls back to alternate supported config filenames', async () => {
+		const reader = createReaderFake(async (_owner, _repo, path) =>
+			path === '.github/repo-port-bot.json'
+				? JSON.stringify({
+						target: 'acme/target-repo',
+						prompt: 'Use the alternate config file.',
+					})
+				: undefined,
+		)
+
+		const result = await fetchPortBotJson({
+			reader,
+			owner: 'acme',
+			repo: 'source-repo',
+			ref: 'abc123',
+		})
+
+		expect(result).toEqual({
+			target: 'acme/target-repo',
+			prompt: 'Use the alternate config file.',
+		})
+	})
+
+	test('uses the first matching filename by precedence order', async () => {
+		const requestedPaths: string[] = []
+		const reader = createReaderFake(async (_owner, _repo, path) => {
+			requestedPaths.push(path)
+
+			if (path === '.port-bot.json') {
+				return JSON.stringify({
+					target: 'acme/target-repo',
+					prompt: 'Selected by precedence.',
+				})
+			}
+
+			if (path === '.github/port-bot.json') {
+				return JSON.stringify({
+					target: 'acme/other-repo',
+					prompt: 'Should never win.',
+				})
+			}
+
+			return undefined
+		})
+
+		const result = await fetchPortBotJson({
+			reader,
+			owner: 'acme',
+			repo: 'source-repo',
+			ref: 'abc123',
+		})
+
+		expect(result).toEqual({
+			target: 'acme/target-repo',
+			prompt: 'Selected by precedence.',
+		})
+		expect(requestedPaths).toEqual(['port-bot.json', '.port-bot.json'])
 	})
 })

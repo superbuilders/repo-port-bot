@@ -303,9 +303,18 @@ with:
 | `max-budget-usd`        | —                   | Optional budget cap (USD) per attempt                                          |
 | `log-level`             | `info`              | Minimum log level (`error`, `warn`, `info`, `debug`)                           |
 
-### port-bot.json
+### Config file
 
-For config that should live alongside your source code, add `port-bot.json` to the source repo root:
+For config that should live alongside your source code, add one of these supported files to the source repo:
+
+- `port-bot.json`
+- `.port-bot.json`
+- `repo-port-bot.json`
+- `.repo-port-bot.json`
+- `.github/port-bot.json`
+- `.github/repo-port-bot.json`
+
+Example:
 
 ```json
 {
@@ -322,13 +331,22 @@ For config that should live alongside your source code, add `port-bot.json` to t
 }
 ```
 
-All fields are optional. The engine fetches this file from the source repo at the merge commit SHA. If the file doesn't exist, nothing breaks.
+All fields are optional. The engine fetches the first matching supported config file from the source repo at the merge commit SHA using this precedence order:
 
-**How action inputs and `port-bot.json` interact:**
+1. `port-bot.json`
+2. `.port-bot.json`
+3. `repo-port-bot.json`
+4. `.repo-port-bot.json`
+5. `.github/port-bot.json`
+6. `.github/repo-port-bot.json`
+
+If none of these files exists, nothing breaks.
+
+**How action inputs and the config file interact:**
 
 - Action inputs take precedence when both specify the same field.
-- `ignore` patterns are only configurable via `port-bot.json`, not as an action input.
-- Set `skip-port-bot-json: true` in the workflow to disable the fetch entirely.
+- `ignore` patterns are only configurable via the config file, not as an action input.
+- Set `skip-port-bot-json: true` in the workflow to disable config-file fetching entirely.
 
 ## Step 5: Verify the first run
 
@@ -371,4 +389,4 @@ The workflow triggers on `push` to `main` (or your default branch). If the merge
 
 ### Skipping everything unexpectedly
 
-The bot skips changes that are docs-only, config-only, or labeled `no-port`. If your PR has mixed content but the heuristics still skip it, check whether all changed files match the built-in skip patterns or the `ignore` patterns in `port-bot.json`.
+The bot skips changes that are docs-only, config-only, or labeled `no-port`. If your PR has mixed content but the heuristics still skip it, check whether all changed files match the built-in skip patterns or the `ignore` patterns in your config file.

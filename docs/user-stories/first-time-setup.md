@@ -67,8 +67,15 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
         - The workflow generates an installation token with `actions/create-github-app-token` and passes the result to `github-token`.
         - For cross-org setups, the workflow generates separate source and target installation tokens and passes them to `source-github-token` and `target-github-token`.
 
-3. **Maintainer optionally adds `port-bot.json`**
-    - At the root of the **source** repo, the maintainer can create `port-bot.json` to configure behavior beyond action inputs:
+3. **Maintainer optionally adds a config file**
+    - In the **source** repo, the maintainer can create one of several supported config filenames to configure behavior beyond action inputs:
+        - `port-bot.json`
+        - `.port-bot.json`
+        - `repo-port-bot.json`
+        - `.repo-port-bot.json`
+        - `.github/port-bot.json`
+        - `.github/repo-port-bot.json`
+    - Example:
 
     ```json
     {
@@ -85,9 +92,9 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
     }
     ```
 
-    - All fields are optional. Action inputs take precedence over `port-bot.json` values.
-    - The engine fetches this file from the source repo at the merge commit SHA. If the file doesn't exist, nothing breaks — the engine uses action inputs and defaults.
-    - The `skip-port-bot-json: true` action input disables this fetch entirely.
+    - All fields are optional. Action inputs take precedence over config-file values.
+    - The engine fetches the first matching supported filename from the source repo at the merge commit SHA using its precedence order. If none of the supported files exists, nothing breaks — the engine uses action inputs and defaults.
+    - The `skip-port-bot-json: true` action input disables config-file fetching entirely.
 
 4. **Maintainer verifies the first run**
     - Merge a small, representative PR in the source repo.
@@ -104,7 +111,7 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
         - **Naming conventions** — guide the agent on language-specific conventions (e.g., `camelCase` vs `snake_case`).
         - **Custom prompt** — add repo-specific context the agent needs to make good decisions.
         - **Ignore patterns** — exclude paths that should never trigger a port (scripts, CI config, tooling). This is only configurable via `port-bot.json`, not as an action input.
-    - Validation commands, path mappings, naming conventions, and prompt can be set in the workflow YAML (action inputs) or in `port-bot.json`. Action inputs are better for values that rarely change; `port-bot.json` is better for values that evolve with the codebase and should be versioned alongside the source code.
+    - Validation commands, path mappings, naming conventions, and prompt can be set in the workflow YAML (action inputs) or in a config file. Action inputs are better for values that rarely change; a config file is better for values that evolve with the codebase and should be versioned alongside the source code.
 
 ## User-visible definition of success
 
@@ -112,7 +119,7 @@ The maintainer experiences onboarding as "three required inputs and the bot work
 
 - A minimal workflow file with `llm-api-key`, a GitHub token input, and `target-repo` is enough to get a first run.
 - The first run produces an observable result — a PR, draft PR, issue, or skip comment — that confirms the bot is working.
-- The maintainer can iterate on config without re-deploying anything; changes to `port-bot.json` take effect on the next merge.
+- The maintainer can iterate on config without re-deploying anything; changes to the config file take effect on the next merge.
 - There are no manual label creation steps, no target-repo workflow to install, and no database or external service to provision.
 
 ## Acceptance criteria
@@ -124,10 +131,10 @@ The maintainer experiences onboarding as "three required inputs and the bot work
     - The job summary in the Actions run shows the run outcome, decision reason, and any produced URLs. The maintainer can tell whether the bot worked without reading raw logs.
 
 3. **Incremental configuration**
-    - Every optional input (`validation-commands`, `path-mappings`, `naming-conventions`, `prompt`) and `port-bot.json` field (`ignore`, `conventions`) improves results when provided but is not required for the bot to function.
+    - Every optional input (`validation-commands`, `path-mappings`, `naming-conventions`, `prompt`) and config-file field (`ignore`, `conventions`) improves results when provided but is not required for the bot to function.
 
 4. **Config layering**
-    - Action inputs take precedence over `port-bot.json`. Both are optional beyond the required three. The merge behavior is predictable: action input wins when both specify the same field.
+    - Action inputs take precedence over the config file. Both are optional beyond the required three. The merge behavior is predictable: action input wins when both specify the same field.
 
 5. **No target-repo setup**
     - The target repo requires no workflow file, no config file, and no pre-created labels. The bot creates PRs, issues, and labels as needed.
