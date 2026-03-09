@@ -132,7 +132,6 @@ Both logs use the same humanization:
 - assistant reasoning rendered as `_italic text_`
 - tool events grouped into fenced code blocks
 - `Glob` and `Grep` filtered out as low-signal
-- capped at a per-section block limit in the job summary (the PR body Work Log is not truncated)
 
 The Decision log is only shown when the classifier ran (not for heuristic decisions). When no execution happens (skipped or needs-human outcomes), the summary still includes an `Execution` section with run metadata and a `No execution (skipped or needs-human)` note; only the nested execution log is absent.
 
