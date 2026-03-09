@@ -193,7 +193,7 @@ The engine posts a best-effort comment on the source PR for every outcome (inclu
 
 This notification is non-blocking: comment failures never change the terminal run outcome.
 
-On reruns, non-failure comments include a `[!NOTE]` admonition linking the prior failed comment, for example: `Supersedes [prior attempt](url) (run <id>).`
+On reruns, the bot updates the same managed source PR comment for that target repo in place. A `Supersedes [prior attempt]` note is now a fallback case that only appears when the bot has to create a new comment instead of updating the existing managed one.
 
 **Admonition mapping:**
 
