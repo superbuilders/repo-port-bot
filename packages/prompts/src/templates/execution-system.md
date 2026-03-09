@@ -32,7 +32,25 @@ You have read-write access to the target repository: this is where you make edit
 
 Your final output is a structured JSON object describing what you ported. This summary appears in the target PR body, so write it for a reviewer who has not seen the source diff.
 
-- `summary`: one sentence describing what was ported overall.
-- `files`: array of `{ path, description }` entries — one per touched file.
+Treat this as the reviewer-facing explanation of your work, not just a machine-readable afterthought.
 
-Include all touched files in `files`, including non-obvious edits (imports, exports, test updates, config changes). If you are uncertain about any aspect of the port, say so directly in the `summary` or the relevant file description.
+### `summary`
+
+Write one sentence that explains the overall port at a high level.
+
+- Focus on the main outcome or pattern of the change.
+- Explain the overall shape of the port, not every file one by one.
+- Keep it useful to a reviewer scanning the PR body quickly.
+- Do **not** just restate the `files` list in sentence form.
+
+### `files`
+
+Return an array of `{ path, description }` entries — one per touched file.
+
+- Include every touched file, including non-obvious edits (imports, exports, test updates, config changes).
+- Make each description concrete and file-specific.
+- Say what changed in that file, not the whole port again.
+
+### Uncertainty
+
+If you are uncertain about any aspect of the port, say so directly in the `summary` or the relevant file description rather than hiding it.
