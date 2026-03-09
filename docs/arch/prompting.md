@@ -26,14 +26,14 @@ packages/prompts/
 
 1. **Product prompt intent** -- the `.md` template files. Static instruction text with `{{slot}}` placeholders. Editable as plain markdown.
 
-2. **Prompt assembly** -- `sections.ts` and `builders.ts`. TypeScript renders dynamic sections (changed files, retry feedback, path mappings, naming conventions, plugin instructions) and fills template slots.
+2. **Prompt assembly** -- `sections.ts` and `builders.ts`. TypeScript renders dynamic sections (changed files, retry feedback, path mappings, naming conventions, ignore patterns, plugin instructions) and fills template slots.
 
 3. **Provider adaptation** -- `@repo-port-bot/agent-claude` imports the shared builders and passes rendered text into Claude SDK query options. The provider adds Claude-specific concerns (structured output schema, tool configuration, budget limits) but does not own the prompt wording.
 
 ### How editing works today
 
 - To change what the bot says to the LLM, edit a `.md` template file.
-- To change what dynamic context is included, edit `sections.ts`.
+- To change what dynamic context is included, edit `sections.ts` (e.g. `renderIgnorePatterns` renders the excluded-paths section from `pluginConfig.ignorePatterns`).
 - To change how sections are composed, edit `builders.ts`.
 - Provider-specific changes (tool surface, output format) stay in `agent-claude`.
 

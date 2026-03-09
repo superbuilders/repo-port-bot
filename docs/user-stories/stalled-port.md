@@ -43,7 +43,7 @@ Define what "good failure" looks like when an automated port is attempted but ca
     - The working directory is incremental — each attempt builds on the previous one, so partial progress is preserved.
 
 4. **Execution returns `success: false`**
-    - The `ExecutionResult` carries the full attempt history: files touched per attempt, validation results (which commands passed, which failed, exit codes), agent notes, and a `failureReason` summarizing the final state.
+    - The `ExecutionResult` carries the full attempt history: files touched per attempt, validation results (which commands passed, which failed, exit codes), agent notes, a `failureReason` summarizing the final state, and an `incompleteReason` when the agent was cut off before finishing (e.g. "reached max turns", "reached budget limit").
 
 5. **Draft PR is opened (or updated) in target repo**
     - The delivery stage commits the agent's final working tree state (even though validation failed) and force-pushes the port branch. If the branch already exists from a previous run, the force-push replaces it.

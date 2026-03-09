@@ -4,6 +4,8 @@ import type { PortContext, PortDecision } from '../types.ts'
 
 type DecisionHeuristic = (context: PortContext) => PortDecision | null
 
+const MATCH_OPTIONS: micromatch.Options = { dot: true }
+
 const DOC_PATTERNS = ['README.md', '**/*.md', 'docs/**', 'LICENSE', 'CHANGELOG*']
 
 const CONFIG_PATTERNS = [
@@ -105,7 +107,7 @@ function checkNoPortLabel(context: PortContext): PortDecision | null {
  * @returns `true` if path is considered documentation content.
  */
 function isDocumentationPath(path: string): boolean {
-	return micromatch.isMatch(path, DOC_PATTERNS)
+	return micromatch.isMatch(path, DOC_PATTERNS, MATCH_OPTIONS)
 }
 
 /**
@@ -155,7 +157,7 @@ function isIgnoredPath(path: string, ignorePatterns: string[]): boolean {
 		return false
 	}
 
-	return micromatch.isMatch(path, ignorePatterns)
+	return micromatch.isMatch(path, ignorePatterns, MATCH_OPTIONS)
 }
 
 /**
@@ -165,7 +167,7 @@ function isIgnoredPath(path: string, ignorePatterns: string[]): boolean {
  * @returns `true` when path is config-like.
  */
 function isConfigPath(path: string): boolean {
-	return micromatch.isMatch(path, CONFIG_PATTERNS) || isRootJsonPath(path)
+	return micromatch.isMatch(path, CONFIG_PATTERNS, MATCH_OPTIONS) || isRootJsonPath(path)
 }
 
 /**

@@ -29,6 +29,12 @@ The per-file `patch` field from the GitHub list-files API is still used by decis
 heuristics (docs-only, config-only) but the agent prompt uses the locally-computed diff
 file instead — no truncation, no missing patches.
 
+Files matching `ignorePatterns` from `port-bot.json` are filtered from the changed-file list
+and stripped from the diff file before the decision and execution stages see them. The agent's
+system prompt also lists the ignore patterns so it won't treat missing ignored files as gaps
+to fill during exploration. When all files are filtered, the `checkNoRemainingFiles` heuristic
+returns `PORT_NOT_REQUIRED`.
+
 Source: GitHub REST API for file list + stats; `git diff` from source clone for diff content.
 
 ### Source config file (optional)
@@ -139,7 +145,7 @@ Key design choices:
 - **`## Port rationale`** starts with the decision rationale as a blockquote — the "why" is still first, but it remains visually distinguished from the rest of the narrative
 - **The provenance sentence follows the rationale** — source PR/repo traceability plus execution attribution (model, files changed, attempts, tool calls, duration) reads as one natural sentence
 - **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing without extra metadata interrupting the section
-- **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks. The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
+- **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks, rendered in full (no truncation). The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
 
