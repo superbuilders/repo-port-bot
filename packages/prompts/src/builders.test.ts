@@ -81,6 +81,18 @@ describe('buildSystemPrompt', () => {
 		expect(prompt).toContain('Prefer target repository helper abstractions.')
 	})
 
+	test('includes ignore patterns when provided', () => {
+		const prompt = buildSystemPrompt({
+			pluginConfig: makePluginConfig({
+				ignorePatterns: ['.github/**', 'scripts/**'],
+			}),
+		})
+
+		expect(prompt).toContain('excluded from porting scope')
+		expect(prompt).toContain('`.github/**`')
+		expect(prompt).toContain('`scripts/**`')
+	})
+
 	test('includes structured summary section and approach guidance', () => {
 		const prompt = buildSystemPrompt({ pluginConfig: makePluginConfig() })
 
@@ -192,6 +204,17 @@ describe('buildDecideSystemPrompt', () => {
 		expect(prompt).toContain('/tmp/source')
 		expect(prompt).toContain('/tmp/source/port-diff.patch')
 		expect(prompt).not.toContain('strict JSON')
+	})
+
+	test('includes ignore patterns for classification context', () => {
+		const prompt = buildDecideSystemPrompt({
+			pluginConfig: makePluginConfig({
+				ignorePatterns: ['.github/**'],
+			}),
+		})
+
+		expect(prompt).toContain('excluded from porting scope')
+		expect(prompt).toContain('`.github/**`')
 	})
 })
 

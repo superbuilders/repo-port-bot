@@ -55,6 +55,23 @@ export function renderAdditionalInstructions(pluginConfig: PluginConfig): string
 }
 
 /**
+ * Render explicitly ignored path patterns.
+ *
+ * @param pluginConfig - Resolved plugin config.
+ * @returns Ignore-pattern section or undefined.
+ */
+export function renderIgnorePatterns(pluginConfig: PluginConfig): string | undefined {
+	if (pluginConfig.ignorePatterns.length === 0) {
+		return undefined
+	}
+
+	return [
+		'The following source paths are excluded from porting scope. The changed-file list and diff have been pre-filtered to remove them. If you encounter these paths while exploring the source repository, do not treat them as missing from the port — they are intentionally omitted (they may be repo-specific tooling, CI configuration, or synchronized by other processes):',
+		...pluginConfig.ignorePatterns.map(pattern => `- \`${pattern}\``),
+	].join('\n')
+}
+
+/**
  * Render the source-repo-checkout slot.
  *
  * @param sourceWorkingDirectory - Source repo path.

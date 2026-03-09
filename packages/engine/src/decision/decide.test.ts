@@ -82,6 +82,18 @@ function makeContext(input: {
 }
 
 describe('decide', () => {
+	test('returns PORT_NOT_REQUIRED when no changed files remain', async () => {
+		const context = makeContext({
+			files: [],
+		})
+
+		const result = await decide(context)
+
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.trace.source).toBe('heuristic')
+		expect(result.trace.heuristicName).toBe('checkNoRemainingFiles')
+	})
+
 	test('returns PORT_NOT_REQUIRED when pull request metadata is missing', async () => {
 		const context = makeContext({
 			pullRequest: null,
