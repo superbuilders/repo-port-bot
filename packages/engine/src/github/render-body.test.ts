@@ -159,6 +159,17 @@ function makeExecution(success: boolean): ExecutePortResult {
 								kind: 'assistant_note',
 								text: success ? 'Looks good.' : 'Still failing checks.',
 							},
+							{
+								kind: 'tool_start',
+								toolName: 'StructuredOutput',
+								toolUseId: 'structured-output-1',
+							},
+							{
+								kind: 'tool_end',
+								toolName: 'StructuredOutput',
+								toolUseId: 'structured-output-1',
+								durationMs: 8,
+							},
 						],
 					},
 				},
@@ -201,6 +212,7 @@ describe('render-body', () => {
 		expect(body).toContain('Read `src/app.ts`')
 		expect(body).toContain('Edited `src/app.ts`')
 		expect(body).toContain('Ran `bun run check` (18.6s)')
+		expect(body).not.toContain('StructuredOutput')
 		expect(body).toContain('```\nRead')
 
 		const workLogSection = body.slice(body.indexOf('Work Log'), body.indexOf('</details>'))
