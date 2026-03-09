@@ -23,7 +23,7 @@ import type {
 import type { ClaudeProviderOptions, QueryFn } from './types.ts'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
-const DEFAULT_MAX_TURNS = 50
+const DEFAULT_MAX_TURNS = 100
 const EDIT_TOOL = 'Edit'
 const WRITE_TOOL = 'Write'
 const FILE_PATH_KEY = 'file_path'
