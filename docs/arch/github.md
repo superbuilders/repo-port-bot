@@ -31,16 +31,22 @@ file instead — no truncation, no missing patches.
 
 Source: GitHub REST API for file list + stats; `git diff` from source clone for diff content.
 
-### port-bot.json (optional)
+### Source config file (optional)
 
-- Fetched from source repo root at the merged commit SHA via GitHub Contents API
-- 404 is not an error — the file is optional; other fetch failures warn but don't fail the run
+The engine looks for a supported config filename at the merged commit SHA in this precedence order:
+
+1. `port-bot.json`
+2. `.port-bot.json`
+3. `repo-port-bot.json`
+4. `.repo-port-bot.json`
+5. `.github/port-bot.json`
+6. `.github/repo-port-bot.json`
+
+- 404 is not an error — the config file is optional; other fetch failures warn but don't fail the run
 - Parsed via `port-bot-json.decoder.ts` (runtime validation with `decoders.cc`)
-- Merged with built-in config (action inputs take precedence, `port-bot.json` fills gaps)
+- Merged with built-in config (action inputs take precedence, config file fills gaps)
 - `runPort()` auto-fetches when the caller doesn't provide `portBotJson` externally
-- Action input `skip-port-bot-json: true` disables the fetch for faster runs
-
-Source: GitHub Contents API (`GET /repos/{owner}/{repo}/contents/port-bot.json?ref={sha}`).
+- Action input `skip-port-bot-json: true` disables config-file fetching for faster runs
 
 ## Writes (target repo)
 

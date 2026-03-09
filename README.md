@@ -144,7 +144,16 @@ with:
     prompt: 'Always preserve backward compat...'
 ```
 
-**Option B: `port-bot.json`** — keep porting config alongside the code it describes. Add to the source repo root:
+**Option B: config file** — keep porting config alongside the code it describes. Add one of the supported config files to the source repo:
+
+- `port-bot.json`
+- `.port-bot.json`
+- `repo-port-bot.json`
+- `.repo-port-bot.json`
+- `.github/port-bot.json`
+- `.github/repo-port-bot.json`
+
+Example:
 
 ```json
 {
@@ -161,11 +170,20 @@ with:
 }
 ```
 
-The engine reads `port-bot.json` from the source repo at the merge commit. No code executes from it: it's purely declarative. Set `skip-port-bot-json: true` to disable this fetch.
+The engine searches for a supported config file at the source repo's merge commit in this order:
+
+1. `port-bot.json`
+2. `.port-bot.json`
+3. `repo-port-bot.json`
+4. `.repo-port-bot.json`
+5. `.github/port-bot.json`
+6. `.github/repo-port-bot.json`
+
+No code executes from the config file: it's purely declarative. Set `skip-port-bot-json: true` to disable config-file fetching entirely.
 
 Action inputs take precedence when both exist. You can combine them — e.g., keep stable config in the workflow and use `port-bot.json` for repo-specific overrides that change more often.
 
-Note: `ignore` patterns are only configurable via `port-bot.json`, not as an action input.
+Note: `ignore` patterns are only configurable via the config file, not as an action input.
 
 ## Action inputs reference
 
