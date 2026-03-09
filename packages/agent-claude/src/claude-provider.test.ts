@@ -584,6 +584,7 @@ describe('ClaudeAgentProvider', () => {
 		const output = await provider.executePort(makeInput())
 
 		expect(output.complete).toBe(false)
+		expect(output.incompleteReason).toBe('reached max turns')
 		expect(output.summary).toBeUndefined()
 		expect(output.trace.notes).toContain('Attempted update but hit constraints.')
 		expect(output.trace.notes).toContain('Reached max turns.')

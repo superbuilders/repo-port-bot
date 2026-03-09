@@ -99,10 +99,10 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 					workingDirectory: options.targetWorkingDirectory,
 				})
 
-				const attemptNotes = joinNonEmptyLines([
-					agentOutput.trace.notes,
-					agentOutput.complete ? undefined : 'Agent marked attempt as incomplete.',
-				])
+				const incompleteNote = agentOutput.complete
+					? undefined
+					: `Agent marked attempt as incomplete (${agentOutput.incompleteReason ?? 'unknown reason'}).`
+				const attemptNotes = joinNonEmptyLines([agentOutput.trace.notes, incompleteNote])
 				const attemptDurationMs = Math.max(1, Date.now() - attemptStartedAtMs)
 				const allValidationPassed = validation.every(result => result.ok)
 

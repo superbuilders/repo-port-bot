@@ -402,6 +402,10 @@ export class ClaudeAgentProvider implements AgentProvider {
 		return {
 			touchedFiles: [...touchedFiles],
 			complete: resultMessage.subtype === 'success',
+			incompleteReason:
+				resultMessage.subtype !== 'success'
+					? humanizeStopReason(resultMessage.subtype)
+					: undefined,
 			summary,
 			trace: {
 				notes,
@@ -456,6 +460,21 @@ function readStructuredExecuteOutput(message: SDKResultMessage): PortSummary | u
 		text: summary,
 		files: parsedFiles,
 	}
+}
+
+const STOP_REASON_LABELS: Record<string, string> = {
+	error_max_turns: 'reached max turns',
+	error_max_budget: 'reached budget limit',
+}
+
+/**
+ * Map an SDK result subtype to a human-readable label.
+ *
+ * @param subtype - SDK result subtype.
+ * @returns Human-readable stop reason.
+ */
+function humanizeStopReason(subtype: string): string {
+	return STOP_REASON_LABELS[subtype] ?? subtype
 }
 
 /**

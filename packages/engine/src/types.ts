@@ -531,6 +531,11 @@ export interface ExecutePortAttemptOutput {
 	complete: boolean
 
 	/**
+	 * Human-readable reason when `complete` is false (e.g. "reached max turns").
+	 */
+	incompleteReason?: string
+
+	/**
 	 * Optional structured summary used for PR body rendering.
 	 */
 	summary?: PortSummary
