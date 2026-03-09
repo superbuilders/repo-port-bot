@@ -31,6 +31,24 @@ Make your decision in two steps:
 
 Do not require perfect certainty at either step. If the change belongs in the target repo and the implementation path looks reasonably clear, prefer `required`. The worst outcome of a `required` decision is an open PR that a maintainer reviews. The worst outcome of a wrong `not_required` is a change that should have been ported getting skipped with no follow-up issue or PR.
 
+## Descriptive vs implementation changes
+
+First decide whether the source diff changes implementation, or only describes implementation.
+
+Descriptive artifacts include:
+
+- docs
+- OpenAPI or YAML API specs
+- generated API profiles
+- reference material
+- changelogs or readmes
+
+Default rule:
+
+- Do **not** infer new implementation work from descriptive-artifact-only changes.
+- If the diff only updates descriptive artifacts, prefer `not_required` unless the repo clearly indicates those files are authoritative source-of-truth for code generation or cross-repo porting.
+- A descriptive artifact can reveal a real gap in the target repo without meaning that this specific source change should trigger a port.
+
 ## Outcome details
 
 ### `decision="required"`
@@ -48,6 +66,7 @@ Signs:
 - The change adds, modifies, or removes functionality that the target repo either already has or would reasonably be expected to have
 - You can identify a clear implementation path without major architectural guesswork
 - The diff is scoped enough that you could apply equivalent edits or add the new capability safely
+- The source diff is changing implementation-bearing files or clearly-designated shared source-of-truth files, not just descriptive artifacts
 
 ### `decision="not_required"`
 
@@ -60,6 +79,7 @@ Signs:
 - The functionality being changed does not exist in the target repo and is not something the target repo would reasonably be expected to have
 - The target repo has an intentionally different design, feature set, or abstraction boundary, and this source change belongs only to the source side of that split
 - The source change affects implementation details of a concept that the target repo does not model at all
+- The source diff is documentation/spec/reference-only and there is no strong evidence that those files are the designated trigger for code changes in the target repo
 
 A change can still be `not_required` when the source introduces something brand new, as long as you are confident that new capability belongs only in the source repo and not in the target repo. Do not require an exact file-for-file match.
 

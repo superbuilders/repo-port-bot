@@ -203,6 +203,10 @@ describe('buildDecideSystemPrompt', () => {
 		expect(prompt).toContain('classification agent')
 		expect(prompt).toContain('/tmp/source')
 		expect(prompt).toContain('/tmp/source/port-diff.patch')
+		expect(prompt).toContain('Descriptive vs implementation changes')
+		expect(prompt).toContain(
+			'Do **not** infer new implementation work from descriptive-artifact-only changes.',
+		)
 		expect(prompt).not.toContain('strict JSON')
 	})
 
