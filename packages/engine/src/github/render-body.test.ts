@@ -406,7 +406,7 @@ describe('render-body', () => {
 		expect(body).toContain('> Decision reason')
 	})
 
-	test('renders source comment for pr_opened with tip admonition', () => {
+	test('renders source comment for pr_opened without admonition', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
@@ -415,11 +415,12 @@ describe('render-body', () => {
 			runId: 'run-1',
 		})
 
-		expect(body).toContain('[!TIP]')
+		expect(body).not.toContain('[!TIP]')
 		expect(body).toContain(
 			'Ported to https://github.com/acme/target-repo/pull/901 (1 file, validation passed)',
 		)
-		expect(body).toContain('> <details><summary>Why was this ported?</summary>')
+		expect(body).toContain('<details><summary>Why was this ported?</summary>')
+		expect(body).toContain('Decision reason')
 	})
 
 	test('renders source comment for draft_pr_opened and needs_human with warning admonition', () => {
@@ -478,6 +479,9 @@ describe('render-body', () => {
 			'Supersedes [prior attempt](https://github.com/acme/source-repo/pull/42#issuecomment-0) (run `run-0`).',
 		)
 		expect(body).toContain('[!NOTE]')
-		expect(body).toContain('[!TIP]')
+		expect(body).not.toContain('[!TIP]')
+		expect(body).toContain(
+			'Ported to https://github.com/acme/target-repo/pull/901 (1 file, validation passed).',
+		)
 	})
 })

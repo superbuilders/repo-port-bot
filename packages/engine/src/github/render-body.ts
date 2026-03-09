@@ -585,9 +585,13 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				'',
 				supersededNote,
 				supersededNote ? '' : undefined,
-				`> [!TIP]\n> Ported to ${prLink} (${shape}, validation passed).`,
-				'>',
-				buildReasonDetails('Why was this ported?'),
+				`Ported to ${prLink} (${shape}, validation passed).`,
+				'',
+				`<details><summary>Why was this ported?</summary>`,
+				'',
+				input.decision.reason,
+				'',
+				'</details>',
 			]
 				.filter(isDefinedLine)
 				.join('\n')
