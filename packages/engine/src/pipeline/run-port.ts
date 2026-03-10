@@ -20,6 +20,7 @@ import type { Logger } from '@repo-port-bot/logger'
 import type { PortBotJsonConfig } from '../config/types.ts'
 import type {
 	AgentProvider,
+	FilteringMetadata,
 	GitHubReader,
 	GitHubWriter,
 	PartialPluginConfig,
@@ -150,10 +151,19 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			}
 		})()
 
+		const originalFileCount = sourceChange.files.length
 		const filteredSourceChange: SourceChange = {
 			...sourceChange,
 			files: filterIgnoredFiles(sourceChange.files, pluginConfig.ignorePatterns),
 		}
+		const removedFileCount = originalFileCount - filteredSourceChange.files.length
+		const filtering: FilteringMetadata | undefined =
+			removedFileCount > 0
+				? {
+						originalFileCount,
+						removedFileCount,
+					}
+				: undefined
 
 		if (options.diffFilePath && pluginConfig.ignorePatterns.length > 0) {
 			const currentDiff = await readFile(options.diffFilePath, 'utf8')
@@ -170,6 +180,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			sourceRepo: options.sourceRepo,
 			sourceChange: filteredSourceChange,
 			pluginConfig,
+			filtering,
 		}
 
 		logger.group('Decision: classify source change')

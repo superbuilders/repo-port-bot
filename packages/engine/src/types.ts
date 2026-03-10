@@ -173,6 +173,21 @@ export interface PluginConfig {
 }
 
 /**
+ * Metadata describing source file filtering performed before decision/execution.
+ */
+export interface FilteringMetadata {
+	/**
+	 * Total number of changed files before applying ignore patterns.
+	 */
+	originalFileCount: number
+
+	/**
+	 * Number of files removed by ignore-pattern filtering.
+	 */
+	removedFileCount: number
+}
+
+/**
  * Context passed into both decision and execution stages.
  */
 export interface PortContext {
@@ -200,6 +215,11 @@ export interface PortContext {
 	 * Fully resolved plugin configuration used for this run.
 	 */
 	pluginConfig: PluginConfig
+
+	/**
+	 * Optional metadata describing files removed by ignore filtering.
+	 */
+	filtering?: FilteringMetadata
 }
 
 /**

@@ -374,6 +374,7 @@ describe('runPort', () => {
 			ignorePatterns: ['.github/**'],
 		})
 		let decidedFiles: string[] = []
+		let decidedFiltering: unknown = undefined
 
 		await runPort({
 			reader: createReaderFake(),
@@ -388,6 +389,7 @@ describe('runPort', () => {
 				resolvePluginConfig: () => pluginConfig,
 				decide: async context => {
 					decidedFiles = context.sourceChange.files.map(file => file.path)
+					decidedFiltering = context.filtering
 
 					return makeDecisionResult(
 						'PORT_NOT_REQUIRED',
@@ -401,6 +403,10 @@ describe('runPort', () => {
 		const filteredDiff = await readFile(diffFilePath, 'utf8')
 
 		expect(decidedFiles).toEqual(['src/feature.ts'])
+		expect(decidedFiltering).toEqual({
+			originalFileCount: 2,
+			removedFileCount: 1,
+		})
 		expect(filteredDiff).not.toContain('.github/workflows/ci.yml')
 		expect(filteredDiff).toContain('diff --git a/src/feature.ts b/src/feature.ts')
 	})
