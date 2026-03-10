@@ -31,6 +31,7 @@ export interface ParsedActionInputs {
 	namingConventions?: string
 	prompt?: string
 	skipPortBotJson: boolean
+	includeCostTelemetry: boolean
 	logLevel: LogLevel
 	effectiveSourceToken: string
 	effectiveTargetToken: string

@@ -15,6 +15,7 @@ export type {
 	AgentMessageKind,
 	AttemptEvent,
 	AgentProvider,
+	AggregatedTelemetry,
 	DecidePortInput,
 	DecidePortResult,
 	DecisionTrace,
@@ -46,8 +47,10 @@ export type {
 	PortRunResult,
 	PullRequestRef,
 	RepoRef,
+	RunTelemetry,
 	SourceChange,
 	StageTrace,
+	TokenUsage,
 	ToolCallEntry,
 	ValidationCommandResult,
 } from './types.ts'

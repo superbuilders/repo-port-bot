@@ -42,6 +42,10 @@ inputs:
         description: Skip fetching port-bot.json from source repo at merge SHA.
         required: false
         default: 'false'
+    include-cost-telemetry:
+        description: Render cost and token telemetry in PR/comment bodies and the Actions summary.
+        required: false
+        default: 'true'
     model:
         description: Claude model to use.
         required: false
@@ -115,6 +119,7 @@ runs:
               INPUT_NAMING-CONVENTIONS: ${{ inputs.naming-conventions }}
               INPUT_PROMPT: ${{ inputs.prompt }}
               INPUT_SKIP-PORT-BOT-JSON: ${{ inputs.skip-port-bot-json }}
+              INPUT_INCLUDE-COST-TELEMETRY: ${{ inputs.include-cost-telemetry }}
               INPUT_MODEL: ${{ inputs.model }}
               INPUT_MAX-ATTEMPTS: ${{ inputs.max-attempts }}
               INPUT_MAX-TURNS: ${{ inputs.max-turns }}

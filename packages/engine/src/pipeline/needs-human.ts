@@ -20,6 +20,7 @@ interface NeedsHumanFlowInput {
 	sourceTitle?: string
 	startedAtMs: number
 	stageTimings: NonNullable<PortRunResult['stageTimings']>
+	includeCostTelemetry: boolean
 }
 
 /**
@@ -38,7 +39,9 @@ export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<Por
 				writer: input.writer,
 				context: input.context,
 				decision: input.decision.outcome,
+				decisionTrace: input.decision.trace,
 				targetWorkingDirectory: input.targetWorkingDirectory,
+				includeCostTelemetry: input.includeCostTelemetry,
 			})
 
 			logStage(input.logger, input.runId, 'deliver', {
@@ -60,9 +63,11 @@ export async function runNeedsHumanFlow(input: NeedsHumanFlowInput): Promise<Por
 				commentStage: input.commentStage,
 				context: input.context,
 				decision: input.decision.outcome,
+				decisionTrace: input.decision.trace,
 				writer: input.writer,
 				outcome: 'needs_human',
 				followUpIssueUrl: delivery.followUpIssueUrl,
+				includeCostTelemetry: input.includeCostTelemetry,
 				runId: input.runId,
 				logger: input.logger,
 			})

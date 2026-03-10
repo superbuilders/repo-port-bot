@@ -138,6 +138,24 @@ function parseBoolean(name: string, value: string): boolean {
 }
 
 /**
+ * Parse boolean input while allowing an explicit default for empty values.
+ *
+ * @param name - Input name.
+ * @param value - Raw input value.
+ * @param defaultValue - Fallback value when input is empty.
+ * @returns Parsed boolean.
+ */
+function parseBooleanWithDefault(name: string, value: string, defaultValue: boolean): boolean {
+	const normalized = value.trim().toLowerCase()
+
+	if (normalized.length === 0) {
+		return defaultValue
+	}
+
+	return parseBoolean(name, normalized)
+}
+
+/**
  * Parse and validate logger level input.
  *
  * @param value - Raw log level value.
@@ -209,6 +227,11 @@ export function parseActionInputs(
 	const namingConventions = getInput('naming-conventions').trim() || undefined
 	const prompt = getInput('prompt').trim() || undefined
 	const skipPortBotJson = parseBoolean('skip-port-bot-json', getInput('skip-port-bot-json'))
+	const includeCostTelemetry = parseBooleanWithDefault(
+		'include-cost-telemetry',
+		getInput('include-cost-telemetry'),
+		true,
+	)
 	const logLevel = parseLogLevel(getInput('log-level') || 'info')
 
 	return {
@@ -230,6 +253,7 @@ export function parseActionInputs(
 		namingConventions,
 		prompt,
 		skipPortBotJson,
+		includeCostTelemetry,
 		logLevel,
 		effectiveSourceToken,
 		effectiveTargetToken,

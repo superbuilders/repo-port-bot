@@ -3,18 +3,28 @@ import { getDurationMs } from '../utils.ts'
 import type { Logger } from '@repo-port-bot/logger'
 
 import type { commentOnSourcePr } from '../github/deliver.ts'
-import type { GitHubWriter, PortContext, PortDecision, PortRunResult } from '../types.ts'
+import type {
+	DecisionTrace,
+	ExecutePortResult,
+	GitHubWriter,
+	PortContext,
+	PortDecision,
+	PortRunResult,
+} from '../types.ts'
 
 interface PostSourcePrCommentInput {
 	commentStage: typeof commentOnSourcePr
 	context: PortContext
 	decision: PortDecision
+	decisionTrace?: DecisionTrace
 	writer: GitHubWriter
 	outcome: PortRunResult['outcome']
 	runId: string
 	logger: Logger
 	targetPullRequestUrl?: string
 	followUpIssueUrl?: string
+	execution?: ExecutePortResult
+	includeCostTelemetry: boolean
 }
 
 /**
@@ -40,9 +50,12 @@ export async function postSourcePrCommentBestEffort(
 			pullRequestNumber: sourcePullRequestNumber,
 			context: input.context,
 			decision: input.decision,
+			decisionTrace: input.decisionTrace,
 			outcome: input.outcome,
 			targetPullRequestUrl: input.targetPullRequestUrl,
 			followUpIssueUrl: input.followUpIssueUrl,
+			execution: input.execution,
+			includeCostTelemetry: input.includeCostTelemetry,
 			runId: input.runId,
 			logger: input.logger,
 		})

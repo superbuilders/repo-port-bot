@@ -114,9 +114,12 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 					validation,
 					trace: {
 						notes: attemptNotes,
+						model: agentOutput.trace.model,
 						durationMs: attemptDurationMs,
 						toolCallLog: agentOutput.trace.toolCallLog,
 						events: agentOutput.trace.events,
+						costUsd: agentOutput.trace.costUsd,
+						usage: agentOutput.trace.usage,
 					},
 				}
 
@@ -162,6 +165,11 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 							notes: attemptNotes,
 							toolCallLog: attempts.flatMap(entry => entry.trace.toolCallLog),
 							events: attempts.flatMap(entry => entry.trace.events),
+							costUsd: attempts.reduce(
+								(total, entry) => total + (entry.trace.costUsd ?? 0),
+								0,
+							),
+							usage: sumUsage(attempts),
 							attempts,
 						},
 					}
@@ -184,6 +192,11 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 							notes: attemptNotes,
 							toolCallLog: attempts.flatMap(entry => entry.trace.toolCallLog),
 							events: attempts.flatMap(entry => entry.trace.events),
+							costUsd: attempts.reduce(
+								(total, entry) => total + (entry.trace.costUsd ?? 0),
+								0,
+							),
+							usage: sumUsage(attempts),
 							attempts,
 						},
 					}
@@ -240,6 +253,11 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 						notes: attempt.trace.notes,
 						toolCallLog: attempts.flatMap(entry => entry.trace.toolCallLog),
 						events: attempts.flatMap(entry => entry.trace.events),
+						costUsd: attempts.reduce(
+							(total, entry) => total + (entry.trace.costUsd ?? 0),
+							0,
+						),
+						usage: sumUsage(attempts),
 						attempts,
 					},
 				}
@@ -263,7 +281,45 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 			notes: attempts.at(-1)?.trace.notes,
 			toolCallLog: attempts.flatMap(entry => entry.trace.toolCallLog),
 			events: attempts.flatMap(entry => entry.trace.events),
+			costUsd: attempts.reduce((total, entry) => total + (entry.trace.costUsd ?? 0), 0),
+			usage: sumUsage(attempts),
 			attempts,
 		},
 	}
+}
+
+/**
+ * Sum usage totals across execution attempts when provider usage is available.
+ *
+ * @param attempts - Attempt results to aggregate.
+ * @returns Combined usage totals or undefined when no usage exists.
+ */
+function sumUsage(
+	attempts: ExecutePortAttemptResult[],
+): ExecutePortAttemptResult['trace']['usage'] | undefined {
+	const initial = {
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheCreationInputTokens: 0,
+		cacheReadInputTokens: 0,
+	}
+	let hasUsage = false
+
+	const totals = attempts.reduce((accumulator, attempt) => {
+		const usage = attempt.trace.usage
+
+		if (!usage) {
+			return accumulator
+		}
+
+		hasUsage = true
+		accumulator.inputTokens += usage.inputTokens
+		accumulator.outputTokens += usage.outputTokens
+		accumulator.cacheCreationInputTokens += usage.cacheCreationInputTokens
+		accumulator.cacheReadInputTokens += usage.cacheReadInputTokens
+
+		return accumulator
+	}, initial)
+
+	return hasUsage ? totals : undefined
 }

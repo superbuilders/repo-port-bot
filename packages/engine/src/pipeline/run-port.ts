@@ -19,6 +19,7 @@ import type { Logger } from '@repo-port-bot/logger'
 
 import type { PortBotJsonConfig } from '../config/types.ts'
 import type {
+	AggregatedTelemetry,
 	AgentProvider,
 	FilteringMetadata,
 	GitHubReader,
@@ -29,6 +30,7 @@ import type {
 	PortRunResult,
 	RepoRef,
 	SourceChange,
+	TokenUsage,
 } from '../types.ts'
 
 interface RunPortStageOverrides {
@@ -54,6 +56,7 @@ interface RunPortOptions {
 	sourceWorkingDirectory?: string
 	diffFilePath?: string
 	maxAttempts?: number
+	includeCostTelemetry?: boolean
 	logger?: Logger
 	/**
 	 * Internal testing hook for replacing stage implementations.
@@ -223,7 +226,9 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 						pullRequestNumber: sourcePrNumber,
 						context,
 						decision: decision.outcome,
+						decisionTrace: decision.trace,
 						outcome: 'skipped_not_required',
+						includeCostTelemetry: options.includeCostTelemetry ?? true,
 						runId,
 						logger,
 					})
@@ -242,6 +247,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 				sourceTitle,
 				outcome: 'skipped_not_required',
 				decision,
+				telemetry: buildRunTelemetry(decision),
 				summary: renderRunSummary({ outcome: 'skipped_not_required', decision }),
 				durationMs: getDurationMs(startedAtMs),
 				stageTimings,
@@ -249,11 +255,35 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		}
 
 		if (decision.outcome.kind === 'NEEDS_HUMAN') {
-			return runNeedsHumanFlow({
+			return withTelemetry(
+				await runNeedsHumanFlow({
+					writer: options.writer,
+					context,
+					decision,
+					targetWorkingDirectory: options.targetWorkingDirectory,
+					deliverStage: stages.deliverResult,
+					commentStage: stages.commentOnSourcePr,
+					logger,
+					runId,
+					sourceTitle,
+					startedAtMs,
+					stageTimings,
+					includeCostTelemetry: options.includeCostTelemetry ?? true,
+				}),
+			)
+		}
+
+		return withTelemetry(
+			await runPortRequiredFlow({
 				writer: options.writer,
+				agentProvider: options.agentProvider,
 				context,
 				decision,
 				targetWorkingDirectory: options.targetWorkingDirectory,
+				sourceWorkingDirectory: options.sourceWorkingDirectory,
+				diffFilePath: options.diffFilePath,
+				maxAttempts: options.maxAttempts,
+				executeStage: stages.executePort,
 				deliverStage: stages.deliverResult,
 				commentStage: stages.commentOnSourcePr,
 				logger,
@@ -261,27 +291,9 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 				sourceTitle,
 				startedAtMs,
 				stageTimings,
-			})
-		}
-
-		return runPortRequiredFlow({
-			writer: options.writer,
-			agentProvider: options.agentProvider,
-			context,
-			decision,
-			targetWorkingDirectory: options.targetWorkingDirectory,
-			sourceWorkingDirectory: options.sourceWorkingDirectory,
-			diffFilePath: options.diffFilePath,
-			maxAttempts: options.maxAttempts,
-			executeStage: stages.executePort,
-			deliverStage: stages.deliverResult,
-			commentStage: stages.commentOnSourcePr,
-			logger,
-			runId,
-			sourceTitle,
-			startedAtMs,
-			stageTimings,
-		})
+				includeCostTelemetry: options.includeCostTelemetry ?? true,
+			}),
+		)
 	} catch (error) {
 		const errorMessage = toErrorMessage(error)
 		const failureDecision = buildEngineFailureDecision(errorMessage)
@@ -295,7 +307,9 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 					pullRequestNumber: sourcePullRequestNumber,
 					context,
 					decision: failureDecisionValue.outcome,
+					decisionTrace: failureDecisionValue.trace,
 					outcome: 'failed',
+					includeCostTelemetry: options.includeCostTelemetry ?? true,
 					runId,
 					logger,
 				})
@@ -314,6 +328,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			sourceTitle,
 			outcome: 'failed',
 			decision: failureDecisionValue,
+			telemetry: buildRunTelemetry(failureDecisionValue),
 			summary: renderRunSummary({
 				outcome: 'failed',
 				decision: failureDecisionValue,
@@ -322,5 +337,146 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			durationMs: getDurationMs(startedAtMs),
 			stageTimings,
 		}
+	}
+}
+
+/**
+ * Attach computed telemetry aggregates onto the terminal run result.
+ *
+ * @param result - Terminal run result.
+ * @returns Result with telemetry field populated.
+ */
+function withTelemetry(result: PortRunResult): PortRunResult {
+	return {
+		...result,
+		telemetry: buildRunTelemetry(result.decision, result.execution),
+	}
+}
+
+/**
+ * Build run-level telemetry aggregates from decision and execution traces.
+ *
+ * @param decision - Decision stage result.
+ * @param execution - Optional execution stage result.
+ * @returns Run telemetry payload.
+ */
+function buildRunTelemetry(
+	decision: PortRunResult['decision'],
+	execution?: PortRunResult['execution'],
+): PortRunResult['telemetry'] {
+	const decisionTotals = toAggregatedTelemetry(decision.trace.costUsd, decision.trace.usage)
+	const executionTotals = execution
+		? sumStageTelemetry(execution.trace.attempts.map(attempt => attempt.trace))
+		: undefined
+	const total = sumAggregatedTelemetry(decisionTotals, executionTotals)
+
+	if (!decisionTotals && !executionTotals && !total) {
+		return undefined
+	}
+
+	return {
+		decision: decisionTotals,
+		execution: executionTotals,
+		total,
+	}
+}
+
+/**
+ * Sum stage-level telemetry traces.
+ *
+ * @param traces - Traces to aggregate.
+ * @returns Aggregated telemetry or undefined.
+ */
+function sumStageTelemetry(
+	traces: { costUsd?: number; usage?: TokenUsage }[],
+): AggregatedTelemetry | undefined {
+	const usageTotals: TokenUsage = {
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheCreationInputTokens: 0,
+		cacheReadInputTokens: 0,
+	}
+	let hasCost = false
+	let hasUsage = false
+	let costUsd = 0
+
+	for (const trace of traces) {
+		if (trace.costUsd !== undefined) {
+			hasCost = true
+			costUsd += trace.costUsd
+		}
+
+		if (trace.usage) {
+			hasUsage = true
+			usageTotals.inputTokens += trace.usage.inputTokens
+			usageTotals.outputTokens += trace.usage.outputTokens
+			usageTotals.cacheCreationInputTokens += trace.usage.cacheCreationInputTokens
+			usageTotals.cacheReadInputTokens += trace.usage.cacheReadInputTokens
+		}
+	}
+
+	if (!hasCost && !hasUsage) {
+		return undefined
+	}
+
+	return {
+		costUsd: hasCost ? costUsd : 0,
+		usage: usageTotals,
+	}
+}
+
+/**
+ * Convert optional stage cost/usage into aggregate telemetry.
+ *
+ * @param costUsd - Stage cost.
+ * @param usage - Stage usage.
+ * @returns Aggregated telemetry or undefined.
+ */
+function toAggregatedTelemetry(
+	costUsd: number | undefined,
+	usage: TokenUsage | undefined,
+): AggregatedTelemetry | undefined {
+	if (costUsd === undefined && !usage) {
+		return undefined
+	}
+
+	return {
+		costUsd: costUsd ?? 0,
+		usage: usage ?? {
+			inputTokens: 0,
+			outputTokens: 0,
+			cacheCreationInputTokens: 0,
+			cacheReadInputTokens: 0,
+		},
+	}
+}
+
+/**
+ * Sum two optional telemetry aggregates.
+ *
+ * @param first - First aggregate.
+ * @param second - Second aggregate.
+ * @returns Combined aggregate or undefined.
+ */
+function sumAggregatedTelemetry(
+	first: AggregatedTelemetry | undefined,
+	second: AggregatedTelemetry | undefined,
+): AggregatedTelemetry | undefined {
+	if (!first && !second) {
+		return undefined
+	}
+
+	return {
+		costUsd: (first?.costUsd ?? 0) + (second?.costUsd ?? 0),
+		usage: {
+			inputTokens: (first?.usage.inputTokens ?? 0) + (second?.usage.inputTokens ?? 0),
+			outputTokens: (first?.usage.outputTokens ?? 0) + (second?.usage.outputTokens ?? 0),
+			cacheCreationInputTokens:
+				(first?.usage.cacheCreationInputTokens ?? 0) +
+				(second?.usage.cacheCreationInputTokens ?? 0),
+			cacheReadInputTokens:
+				(first?.usage.cacheReadInputTokens ?? 0) +
+				(second?.usage.cacheReadInputTokens ?? 0),
+		},
 	}
 }

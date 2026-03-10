@@ -75,6 +75,7 @@ Regardless of which path produces the `NEEDS_HUMAN` decision, no agent execution
 
 5. **Source PR receives a notification comment**
     - Best-effort comment on the merged source PR: "Could not automatically port to `target-repo`. Opened an issue: `<url>` for manual review."
+    - The comment includes a collapsible reason plus a collapsed `Cost & token usage` block with the decision-stage totals, since no execution run occurred.
     - This is how the maintainer discovers the escalation.
 
 6. **Maintainer triages the issue**
@@ -114,7 +115,7 @@ The maintainer experiences the escalation as "the bot told me it couldn't do thi
     - Issue body includes a link to the source PR, the decision reason, and the changed file count. A maintainer should be able to decide whether to port immediately, defer, or dismiss without opening any other page.
 
 5. **Source notification**
-    - Source PR receives a comment linking to the issue. The maintainer who merged the source PR gets notified through GitHub's existing subscription model.
+    - Source PR receives a comment linking to the issue plus decision-stage cost/token totals. The maintainer who merged the source PR gets notified through GitHub's existing subscription model.
 
 6. **No side effects**
     - No target repo code is modified. No branch exists. If the maintainer dismisses the issue, the target repo is exactly as it was before.

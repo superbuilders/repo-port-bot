@@ -109,6 +109,7 @@ describe('runAction', () => {
 				namingConventions: undefined,
 				prompt: undefined,
 				skipPortBotJson: true,
+				includeCostTelemetry: false,
 				logLevel: 'debug',
 				effectiveSourceToken: 'source-token',
 				effectiveTargetToken: 'target-token',
@@ -219,6 +220,7 @@ describe('runAction', () => {
 			diffFilePath?: string
 			maxAttempts: number
 			skipPortBotJson: boolean
+			includeCostTelemetry: boolean
 			builtInConfig: {
 				targetRepo: RepoRef
 				validationCommands: string[]
@@ -235,11 +237,15 @@ describe('runAction', () => {
 		expect(call.diffFilePath).toBe('/tmp/source-repo/port-diff.patch')
 		expect(call.maxAttempts).toBe(3)
 		expect(call.skipPortBotJson).toBe(true)
+		expect(call.includeCostTelemetry).toBe(false)
 		expect(call.builtInConfig.targetRepo).toEqual({
 			owner: 'acme',
 			name: 'target-repo',
 			defaultBranch: 'main',
 		})
-		expect(result).toEqual(portResult)
+		expect(result).toEqual({
+			...portResult,
+			includeCostTelemetry: false,
+		})
 	})
 })

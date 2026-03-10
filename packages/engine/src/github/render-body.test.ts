@@ -22,6 +22,8 @@ const TARGET_REPO: RepoRef = {
 	defaultBranch: 'main',
 }
 
+const DECISION_COST_USD = 0.12
+
 /**
  * Build a synthetic context for render tests.
  *
@@ -76,6 +78,40 @@ function makeDecision(kind: PortDecision['kind']): PortDecision {
 	return {
 		kind,
 		reason: 'Decision reason',
+	}
+}
+
+/**
+ * Build a decision trace fixture with optional telemetry overrides.
+ *
+ * @param costUsd - Optional decision stage cost.
+ * @param usage - Optional decision stage usage.
+ * @param usage.inputTokens - Input token count.
+ * @param usage.outputTokens - Output token count.
+ * @param usage.cacheCreationInputTokens - Cache write token count.
+ * @param usage.cacheReadInputTokens - Cache read token count.
+ * @returns Decision trace fixture.
+ */
+function makeDecisionTrace(
+	costUsd = DECISION_COST_USD,
+	usage: {
+		inputTokens: number
+		outputTokens: number
+		cacheCreationInputTokens: number
+		cacheReadInputTokens: number
+	} = {
+		inputTokens: 1000,
+		outputTokens: 200,
+		cacheCreationInputTokens: 100,
+		cacheReadInputTokens: 1200,
+	},
+) {
+	return {
+		source: 'classifier' as const,
+		toolCallLog: [],
+		events: [],
+		costUsd,
+		usage,
 	}
 }
 
@@ -249,6 +285,67 @@ describe('render-body', () => {
 			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in [`acme/source-repo`]',
 		)
 		expect(body).not.toContain('(originally authored by @')
+	})
+
+	test('renders cost telemetry details in target PR body when enabled', () => {
+		const execution = makeExecution(true)
+
+		execution.outcome.attempts = 2
+		execution.trace.attempts = [
+			{
+				...execution.trace.attempts[0]!,
+				attempt: 1,
+				trace: {
+					...execution.trace.attempts[0]!.trace,
+					costUsd: 1,
+					usage: {
+						inputTokens: 2000,
+						outputTokens: 500,
+						cacheCreationInputTokens: 200,
+						cacheReadInputTokens: 1000,
+					},
+				},
+			},
+			{
+				...execution.trace.attempts[0]!,
+				attempt: 2,
+				trace: {
+					...execution.trace.attempts[0]!.trace,
+					costUsd: 0.5,
+					usage: {
+						inputTokens: 1000,
+						outputTokens: 200,
+						cacheCreationInputTokens: 100,
+						cacheReadInputTokens: 300,
+					},
+				},
+			},
+		]
+
+		const body = renderPortPullRequestBody({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: makeDecisionTrace(),
+			execution,
+			includeCostTelemetry: true,
+		})
+
+		expect(body).toContain('<details><summary>Cost & token usage</summary>')
+		expect(body).toContain('- Decision: $0.12, 2.5k tokens')
+		expect(body).toContain('- Execution: $1.50, 5.3k tokens across 2 attempts')
+		expect(body).toContain('- Total: $1.62, 7.8k tokens')
+	})
+
+	test('omits cost telemetry details in target PR body when disabled', () => {
+		const body = renderPortPullRequestBody({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: makeDecisionTrace(),
+			execution: makeExecution(true),
+			includeCostTelemetry: false,
+		})
+
+		expect(body).not.toContain('Cost & token usage')
 	})
 
 	test('omits author mention in needs-human issue when author is absent', () => {
@@ -461,6 +558,37 @@ describe('render-body', () => {
 		)
 		expect(body).toContain('<details><summary>Why was this ported?</summary>')
 		expect(body).toContain('Decision reason')
+	})
+
+	test('renders source comment telemetry for decision-only outcomes', () => {
+		const body = renderSourceComment({
+			context: makeContext(),
+			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decisionTrace: makeDecisionTrace(),
+			outcome: 'skipped_not_required',
+			includeCostTelemetry: true,
+			runId: 'run-telemetry-1',
+		})
+
+		expect(body).toContain('<details><summary>Cost & token usage</summary>')
+		expect(body).toContain('- Decision: $0.12, 2.5k tokens')
+		expect(body).not.toContain('- Execution:')
+		expect(body).not.toContain('- Total:')
+	})
+
+	test('omits source comment telemetry when disabled', () => {
+		const body = renderSourceComment({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			decisionTrace: makeDecisionTrace(),
+			execution: makeExecution(true),
+			outcome: 'pr_opened',
+			includeCostTelemetry: false,
+			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/901',
+			runId: 'run-telemetry-2',
+		})
+
+		expect(body).not.toContain('Cost & token usage')
 	})
 
 	test('renders source comment for draft_pr_opened and needs_human with warning admonition', () => {

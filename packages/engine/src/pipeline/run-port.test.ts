@@ -719,4 +719,130 @@ describe('runPort', () => {
 			),
 		).toBe(true)
 	})
+
+	test('aggregates telemetry totals and forwards include-cost-telemetry', async () => {
+		let deliverIncludeCostTelemetry: boolean | undefined = undefined
+		let notifyIncludeCostTelemetry: boolean | undefined = undefined
+
+		const result = await runPort({
+			reader: createReaderFake(),
+			writer: createWriterFake(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			includeCostTelemetry: false,
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => makePluginConfig(),
+				decide: async () => ({
+					outcome: makeDecision('PORT_REQUIRED', 'Port required.'),
+					trace: {
+						source: 'classifier',
+						toolCallLog: [],
+						events: [],
+						costUsd: 0.12,
+						usage: {
+							inputTokens: 1000,
+							outputTokens: 200,
+							cacheCreationInputTokens: 100,
+							cacheReadInputTokens: 1200,
+						},
+					},
+				}),
+				executePort: async () => ({
+					outcome: {
+						status: 'SUCCEEDED',
+						attempts: 2,
+						touchedFiles: ['src/ported.ts'],
+					},
+					trace: {
+						toolCallLog: [],
+						events: [],
+						attempts: [
+							{
+								attempt: 1,
+								status: 'VALIDATION_FAILED',
+								touchedFiles: ['src/ported.ts'],
+								validation: [],
+								trace: {
+									toolCallLog: [],
+									events: [],
+									costUsd: 1,
+									usage: {
+										inputTokens: 2000,
+										outputTokens: 500,
+										cacheCreationInputTokens: 200,
+										cacheReadInputTokens: 1000,
+									},
+								},
+							},
+							{
+								attempt: 2,
+								status: 'VALIDATED',
+								touchedFiles: ['src/ported.ts'],
+								validation: [],
+								trace: {
+									toolCallLog: [],
+									events: [],
+									costUsd: 0.5,
+									usage: {
+										inputTokens: 1000,
+										outputTokens: 200,
+										cacheCreationInputTokens: 100,
+										cacheReadInputTokens: 300,
+									},
+								},
+							},
+						],
+					},
+				}),
+				deliverResult: async input => {
+					deliverIncludeCostTelemetry = input.includeCostTelemetry
+
+					return {
+						outcome: 'pr_opened',
+						targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/777',
+					}
+				},
+				commentOnSourcePr: async input => {
+					notifyIncludeCostTelemetry = input.includeCostTelemetry
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-telemetry'
+				},
+			},
+		})
+
+		expect(result.telemetry).toEqual({
+			decision: {
+				costUsd: 0.12,
+				usage: {
+					inputTokens: 1000,
+					outputTokens: 200,
+					cacheCreationInputTokens: 100,
+					cacheReadInputTokens: 1200,
+				},
+			},
+			execution: {
+				costUsd: 1.5,
+				usage: {
+					inputTokens: 3000,
+					outputTokens: 700,
+					cacheCreationInputTokens: 300,
+					cacheReadInputTokens: 1300,
+				},
+			},
+			total: {
+				costUsd: 1.62,
+				usage: {
+					inputTokens: 4000,
+					outputTokens: 900,
+					cacheCreationInputTokens: 400,
+					cacheReadInputTokens: 2500,
+				},
+			},
+		})
+		expect(deliverIncludeCostTelemetry === false).toBe(true)
+		expect(notifyIncludeCostTelemetry === false).toBe(true)
+	})
 })

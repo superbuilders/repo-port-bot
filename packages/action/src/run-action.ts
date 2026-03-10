@@ -83,7 +83,7 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 		token: inputs.effectiveTargetToken,
 	})
 
-	return resolvedDependencies.runPort({
+	const result = await resolvedDependencies.runPort({
 		reader: sourceReader,
 		writer: targetWriter,
 		agentProvider,
@@ -94,6 +94,7 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 		diffFilePath: sourceClone.diffFilePath,
 		maxAttempts: inputs.maxAttempts,
 		skipPortBotJson: inputs.skipPortBotJson,
+		includeCostTelemetry: inputs.includeCostTelemetry,
 		builtInConfig: {
 			targetRepo: {
 				owner: inputs.targetRepo.owner,
@@ -119,4 +120,9 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 		},
 		logger,
 	})
+
+	return {
+		...result,
+		includeCostTelemetry: inputs.includeCostTelemetry,
+	}
 }

@@ -356,6 +356,44 @@ export interface StageTrace {
 	 * Ordered assistant/tool events captured during the stage.
 	 */
 	events: AgentSessionEvent[]
+
+	/**
+	 * Total USD cost reported by the provider for this stage.
+	 */
+	costUsd?: number
+
+	/**
+	 * Token usage totals reported by the provider for this stage.
+	 */
+	usage?: TokenUsage
+}
+
+/**
+ * Token usage totals for one provider stage call.
+ */
+export interface TokenUsage {
+	inputTokens: number
+	outputTokens: number
+	cacheCreationInputTokens: number
+	cacheReadInputTokens: number
+	serviceTier?: string
+}
+
+/**
+ * Aggregated telemetry totals (cost + token usage) for a logical scope.
+ */
+export interface AggregatedTelemetry {
+	costUsd: number
+	usage: TokenUsage
+}
+
+/**
+ * Full run telemetry grouped by decision, execution, and total aggregates.
+ */
+export interface RunTelemetry {
+	decision?: AggregatedTelemetry
+	execution?: AggregatedTelemetry
+	total?: AggregatedTelemetry
 }
 
 /**
@@ -1125,4 +1163,9 @@ export interface PortRunResult {
 		deliverMs?: number
 		notifyMs?: number
 	}
+
+	/**
+	 * Aggregated run telemetry used for summary and user-facing reporting.
+	 */
+	telemetry?: RunTelemetry
 }
