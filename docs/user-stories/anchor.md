@@ -64,6 +64,7 @@ Define what "working" means from a maintainer perspective when a change in one r
     - PR body follows a compact layout:
         - `## Port rationale` heading with the decision rationale quoted/blocked (the "why" is the first thing a reviewer reads)
         - source narrative directly below, extended into a natural provenance sentence that includes a parenthetical `@`-mention of the original PR author (so they receive a GitHub notification about the port without implying they authored the port itself) and includes model name and at-a-glance execution stats
+        - collapsed `Cost & token usage` block showing decision totals, execution totals, and overall run totals
         - `## What was ported` — the agent's per-file summary of changes (the main content)
         - collapsed `Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (only shown in "What was ported", not repeated in the log)
         - collapsible `Validation & diagnostics` section with pass/fail results
@@ -95,6 +96,8 @@ The maintainer experiences porting as "automatic and reviewable":
     - Target PR contains a link to source PR in the body and source PR title in the PR title.
     - Target PR body `@`-mentions the original PR author so they receive a GitHub notification about the port. This is critical when the author is subscribed to the source repo but not the target repo — without the mention, they would have no visibility into whether their change was ported.
     - For all outcomes (including skips), source PR receives a bot comment with a collapsible reason. Stalled / needs-human / failed / skipped outcomes use GitHub admonitions; successful `pr_opened` comments are plain markdown.
+    - When available, both the target PR and the source PR comment include a collapsed `Cost & token usage` block. Successful and stalled runs show decision totals, execution totals, and overall totals; decision-only outcomes show decision totals only.
+    - Repositories can opt out of these user-facing telemetry blocks via the action input `include-cost-telemetry: false` without disabling the underlying port workflow.
     - On reruns, the bot updates the same source PR comment for this target repo so maintainers always see one stable latest-status artifact rather than a growing comment chain.
 
 4. **Correctness gate**

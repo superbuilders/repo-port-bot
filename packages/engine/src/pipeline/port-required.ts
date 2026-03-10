@@ -32,6 +32,7 @@ interface PortRequiredFlowInput {
 	sourceTitle?: string
 	startedAtMs: number
 	stageTimings: NonNullable<PortRunResult['stageTimings']>
+	includeCostTelemetry: boolean
 }
 
 /**
@@ -67,8 +68,10 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 				writer: input.writer,
 				context: input.context,
 				decision: input.decision.outcome,
+				decisionTrace: input.decision.trace,
 				execution,
 				targetWorkingDirectory: input.targetWorkingDirectory,
+				includeCostTelemetry: input.includeCostTelemetry,
 				logger: input.logger,
 			})
 
@@ -99,9 +102,12 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 				commentStage: input.commentStage,
 				context: input.context,
 				decision: input.decision.outcome,
+				decisionTrace: input.decision.trace,
 				writer: input.writer,
 				outcome,
 				targetPullRequestUrl: delivery.targetPullRequestUrl,
+				execution,
+				includeCostTelemetry: input.includeCostTelemetry,
 				runId: input.runId,
 				logger: input.logger,
 			})

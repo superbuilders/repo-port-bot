@@ -9,6 +9,11 @@ import { executePort } from '../execution/execute-port.ts'
 import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
 import { renderRunSummary } from '../github/render-body.ts'
+import {
+	sumAggregatedTelemetry,
+	sumStageTelemetry,
+	toAggregatedTelemetry,
+} from '../lib/telemetry.ts'
 import { getDurationMs, logAgentMessage, toErrorMessage } from '../utils.ts'
 import { filterDiffContent, filterIgnoredFiles } from './filter-ignored.ts'
 import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
@@ -54,6 +59,7 @@ interface RunPortOptions {
 	sourceWorkingDirectory?: string
 	diffFilePath?: string
 	maxAttempts?: number
+	includeCostTelemetry?: boolean
 	logger?: Logger
 	/**
 	 * Internal testing hook for replacing stage implementations.
@@ -223,7 +229,9 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 						pullRequestNumber: sourcePrNumber,
 						context,
 						decision: decision.outcome,
+						decisionTrace: decision.trace,
 						outcome: 'skipped_not_required',
+						includeCostTelemetry: options.includeCostTelemetry ?? true,
 						runId,
 						logger,
 					})
@@ -242,6 +250,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 				sourceTitle,
 				outcome: 'skipped_not_required',
 				decision,
+				telemetry: buildRunTelemetry(decision),
 				summary: renderRunSummary({ outcome: 'skipped_not_required', decision }),
 				durationMs: getDurationMs(startedAtMs),
 				stageTimings,
@@ -249,11 +258,35 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		}
 
 		if (decision.outcome.kind === 'NEEDS_HUMAN') {
-			return runNeedsHumanFlow({
+			return withTelemetry(
+				await runNeedsHumanFlow({
+					writer: options.writer,
+					context,
+					decision,
+					targetWorkingDirectory: options.targetWorkingDirectory,
+					deliverStage: stages.deliverResult,
+					commentStage: stages.commentOnSourcePr,
+					logger,
+					runId,
+					sourceTitle,
+					startedAtMs,
+					stageTimings,
+					includeCostTelemetry: options.includeCostTelemetry ?? true,
+				}),
+			)
+		}
+
+		return withTelemetry(
+			await runPortRequiredFlow({
 				writer: options.writer,
+				agentProvider: options.agentProvider,
 				context,
 				decision,
 				targetWorkingDirectory: options.targetWorkingDirectory,
+				sourceWorkingDirectory: options.sourceWorkingDirectory,
+				diffFilePath: options.diffFilePath,
+				maxAttempts: options.maxAttempts,
+				executeStage: stages.executePort,
 				deliverStage: stages.deliverResult,
 				commentStage: stages.commentOnSourcePr,
 				logger,
@@ -261,27 +294,9 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 				sourceTitle,
 				startedAtMs,
 				stageTimings,
-			})
-		}
-
-		return runPortRequiredFlow({
-			writer: options.writer,
-			agentProvider: options.agentProvider,
-			context,
-			decision,
-			targetWorkingDirectory: options.targetWorkingDirectory,
-			sourceWorkingDirectory: options.sourceWorkingDirectory,
-			diffFilePath: options.diffFilePath,
-			maxAttempts: options.maxAttempts,
-			executeStage: stages.executePort,
-			deliverStage: stages.deliverResult,
-			commentStage: stages.commentOnSourcePr,
-			logger,
-			runId,
-			sourceTitle,
-			startedAtMs,
-			stageTimings,
-		})
+				includeCostTelemetry: options.includeCostTelemetry ?? true,
+			}),
+		)
 	} catch (error) {
 		const errorMessage = toErrorMessage(error)
 		const failureDecision = buildEngineFailureDecision(errorMessage)
@@ -295,7 +310,9 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 					pullRequestNumber: sourcePullRequestNumber,
 					context,
 					decision: failureDecisionValue.outcome,
+					decisionTrace: failureDecisionValue.trace,
 					outcome: 'failed',
+					includeCostTelemetry: options.includeCostTelemetry ?? true,
 					runId,
 					logger,
 				})
@@ -314,6 +331,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			sourceTitle,
 			outcome: 'failed',
 			decision: failureDecisionValue,
+			telemetry: buildRunTelemetry(failureDecisionValue),
 			summary: renderRunSummary({
 				outcome: 'failed',
 				decision: failureDecisionValue,
@@ -322,5 +340,46 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			durationMs: getDurationMs(startedAtMs),
 			stageTimings,
 		}
+	}
+}
+
+/**
+ * Attach computed telemetry aggregates onto the terminal run result.
+ *
+ * @param result - Terminal run result.
+ * @returns Result with telemetry field populated.
+ */
+function withTelemetry(result: PortRunResult): PortRunResult {
+	return {
+		...result,
+		telemetry: buildRunTelemetry(result.decision, result.execution),
+	}
+}
+
+/**
+ * Build run-level telemetry aggregates from decision and execution traces.
+ *
+ * @param decision - Decision stage result.
+ * @param execution - Optional execution stage result.
+ * @returns Run telemetry payload.
+ */
+function buildRunTelemetry(
+	decision: PortRunResult['decision'],
+	execution?: PortRunResult['execution'],
+): PortRunResult['telemetry'] {
+	const decisionTotals = toAggregatedTelemetry(decision.trace.costUsd, decision.trace.usage)
+	const executionTotals = execution
+		? sumStageTelemetry(execution.trace.attempts.map(attempt => attempt.trace))
+		: undefined
+	const total = sumAggregatedTelemetry(decisionTotals, executionTotals)
+
+	if (!decisionTotals && !executionTotals && !total) {
+		return undefined
+	}
+
+	return {
+		decision: decisionTotals,
+		execution: executionTotals,
+		total,
 	}
 }

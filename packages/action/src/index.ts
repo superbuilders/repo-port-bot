@@ -5,8 +5,11 @@ import { DefaultArtifactClient } from '@actions/artifact'
 import * as core from '@actions/core'
 import {
 	formatDuration,
+	formatTokenCount,
+	formatUsd,
 	renderDecisionLogSummary,
 	renderExecutionLogSummary,
+	totalTokens,
 } from '@repo-port-bot/engine'
 
 import { runAction } from './run-action.ts'
@@ -59,58 +62,127 @@ async function main(): Promise<void> {
 		core.setOutput('issue-url', result.followUpIssueUrl ?? '')
 		core.setOutput('summary', result.summary)
 
-		const heading = result.sourceTitle ? `Port: ${result.sourceTitle}` : 'Port run'
-		const outcomeLine = buildOutcomeLine(result)
-		const executionModel = result.execution?.trace.model
-		const model = executionModel ?? result.decision.trace.model
+		await writeActionSummary({
+			result,
+			artifactUploaded,
+			decisionToolCalls,
+			executionToolCalls,
+		})
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error)
 
-		core.summary.addRaw(`# ${heading}\n\n`)
-		core.summary.addRaw(`${outcomeLine}\n\n`)
-		core.summary.addTable([
-			[
-				{ data: 'context', header: true },
-				{ data: 'config', header: true },
-				{ data: 'decision', header: true },
-				{ data: 'execute', header: true },
-				{ data: 'deliver', header: true },
-				{ data: 'notify', header: true },
-				{ data: '<b>total</b>', header: true },
-			],
-			[
-				formatMs(result.stageTimings?.contextMs),
-				formatMs(result.stageTimings?.configMs),
-				formatMs(result.stageTimings?.decisionMs),
-				formatMs(result.stageTimings?.executeMs),
-				formatMs(result.stageTimings?.deliverMs),
-				formatMs(result.stageTimings?.notifyMs),
-				`<b>${formatMs(result.durationMs)}</b>`,
-			],
-		])
+		core.setFailed(message)
+	}
+}
 
-		const decisionTrace = result.decision.trace
-		const decisionDuration =
-			decisionTrace.durationMs !== undefined
-				? ` · ${formatDuration(decisionTrace.durationMs)}`
+/**
+ * Render and write the GitHub Actions summary.
+ *
+ * @param input - Summary rendering input.
+ * @param input.result - Port run result.
+ * @param input.artifactUploaded - Whether artifact upload succeeded.
+ * @param input.decisionToolCalls - Decision tool call entries.
+ * @param input.executionToolCalls - Execution tool call entries.
+ */
+async function writeActionSummary(input: {
+	result: Awaited<ReturnType<typeof runAction>>
+	artifactUploaded: boolean
+	decisionToolCalls: unknown[]
+	executionToolCalls: unknown[]
+}): Promise<void> {
+	const heading = input.result.sourceTitle ? `Port: ${input.result.sourceTitle}` : 'Port run'
+	const outcomeLine = buildOutcomeLine(input.result)
+	const executionModel = input.result.execution?.trace.model
+	const model = executionModel ?? input.result.decision.trace.model
+	const includeCostTelemetry = input.result.includeCostTelemetry !== false
+	const decisionTelemetry = includeCostTelemetry ? input.result.telemetry?.decision : undefined
+	const executionTelemetry = includeCostTelemetry ? input.result.telemetry?.execution : undefined
+	const totalTelemetry = includeCostTelemetry ? input.result.telemetry?.total : undefined
+
+	core.summary.addRaw(`# ${heading}\n\n`)
+	core.summary.addRaw(`${outcomeLine}\n\n`)
+	core.summary.addTable([
+		[
+			{ data: 'context', header: true },
+			{ data: 'config', header: true },
+			{ data: 'decision', header: true },
+			{ data: 'execute', header: true },
+			{ data: 'deliver', header: true },
+			{ data: 'notify', header: true },
+			{ data: '<b>total</b>', header: true },
+		],
+		[
+			formatMs(input.result.stageTimings?.contextMs),
+			formatMs(input.result.stageTimings?.configMs),
+			formatMs(input.result.stageTimings?.decisionMs),
+			formatMs(input.result.stageTimings?.executeMs),
+			formatMs(input.result.stageTimings?.deliverMs),
+			formatMs(input.result.stageTimings?.notifyMs),
+			`<b>${formatMs(input.result.durationMs)}</b>`,
+		],
+	])
+
+	const decisionTrace = input.result.decision.trace
+	const decisionDuration =
+		decisionTrace.durationMs !== undefined
+			? ` · ${formatDuration(decisionTrace.durationMs)}`
+			: ''
+	const decisionTelemetryLabel = decisionTelemetry
+		? ` · ${formatUsd(decisionTelemetry.costUsd)} · ${formatTokenCount(totalTokens(decisionTelemetry.usage))} tokens`
+		: ''
+	const decisionLabel = `Decision (${String(input.decisionToolCalls.length)} tool call${input.decisionToolCalls.length === 1 ? '' : 's'}${decisionDuration}${decisionTelemetryLabel})`
+	const decisionLog = renderDecisionLogSummary(decisionTrace)
+
+	core.summary.addRaw(
+		[
+			'',
+			`<details><summary>${decisionLabel}</summary>`,
+			'',
+			`- Kind: \`${decisionTrace.source === 'classifier' ? input.result.decision.outcome.kind : `${input.result.decision.outcome.kind} (${decisionTrace.source})`}\``,
+			`- Reason: ${input.result.decision.outcome.reason}`,
+			decisionTrace.heuristicName
+				? `- Heuristic: \`${decisionTrace.heuristicName}\``
+				: undefined,
+			decisionLog ? '' : undefined,
+			decisionLog ? '<details><summary>Log</summary>' : undefined,
+			decisionLog ? '' : undefined,
+			decisionLog,
+			decisionLog ? '' : undefined,
+			decisionLog ? '</details>' : undefined,
+			'',
+			'</details>',
+			'',
+		]
+			.filter(line => line !== undefined)
+			.join('\n'),
+	)
+
+	if (input.result.execution) {
+		const executionLog = renderExecutionLogSummary(input.result.execution)
+		const execDuration =
+			input.result.execution.trace.durationMs !== undefined
+				? ` · ${formatDuration(input.result.execution.trace.durationMs)}`
 				: ''
-		const decisionLabel = `Decision (${String(decisionToolCalls.length)} tool call${decisionToolCalls.length === 1 ? '' : 's'}${decisionDuration})`
-		const decisionLog = renderDecisionLogSummary(decisionTrace)
+		const executionTelemetryLabel = executionTelemetry
+			? ` · ${formatUsd(executionTelemetry.costUsd)} · ${formatTokenCount(totalTokens(executionTelemetry.usage))} tokens`
+			: ''
+		const executionLabel = `Execution (${String(input.executionToolCalls.length)} tool call${input.executionToolCalls.length === 1 ? '' : 's'}${execDuration}${executionTelemetryLabel})`
 
 		core.summary.addRaw(
 			[
+				`<details><summary>${executionLabel}</summary>`,
 				'',
-				`<details><summary>${decisionLabel}</summary>`,
-				'',
-				`- Kind: \`${decisionTrace.source === 'classifier' ? result.decision.outcome.kind : `${result.decision.outcome.kind} (${decisionTrace.source})`}\``,
-				`- Reason: ${result.decision.outcome.reason}`,
-				decisionTrace.heuristicName
-					? `- Heuristic: \`${decisionTrace.heuristicName}\``
+				model ? `- Model: \`${model}\`` : undefined,
+				input.artifactUploaded
+					? `- Artifact: \`port-bot-run-${input.result.runId}\``
 					: undefined,
-				decisionLog ? '' : undefined,
-				decisionLog ? '<details><summary>Log</summary>' : undefined,
-				decisionLog ? '' : undefined,
-				decisionLog,
-				decisionLog ? '' : undefined,
-				decisionLog ? '</details>' : undefined,
+				`- Run ID: \`${input.result.runId}\``,
+				executionLog ? '' : undefined,
+				executionLog ? '<details><summary>Log</summary>' : undefined,
+				executionLog ? '' : undefined,
+				executionLog,
+				executionLog ? '' : undefined,
+				executionLog ? '</details>' : undefined,
 				'',
 				'</details>',
 				'',
@@ -118,58 +190,36 @@ async function main(): Promise<void> {
 				.filter(line => line !== undefined)
 				.join('\n'),
 		)
-
-		if (result.execution) {
-			const executionLog = renderExecutionLogSummary(result.execution)
-			const execDuration =
-				result.execution.trace.durationMs !== undefined
-					? ` · ${formatDuration(result.execution.trace.durationMs)}`
-					: ''
-			const executionLabel = `Execution (${String(executionToolCalls.length)} tool call${executionToolCalls.length === 1 ? '' : 's'}${execDuration})`
-
-			core.summary.addRaw(
-				[
-					`<details><summary>${executionLabel}</summary>`,
-					'',
-					model ? `- Model: \`${model}\`` : undefined,
-					artifactUploaded ? `- Artifact: \`port-bot-run-${result.runId}\`` : undefined,
-					`- Run ID: \`${result.runId}\``,
-					executionLog ? '' : undefined,
-					executionLog ? '<details><summary>Log</summary>' : undefined,
-					executionLog ? '' : undefined,
-					executionLog,
-					executionLog ? '' : undefined,
-					executionLog ? '</details>' : undefined,
-					'',
-					'</details>',
-					'',
-				]
-					.filter(line => line !== undefined)
-					.join('\n'),
-			)
-		} else {
-			core.summary.addRaw(
-				[
-					`<details><summary>Execution</summary>`,
-					'',
-					artifactUploaded ? `- Artifact: \`port-bot-run-${result.runId}\`` : undefined,
-					`- Run ID: \`${result.runId}\``,
-					'- _No execution (skipped or needs-human)_',
-					'',
-					'</details>',
-					'',
-				]
-					.filter(line => line !== undefined)
-					.join('\n'),
-			)
-		}
-
-		await core.summary.write()
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error)
-
-		core.setFailed(message)
+	} else {
+		core.summary.addRaw(
+			[
+				`<details><summary>Execution</summary>`,
+				'',
+				input.artifactUploaded
+					? `- Artifact: \`port-bot-run-${input.result.runId}\``
+					: undefined,
+				`- Run ID: \`${input.result.runId}\``,
+				'- _No execution (skipped or needs-human)_',
+				'',
+				'</details>',
+				'',
+			]
+				.filter(line => line !== undefined)
+				.join('\n'),
+		)
 	}
+
+	if (totalTelemetry) {
+		core.summary.addRaw(
+			[
+				'',
+				`**Totals:** ${formatUsd(totalTelemetry.costUsd)} · ${formatTokenCount(totalTokens(totalTelemetry.usage))} tokens`,
+				'',
+			].join('\n'),
+		)
+	}
+
+	await core.summary.write()
 }
 
 void main()

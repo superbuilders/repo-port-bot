@@ -5,6 +5,9 @@ import { ClaudeAgentProvider } from './claude-provider.ts'
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ExecutePortAttemptInput, PluginConfig } from '@repo-port-bot/engine'
 
+const DECISION_COST_USD = 0.001
+const EXECUTION_COST_USD = 0.01
+
 /**
  * Build plugin config fixture.
  *
@@ -82,7 +85,7 @@ describe('ClaudeAgentProvider', () => {
 						num_turns: 1,
 						result: '',
 						stop_reason: null,
-						total_cost_usd: 0.001,
+						total_cost_usd: DECISION_COST_USD,
 						usage: {
 							input_tokens: 1,
 							output_tokens: 1,
@@ -90,7 +93,6 @@ describe('ClaudeAgentProvider', () => {
 							cache_read_input_tokens: 0,
 							service_tier: 'standard',
 						},
-						modelUsage: {},
 						permission_denials: [],
 						structured_output: {
 							decision: 'not_required',
@@ -111,6 +113,14 @@ describe('ClaudeAgentProvider', () => {
 		expect(output.outcome.kind).toBe('PORT_NOT_REQUIRED')
 		expect(output.outcome.reason).toBe('No matching target module to port.')
 		expect(output.trace.toolCallLog).toEqual([])
+		expect(output.trace.costUsd).toBe(DECISION_COST_USD)
+		expect(output.trace.usage).toEqual({
+			inputTokens: 1,
+			outputTokens: 1,
+			cacheCreationInputTokens: 0,
+			cacheReadInputTokens: 0,
+			serviceTier: 'standard',
+		})
 		expect(output.trace.events).toEqual([
 			{
 				kind: 'assistant_note',
@@ -194,7 +204,7 @@ describe('ClaudeAgentProvider', () => {
 						num_turns: 1,
 						result: '',
 						stop_reason: null,
-						total_cost_usd: 0.001,
+						total_cost_usd: DECISION_COST_USD,
 						usage: {
 							input_tokens: 1,
 							output_tokens: 1,
@@ -202,7 +212,6 @@ describe('ClaudeAgentProvider', () => {
 							cache_read_input_tokens: 0,
 							service_tier: 'standard',
 						},
-						modelUsage: {},
 						permission_denials: [],
 						structured_output: {
 							decision: 'required',
@@ -266,7 +275,7 @@ describe('ClaudeAgentProvider', () => {
 						num_turns: 1,
 						result: '',
 						stop_reason: null,
-						total_cost_usd: 0.001,
+						total_cost_usd: DECISION_COST_USD,
 						usage: {
 							input_tokens: 1,
 							output_tokens: 1,
@@ -274,7 +283,6 @@ describe('ClaudeAgentProvider', () => {
 							cache_read_input_tokens: 0,
 							service_tier: 'standard',
 						},
-						modelUsage: {},
 						permission_denials: [],
 						structured_output: {
 							decision: 'needs_human',
@@ -311,7 +319,7 @@ describe('ClaudeAgentProvider', () => {
 						is_error: true,
 						num_turns: 1,
 						stop_reason: null,
-						total_cost_usd: 0.001,
+						total_cost_usd: DECISION_COST_USD,
 						usage: {
 							input_tokens: 1,
 							output_tokens: 1,
@@ -319,7 +327,6 @@ describe('ClaudeAgentProvider', () => {
 							cache_read_input_tokens: 0,
 							service_tier: 'standard',
 						},
-						modelUsage: {},
 						permission_denials: [],
 						errors: ['Could not produce valid output.'],
 						uuid: 'uuid-result',
@@ -427,7 +434,7 @@ describe('ClaudeAgentProvider', () => {
 						num_turns: 1,
 						result: 'done',
 						stop_reason: null,
-						total_cost_usd: 0.01,
+						total_cost_usd: EXECUTION_COST_USD,
 						usage: {
 							input_tokens: 1,
 							output_tokens: 1,
@@ -435,7 +442,6 @@ describe('ClaudeAgentProvider', () => {
 							cache_read_input_tokens: 0,
 							service_tier: 'standard',
 						},
-						modelUsage: {},
 						permission_denials: [],
 						structured_output: {
 							summary: 'Ported parity updates across source files.',
@@ -458,6 +464,14 @@ describe('ClaudeAgentProvider', () => {
 		})
 
 		expect(queryCalls).toHaveLength(1)
+		expect(output.trace.costUsd).toBe(EXECUTION_COST_USD)
+		expect(output.trace.usage).toEqual({
+			inputTokens: 1,
+			outputTokens: 1,
+			cacheCreationInputTokens: 0,
+			cacheReadInputTokens: 0,
+			serviceTier: 'standard',
+		})
 		expect(output.complete).toBe(true)
 		expect(output.touchedFiles).toEqual(['src/ported.ts'])
 		expect(output.summary).toEqual({
@@ -572,7 +586,6 @@ describe('ClaudeAgentProvider', () => {
 							cache_read_input_tokens: 0,
 							service_tier: 'standard',
 						},
-						modelUsage: {},
 						permission_denials: [],
 						errors: ['Reached max turns.'],
 						uuid: 'uuid-result',

@@ -101,6 +101,14 @@ Port: <source PR title>
 
 Ported from [<source PR title>](url) (originally authored by @author) in [`<owner>/<repo>`](<repo url>). This port updated 2 files over 18.6s and was completed by [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) in a single attempt, using 5 tool calls.
 
+<details><summary>Cost & token usage</summary>
+
+- Decision: $0.12, 2.5k tokens
+- Execution: $1.34, 18.9k tokens across 2 attempts
+- Total: $1.46, 21.4k tokens
+
+</details>
+
 ## What was ported
 
 <agent summary overview>
@@ -148,9 +156,15 @@ Key design choices:
 - **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing without extra metadata interrupting the section
 - **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks, rendered in full (no truncation). The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
+- **Cost/token telemetry lives in a collapsed details block in the target PR** — reviewer-facing PRs still stay focused on rationale, changes, and validation by default, while maintainers can expand a compact `Cost & token usage` block when they want execution telemetry
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
 
-Detailed event logs are surfaced in the **job summary** as nested collapsible "Log" sections inside the Decision and Execution blocks — see [observability.md](observability.md) for the layout. This keeps the PR focused on what a reviewer needs (the blockquote reason + change summary) without duplicating trace data.
+Detailed event logs and per-stage token/cost totals are surfaced in the **job summary** as nested collapsible "Log" sections inside the Decision and Execution blocks — see [observability.md](observability.md) for the layout. The target PR carries the same telemetry in a compact collapsed block so reviewers can inspect spend/usage without leaving GitHub.
+
+Telemetry rendering is controlled by a workflow-level action input:
+
+- **`include-cost-telemetry`** (default `true`) — when `true`, render the `Cost & token usage` blocks in the target PR body, source PR comment, and Actions job summary
+- When `false`, omit all user-facing cost/token sections while still allowing raw trace data to exist internally for debugging or future artifacts
 
 For **multi-attempt runs** (stalled ports), the `Work Log` section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) so retries are easy to follow.
 
@@ -198,6 +212,14 @@ Labels are created on first use via the GitHub API (no manual pre-creation neede
 
 The engine posts a best-effort comment on the source PR for every outcome (including skips) to close the traceability loop. Stalled, needs-human, skipped, and failed outcomes use GitHub admonitions for visual clarity. Successful `pr_opened` comments are plain markdown with a collapsible reason section.
 
+When available, the source PR comment also includes compact spend/usage telemetry. For successful or stalled runs, the comment should show:
+
+- Decision cost and token totals from the classifier call
+- Execution cost and token totals aggregated across all execution attempts
+- Overall run cost and token totals as the sum of decision + execution
+
+For decision-only outcomes such as `skipped_not_required` or `needs_human`, only the decision totals are shown.
+
 This notification is non-blocking: comment failures never change the terminal run outcome.
 
 On reruns, the bot updates the same managed source PR comment for that target repo in place. A `Supersedes [prior attempt]` note is now a fallback case that only appears when the bot has to create a new comment instead of updating the existing managed one.
@@ -222,6 +244,14 @@ Ported to https://github.com/acme/target-repo/pull/901 (2 files, validation pass
 <details><summary>Why was this ported?</summary>
 
 Source changes affect shared API surface that exists in both repos.
+
+</details>
+
+<details><summary>Cost & token usage</summary>
+
+- Decision: $0.12, 2.5k tokens
+- Execution: $1.34, 18.9k tokens across 2 attempts
+- Total: $1.46, 21.4k tokens
 
 </details>
 ```
@@ -253,6 +283,10 @@ The root action supports two token modes:
     - Target token is used for git push + target-repo PR/issue/label writes and source PR notification comments.
 
 `llm-api-key` is always required and is not used for GitHub API auth.
+
+Additional presentation input:
+
+- `include-cost-telemetry` — optional boolean input that defaults to `true`. This controls whether user-facing telemetry blocks are rendered in the target PR, source PR comment, and Actions job summary.
 
 These inputs accept any GitHub token that has the required permissions. Today most users provide PATs, but installation tokens from a GitHub App already work with the current action surface. That means an org-owned, consumer-managed GitHub App can replace PATs without engine or action code changes: the workflow generates installation tokens with `actions/create-github-app-token` and passes them through the existing token inputs.
 

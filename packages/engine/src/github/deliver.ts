@@ -14,6 +14,7 @@ import type { Logger } from '@repo-port-bot/logger'
 
 import type {
 	CreatedPullRequest,
+	DecisionTrace,
 	DeliveryResult,
 	ExecutePortResult,
 	GitHubWriter,
@@ -31,8 +32,10 @@ interface DeliverResultOptions {
 	writer: GitHubWriter
 	context: PortContext
 	decision: PortDecision
+	decisionTrace?: DecisionTrace
 	execution?: ExecutePortResult
 	targetWorkingDirectory: string
+	includeCostTelemetry?: boolean
 	runCommand?: CommandRunner
 	logger?: Logger
 }
@@ -42,9 +45,12 @@ interface CommentOnSourcePrOptions {
 	pullRequestNumber: number
 	context: PortContext
 	decision: PortDecision
+	decisionTrace?: DecisionTrace
 	outcome: PortRunOutcome
 	targetPullRequestUrl?: string
 	followUpIssueUrl?: string
+	execution?: ExecutePortResult
+	includeCostTelemetry?: boolean
 	runId: string
 	logger?: Logger
 }
@@ -216,9 +222,12 @@ export async function commentOnSourcePr(
 	const body = renderSourceComment({
 		context: options.context,
 		decision: options.decision,
+		decisionTrace: options.decisionTrace,
 		outcome: options.outcome,
 		targetPullRequestUrl: options.targetPullRequestUrl,
 		followUpIssueUrl: options.followUpIssueUrl,
+		execution: options.execution,
+		includeCostTelemetry: options.includeCostTelemetry ?? true,
 		runId: options.runId,
 		supersededFailureCommentUrl:
 			!shouldUpdateExisting && existingComment?.runId ? existingComment.url : undefined,
@@ -521,7 +530,9 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	const prBody = renderPortPullRequestBody({
 		context: options.context,
 		decision: options.decision,
+		decisionTrace: options.decisionTrace,
 		execution: options.execution,
+		includeCostTelemetry: options.includeCostTelemetry ?? true,
 	})
 	const pullRequest = await upsertPullRequest({
 		writer: options.writer,

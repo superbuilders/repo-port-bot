@@ -1,9 +1,18 @@
+import {
+	formatTokenCount,
+	formatUsd,
+	sumAggregatedTelemetry,
+	sumStageTelemetry,
+	toAggregatedTelemetry,
+	totalTokens,
+} from '../lib/telemetry.ts'
 import { formatDuration, joinNonEmptyLines } from '../utils.ts'
 
 const PORT_BOT_REPO_URL = 'https://github.com/superbuilders/repo-port-bot'
 
 import type {
 	AgentSessionEvent,
+	AggregatedTelemetry,
 	AttemptEvent,
 	DecidePortResult,
 	DecisionTrace,
@@ -19,6 +28,8 @@ interface RenderPullRequestBodyInput {
 	context: PortContext
 	decision: PortDecision
 	execution: ExecutePortResult
+	decisionTrace?: DecisionTrace
+	includeCostTelemetry?: boolean
 }
 
 interface RenderNeedsHumanIssueBodyInput {
@@ -32,6 +43,9 @@ interface RenderSourceCommentInput {
 	outcome: PortRunOutcome
 	targetPullRequestUrl?: string
 	followUpIssueUrl?: string
+	decisionTrace?: DecisionTrace
+	execution?: ExecutePortResult
+	includeCostTelemetry?: boolean
 	runId: string
 	supersededFailureCommentUrl?: string
 	supersededFailureRunId?: string
@@ -434,6 +448,81 @@ function renderExecutionSentenceSuffix(execution: ExecutePortResult): string {
 }
 
 /**
+ * Render the collapsible cost/token telemetry block shared across PR surfaces.
+ *
+ * @param input - Decision/execution trace input.
+ * @param input.decisionTrace - Decision stage trace.
+ * @param input.execution - Optional execution result.
+ * @returns Details block markdown or undefined when telemetry is unavailable.
+ */
+function renderCostTelemetryDetails(input: {
+	decisionTrace?: DecisionTrace
+	execution?: ExecutePortResult
+}): string | undefined {
+	const telemetry = aggregateTelemetry(input.decisionTrace, input.execution)
+
+	if (!telemetry.decision) {
+		return undefined
+	}
+
+	const lines = [
+		'<details><summary>Cost & token usage</summary>',
+		'',
+		`- Decision: ${formatTelemetryLine(telemetry.decision)}`,
+	]
+
+	if (telemetry.execution) {
+		const attemptCount = input.execution?.outcome.attempts ?? 0
+		const attemptSuffix = ` across ${String(attemptCount)} attempt${attemptCount === 1 ? '' : 's'}`
+
+		lines.push(`- Execution: ${formatTelemetryLine(telemetry.execution)}${attemptSuffix}`)
+		lines.push(`- Total: ${formatTelemetryLine(telemetry.total ?? telemetry.execution)}`)
+	}
+
+	lines.push('', '</details>')
+
+	return lines.join('\n')
+}
+
+/**
+ * Aggregate decision + execution telemetry for rendering.
+ *
+ * @param decisionTrace - Decision stage trace.
+ * @param execution - Optional execution result.
+ * @returns Aggregated telemetry buckets.
+ */
+function aggregateTelemetry(
+	decisionTrace: DecisionTrace | undefined,
+	execution?: ExecutePortResult,
+): {
+	decision?: AggregatedTelemetry
+	execution?: AggregatedTelemetry
+	total?: AggregatedTelemetry
+} {
+	const decisionTelemetry = toAggregatedTelemetry(decisionTrace?.costUsd, decisionTrace?.usage)
+	const executionTelemetry = execution
+		? sumStageTelemetry(execution.trace.attempts.map(attempt => attempt.trace))
+		: undefined
+	const totalTelemetry = sumAggregatedTelemetry(decisionTelemetry, executionTelemetry)
+
+	return {
+		decision: decisionTelemetry,
+		execution: executionTelemetry,
+		total: totalTelemetry,
+	}
+}
+
+/**
+ * Render one line of telemetry as cost + token total.
+ *
+ * @param telemetry - Aggregated telemetry.
+ * @returns Human-readable telemetry text.
+ */
+function formatTelemetryLine(telemetry: AggregatedTelemetry): string {
+	return `${formatUsd(telemetry.costUsd)}, ${formatTokenCount(totalTokens(telemetry.usage))} tokens`
+}
+
+/**
  * Render the markdown body for a target pull request.
  *
  * @param input - Rendering input.
@@ -460,6 +549,13 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		.join('\n')
 	const executionAttribution = renderExecutionAttribution(input.execution)
 	const sourceNarrative = `${sourceNarrativePrefix} ${executionAttribution}`
+	const telemetryBlock =
+		input.includeCostTelemetry === false
+			? undefined
+			: renderCostTelemetryDetails({
+					decisionTrace: input.decisionTrace,
+					execution: input.execution,
+				})
 
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
 
@@ -474,6 +570,8 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		reasonBlockquote,
 		'',
 		sourceNarrative,
+		'',
+		telemetryBlock,
 		'',
 		'## What was ported',
 		'',
@@ -559,6 +657,14 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 		].join('\n')
 	}
 
+	const telemetryBlock =
+		input.includeCostTelemetry === false
+			? undefined
+			: renderCostTelemetryDetails({
+					decisionTrace: input.decisionTrace,
+					execution: input.execution,
+				})
+
 	switch (input.outcome) {
 		case 'skipped_not_required': {
 			return [
@@ -569,6 +675,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				`> [!NOTE]\n> Port bot skipped this for \`${targetRepo}\`.`,
 				'>',
 				buildReasonDetails('Why was this skipped?'),
+				'',
+				telemetryBlock,
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -590,6 +698,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				input.decision.reason,
 				'',
 				'</details>',
+				'',
+				telemetryBlock,
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -609,6 +719,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				`> [!WARNING]\n> Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
 				'>',
 				buildReasonDetails('Why was this ported?'),
+				'',
+				telemetryBlock,
 			]
 				.filter(isDefinedLine)
 				.join('\n')
@@ -626,6 +738,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				`> [!WARNING]\n> Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
 				'>',
 				buildReasonDetails('Why does this need review?'),
+				'',
+				telemetryBlock,
 			]
 				.filter(isDefinedLine)
 				.join('\n')

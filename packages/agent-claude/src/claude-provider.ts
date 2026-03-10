@@ -17,6 +17,7 @@ import type {
 	ExecutePortAttemptInput,
 	ExecutePortAttemptOutput,
 	PortSummary,
+	TokenUsage,
 	ToolCallEntry,
 } from '@repo-port-bot/engine'
 
@@ -28,7 +29,7 @@ const EDIT_TOOL = 'Edit'
 const WRITE_TOOL = 'Write'
 const FILE_PATH_KEY = 'file_path'
 const DECIDE_MAX_TURNS = 8
-const DECIDE_MAX_BUDGET_USD = 0.5
+const DECIDE_MAX_BUDGET_USD = 50
 
 const DECIDE_PORT_OUTPUT_FORMAT = {
 	type: 'json_schema' as const,
@@ -229,6 +230,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 			assistantNotes.length === 0 ? undefined : assistantNotes.join('\n'),
 			resultNotes,
 		])
+		const telemetry = extractResultTelemetry(resultMessage)
 
 		return {
 			outcome: structured,
@@ -239,6 +241,8 @@ export class ClaudeAgentProvider implements AgentProvider {
 				toolCallLog,
 				events,
 				model: this.options.model ?? DEFAULT_MODEL,
+				costUsd: telemetry.costUsd,
+				usage: telemetry.usage,
 			},
 		}
 	}
@@ -398,6 +402,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 			resultNotes,
 		])
 		const summary = readStructuredExecuteOutput(resultMessage)
+		const telemetry = extractResultTelemetry(resultMessage)
 
 		return {
 			touchedFiles: [...touchedFiles],
@@ -410,10 +415,57 @@ export class ClaudeAgentProvider implements AgentProvider {
 			trace: {
 				notes,
 				model: this.options.model ?? DEFAULT_MODEL,
+				durationMs: resultMessage.duration_ms,
 				toolCallLog,
 				events,
+				costUsd: telemetry.costUsd,
+				usage: telemetry.usage,
 			},
 		}
+	}
+}
+
+/**
+ * Extract provider telemetry fields from the final SDK result message.
+ *
+ * @param message - SDK result message.
+ * @returns Normalized cost and token telemetry payload.
+ */
+function extractResultTelemetry(message: SDKResultMessage): {
+	costUsd?: number
+	usage?: TokenUsage
+} {
+	return {
+		costUsd: readNumber(message, 'total_cost_usd'),
+		usage: readUsage(message),
+	}
+}
+
+/**
+ * Read normalized usage totals from an SDK result message.
+ *
+ * @param message - SDK result message.
+ * @returns Normalized usage totals when present.
+ */
+function readUsage(message: SDKResultMessage): TokenUsage | undefined {
+	const usage = readRecord(message, 'usage')
+
+	if (!usage) {
+		return undefined
+	}
+
+	const inputTokens = readNumber(usage, 'input_tokens') ?? 0
+	const outputTokens = readNumber(usage, 'output_tokens') ?? 0
+	const cacheCreationInputTokens = readNumber(usage, 'cache_creation_input_tokens') ?? 0
+	const cacheReadInputTokens = readNumber(usage, 'cache_read_input_tokens') ?? 0
+	const serviceTier = readString(usage, 'service_tier')
+
+	return {
+		inputTokens,
+		outputTokens,
+		cacheCreationInputTokens,
+		cacheReadInputTokens,
+		serviceTier,
 	}
 }
 
@@ -608,6 +660,43 @@ function toRecord(value: unknown): Record<string, unknown> | undefined {
 	}
 
 	return value as Record<string, unknown>
+}
+
+/**
+ * Read object value at a key and coerce to plain record.
+ *
+ * @param value - Source object.
+ * @param key - Key to read.
+ * @returns Nested record when value is object-like.
+ */
+function readRecord(value: unknown, key: string): Record<string, unknown> | undefined {
+	return toRecord(toRecord(value)?.[key])
+}
+
+/**
+ * Read finite number value by key.
+ *
+ * @param value - Source object.
+ * @param key - Numeric key.
+ * @returns Number when present and finite.
+ */
+function readNumber(value: unknown, key: string): number | undefined {
+	const raw = toRecord(value)?.[key]
+
+	return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined
+}
+
+/**
+ * Read non-empty string value by key.
+ *
+ * @param value - Source object.
+ * @param key - String key.
+ * @returns Trimmed string when present.
+ */
+function readString(value: unknown, key: string): string | undefined {
+	const raw = toRecord(value)?.[key]
+
+	return typeof raw === 'string' && raw.trim().length > 0 ? raw : undefined
 }
 
 /**

@@ -122,10 +122,11 @@ The action writes a summary via `core.summary` with a clean layout:
 - **H1**: source PR title (e.g. `# Port: Add formatting/date helpers`)
 - **One-liner**: outcome with linked target PR (e.g. `Ported to [target-repo#6](url)`)
 - **Timing table**: horizontal stage breakdown showing where time was spent
-- **Collapsible Decision** (`<n> tool calls · <duration>`): decision kind, reason, heuristic name when applicable. When the classifier ran, a nested collapsible **Log** shows the humanized event trace.
-- **Collapsible Execution** (`<n> tool calls · <duration>`): model, artifact name, run ID. A nested collapsible **Log** shows the humanized execution event trace. For multi-attempt runs, per-attempt headings (`### Attempt 1`, etc.) inside the log.
+- **Collapsible Decision** (`<n> tool calls · <duration> · $<cost> · <tokens> tokens`): decision kind, reason, heuristic name when applicable. When the classifier ran, a nested collapsible **Log** shows the humanized event trace.
+- **Collapsible Execution** (`<n> tool calls · <duration> · $<cost> · <tokens> tokens`): model, artifact name, run ID. A nested collapsible **Log** shows the humanized execution event trace. For multi-attempt runs, per-attempt headings (`### Attempt 1`, etc.) inside the log.
+- **Totals line**: aggregate decision + execution cost and token totals for the full run
 
-The Decision and Execution sections are grouped by stage so the summary reads top-to-bottom: decision facts + decision log, then execution facts + execution log. Tool call counts and duration appear on the parent label; the nested log just contains the event narrative.
+The Decision and Execution sections are grouped by stage so the summary reads top-to-bottom: decision facts + decision log, then execution facts + execution log. Tool call counts, duration, and cost/token totals appear on the parent label; the nested log just contains the event narrative.
 
 Both logs use the same humanization:
 
@@ -135,7 +136,9 @@ Both logs use the same humanization:
 
 The Decision log is only shown when the classifier ran (not for heuristic decisions). When no execution happens (skipped or needs-human outcomes), the summary still includes an `Execution` section with run metadata and a `No execution (skipped or needs-human)` note; only the nested execution log is absent.
 
-This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log, while keeping the target PR body focused on what a reviewer needs (the decision reason + change summary).
+This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log, while keeping the target PR and source PR comment telemetry compact via matching `Cost & token usage` details blocks.
+
+The summary-level telemetry is gated by the action input `include-cost-telemetry` (default `true`). When disabled, the cost/token labels and totals line are omitted from the rendered summary while the rest of the observability layout remains unchanged.
 
 ## Structured summaries vs trace notes
 
