@@ -28,7 +28,7 @@ const EDIT_TOOL = 'Edit'
 const WRITE_TOOL = 'Write'
 const FILE_PATH_KEY = 'file_path'
 const DECIDE_MAX_TURNS = 8
-const DECIDE_MAX_BUDGET_USD = 0.5
+const DECIDE_MAX_BUDGET_USD = 50
 
 const DECIDE_PORT_OUTPUT_FORMAT = {
 	type: 'json_schema' as const,
