@@ -8,6 +8,7 @@ export { decide } from './decision/decide.ts'
 export { executePort } from './execution/execute-port.ts'
 export { runPort } from './pipeline/run-port.ts'
 export { renderDecisionLogSummary, renderExecutionLogSummary } from './github/render-body.ts'
+export { formatTokenCount, formatUsd, totalTokens } from './lib/telemetry.ts'
 export { formatDuration } from './utils.ts'
 
 export type {

@@ -4,17 +4,15 @@ import { join } from 'node:path'
 import { DefaultArtifactClient } from '@actions/artifact'
 import * as core from '@actions/core'
 import {
-	type AggregatedTelemetry,
 	formatDuration,
+	formatTokenCount,
+	formatUsd,
 	renderDecisionLogSummary,
 	renderExecutionLogSummary,
+	totalTokens,
 } from '@repo-port-bot/engine'
 
 import { runAction } from './run-action.ts'
-
-const TOKEN_SCALE = 1000
-const TOKEN_DECIMAL_PLACES = 1
-const USD_DECIMAL_PLACES = 2
 
 /**
  * Action entrypoint that runs the pipeline and publishes outputs.
@@ -297,45 +295,6 @@ function formatMs(ms: number | undefined): string {
 	}
 
 	return formatDuration(ms)
-}
-
-/**
- * Sum token counters for compact summary rendering.
- *
- * @param usage - Aggregated usage counters.
- * @returns Total token count.
- */
-function totalTokens(usage: AggregatedTelemetry['usage']): number {
-	return (
-		usage.inputTokens +
-		usage.outputTokens +
-		usage.cacheCreationInputTokens +
-		usage.cacheReadInputTokens
-	)
-}
-
-/**
- * Format USD value for summary labels.
- *
- * @param costUsd - Dollar amount.
- * @returns Formatted value.
- */
-function formatUsd(costUsd: number): string {
-	return `$${costUsd.toFixed(USD_DECIMAL_PLACES)}`
-}
-
-/**
- * Format token count using `k` notation for large values.
- *
- * @param tokens - Token count.
- * @returns Compact token string.
- */
-function formatTokenCount(tokens: number): string {
-	if (tokens < TOKEN_SCALE) {
-		return String(tokens)
-	}
-
-	return `${(tokens / TOKEN_SCALE).toFixed(TOKEN_DECIMAL_PLACES)}k`
 }
 
 export { runAction } from './run-action.ts'

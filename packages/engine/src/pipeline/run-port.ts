@@ -9,6 +9,11 @@ import { executePort } from '../execution/execute-port.ts'
 import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
 import { renderRunSummary } from '../github/render-body.ts'
+import {
+	sumAggregatedTelemetry,
+	sumStageTelemetry,
+	toAggregatedTelemetry,
+} from '../lib/telemetry.ts'
 import { getDurationMs, logAgentMessage, toErrorMessage } from '../utils.ts'
 import { filterDiffContent, filterIgnoredFiles } from './filter-ignored.ts'
 import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
@@ -19,7 +24,6 @@ import type { Logger } from '@repo-port-bot/logger'
 
 import type { PortBotJsonConfig } from '../config/types.ts'
 import type {
-	AggregatedTelemetry,
 	AgentProvider,
 	FilteringMetadata,
 	GitHubReader,
@@ -30,7 +34,6 @@ import type {
 	PortRunResult,
 	RepoRef,
 	SourceChange,
-	TokenUsage,
 } from '../types.ts'
 
 interface RunPortStageOverrides {
@@ -378,105 +381,5 @@ function buildRunTelemetry(
 		decision: decisionTotals,
 		execution: executionTotals,
 		total,
-	}
-}
-
-/**
- * Sum stage-level telemetry traces.
- *
- * @param traces - Traces to aggregate.
- * @returns Aggregated telemetry or undefined.
- */
-function sumStageTelemetry(
-	traces: { costUsd?: number; usage?: TokenUsage }[],
-): AggregatedTelemetry | undefined {
-	const usageTotals: TokenUsage = {
-		inputTokens: 0,
-		outputTokens: 0,
-		cacheCreationInputTokens: 0,
-		cacheReadInputTokens: 0,
-	}
-	let hasCost = false
-	let hasUsage = false
-	let costUsd = 0
-
-	for (const trace of traces) {
-		if (trace.costUsd !== undefined) {
-			hasCost = true
-			costUsd += trace.costUsd
-		}
-
-		if (trace.usage) {
-			hasUsage = true
-			usageTotals.inputTokens += trace.usage.inputTokens
-			usageTotals.outputTokens += trace.usage.outputTokens
-			usageTotals.cacheCreationInputTokens += trace.usage.cacheCreationInputTokens
-			usageTotals.cacheReadInputTokens += trace.usage.cacheReadInputTokens
-		}
-	}
-
-	if (!hasCost && !hasUsage) {
-		return undefined
-	}
-
-	return {
-		costUsd: hasCost ? costUsd : 0,
-		usage: usageTotals,
-	}
-}
-
-/**
- * Convert optional stage cost/usage into aggregate telemetry.
- *
- * @param costUsd - Stage cost.
- * @param usage - Stage usage.
- * @returns Aggregated telemetry or undefined.
- */
-function toAggregatedTelemetry(
-	costUsd: number | undefined,
-	usage: TokenUsage | undefined,
-): AggregatedTelemetry | undefined {
-	if (costUsd === undefined && !usage) {
-		return undefined
-	}
-
-	return {
-		costUsd: costUsd ?? 0,
-		usage: usage ?? {
-			inputTokens: 0,
-			outputTokens: 0,
-			cacheCreationInputTokens: 0,
-			cacheReadInputTokens: 0,
-		},
-	}
-}
-
-/**
- * Sum two optional telemetry aggregates.
- *
- * @param first - First aggregate.
- * @param second - Second aggregate.
- * @returns Combined aggregate or undefined.
- */
-function sumAggregatedTelemetry(
-	first: AggregatedTelemetry | undefined,
-	second: AggregatedTelemetry | undefined,
-): AggregatedTelemetry | undefined {
-	if (!first && !second) {
-		return undefined
-	}
-
-	return {
-		costUsd: (first?.costUsd ?? 0) + (second?.costUsd ?? 0),
-		usage: {
-			inputTokens: (first?.usage.inputTokens ?? 0) + (second?.usage.inputTokens ?? 0),
-			outputTokens: (first?.usage.outputTokens ?? 0) + (second?.usage.outputTokens ?? 0),
-			cacheCreationInputTokens:
-				(first?.usage.cacheCreationInputTokens ?? 0) +
-				(second?.usage.cacheCreationInputTokens ?? 0),
-			cacheReadInputTokens:
-				(first?.usage.cacheReadInputTokens ?? 0) +
-				(second?.usage.cacheReadInputTokens ?? 0),
-		},
 	}
 }

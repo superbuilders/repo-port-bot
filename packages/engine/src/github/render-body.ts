@@ -1,3 +1,11 @@
+import {
+	formatTokenCount,
+	formatUsd,
+	sumAggregatedTelemetry,
+	sumStageTelemetry,
+	toAggregatedTelemetry,
+	totalTokens,
+} from '../lib/telemetry.ts'
 import { formatDuration, joinNonEmptyLines } from '../utils.ts'
 
 const PORT_BOT_REPO_URL = 'https://github.com/superbuilders/repo-port-bot'
@@ -55,9 +63,6 @@ interface RenderRunSummaryInput {
 const SHORT_SHA_LENGTH = 7
 const MAX_NEEDS_HUMAN_SOURCE_TITLE_LENGTH = 60
 const LOW_SIGNAL_TOOL_NAMES = new Set(['Glob', 'Grep', 'StructuredOutput'])
-const TOKEN_SCALE = 1000
-const TOKEN_DECIMAL_PLACES = 1
-const USD_DECIMAL_PLACES = 2
 
 /**
  * Build the hidden marker used to identify one stable source PR comment per target repo.
@@ -508,153 +513,13 @@ function aggregateTelemetry(
 }
 
 /**
- * Build an aggregate telemetry object from one stage trace payload.
- *
- * @param costUsd - Stage cost.
- * @param usage - Stage token usage.
- * @returns Aggregated telemetry or undefined when empty.
- */
-function toAggregatedTelemetry(
-	costUsd: number | undefined,
-	usage:
-		| {
-				inputTokens: number
-				outputTokens: number
-				cacheCreationInputTokens: number
-				cacheReadInputTokens: number
-		  }
-		| undefined,
-): AggregatedTelemetry | undefined {
-	if (costUsd === undefined && !usage) {
-		return undefined
-	}
-
-	return {
-		costUsd: costUsd ?? 0,
-		usage: usage ?? {
-			inputTokens: 0,
-			outputTokens: 0,
-			cacheCreationInputTokens: 0,
-			cacheReadInputTokens: 0,
-		},
-	}
-}
-
-/**
- * Sum telemetry across multiple stage traces.
- *
- * @param traces - Stage traces.
- * @returns Aggregate telemetry or undefined when all traces are empty.
- */
-function sumStageTelemetry(
-	traces: { costUsd?: number; usage?: AggregatedTelemetry['usage'] }[],
-): AggregatedTelemetry | undefined {
-	let hasValue = false
-	const aggregated: AggregatedTelemetry = {
-		costUsd: 0,
-		usage: {
-			inputTokens: 0,
-			outputTokens: 0,
-			cacheCreationInputTokens: 0,
-			cacheReadInputTokens: 0,
-		},
-	}
-
-	for (const trace of traces) {
-		if (trace.costUsd !== undefined) {
-			hasValue = true
-			aggregated.costUsd += trace.costUsd
-		}
-
-		if (trace.usage) {
-			hasValue = true
-			aggregated.usage.inputTokens += trace.usage.inputTokens
-			aggregated.usage.outputTokens += trace.usage.outputTokens
-			aggregated.usage.cacheCreationInputTokens += trace.usage.cacheCreationInputTokens
-			aggregated.usage.cacheReadInputTokens += trace.usage.cacheReadInputTokens
-		}
-	}
-
-	return hasValue ? aggregated : undefined
-}
-
-/**
- * Sum two aggregated telemetry payloads.
- *
- * @param first - First aggregate.
- * @param second - Second aggregate.
- * @returns Combined telemetry or undefined when both are missing.
- */
-function sumAggregatedTelemetry(
-	first: AggregatedTelemetry | undefined,
-	second: AggregatedTelemetry | undefined,
-): AggregatedTelemetry | undefined {
-	if (!first && !second) {
-		return undefined
-	}
-
-	return {
-		costUsd: (first?.costUsd ?? 0) + (second?.costUsd ?? 0),
-		usage: {
-			inputTokens: (first?.usage.inputTokens ?? 0) + (second?.usage.inputTokens ?? 0),
-			outputTokens: (first?.usage.outputTokens ?? 0) + (second?.usage.outputTokens ?? 0),
-			cacheCreationInputTokens:
-				(first?.usage.cacheCreationInputTokens ?? 0) +
-				(second?.usage.cacheCreationInputTokens ?? 0),
-			cacheReadInputTokens:
-				(first?.usage.cacheReadInputTokens ?? 0) +
-				(second?.usage.cacheReadInputTokens ?? 0),
-		},
-	}
-}
-
-/**
  * Render one line of telemetry as cost + token total.
  *
  * @param telemetry - Aggregated telemetry.
  * @returns Human-readable telemetry text.
  */
 function formatTelemetryLine(telemetry: AggregatedTelemetry): string {
-	return `${formatUsd(telemetry.costUsd)}, ${formatTokenCount(totalTokens(telemetry))} tokens`
-}
-
-/**
- * Compute total token count across all usage buckets.
- *
- * @param telemetry - Aggregated telemetry.
- * @returns Total token count.
- */
-function totalTokens(telemetry: AggregatedTelemetry): number {
-	return (
-		telemetry.usage.inputTokens +
-		telemetry.usage.outputTokens +
-		telemetry.usage.cacheCreationInputTokens +
-		telemetry.usage.cacheReadInputTokens
-	)
-}
-
-/**
- * Format USD cost for compact markdown display.
- *
- * @param costUsd - Dollar amount.
- * @returns Formatted currency string.
- */
-function formatUsd(costUsd: number): string {
-	return `$${costUsd.toFixed(USD_DECIMAL_PLACES)}`
-}
-
-/**
- * Format token totals, using `k` notation for large values.
- *
- * @param tokens - Total tokens.
- * @returns Compact token count.
- */
-function formatTokenCount(tokens: number): string {
-	if (tokens < TOKEN_SCALE) {
-		return String(tokens)
-	}
-
-	return `${(tokens / TOKEN_SCALE).toFixed(TOKEN_DECIMAL_PLACES)}k`
+	return `${formatUsd(telemetry.costUsd)}, ${formatTokenCount(totalTokens(telemetry.usage))} tokens`
 }
 
 /**
