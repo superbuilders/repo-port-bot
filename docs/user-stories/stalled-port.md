@@ -52,7 +52,7 @@ Define what "good failure" looks like when an automated port is attempted but ca
     - Labels applied: `auto-port` + `port-stalled`.
     - PR body follows the same compact layout as successful ports, but with key differences:
         - `## Port rationale` heading with the decision rationale quoted/blocked
-        - source narrative directly below, extended into a natural provenance sentence that `@`-mentions the original PR author (so they receive a GitHub notification about the stalled port) and includes model name and at-a-glance execution stats
+        - source narrative directly below, extended into a natural provenance sentence that includes a parenthetical `@`-mention of the original PR author (so they receive a GitHub notification about the stalled port without implying they authored the port itself) and includes model name and at-a-glance execution stats
         - `### What was ported` — polished summary of what changed
         - collapsed `Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (not repeated in the log). For retries, per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.)
         - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes and failure reason

@@ -68,7 +68,7 @@ Regardless of which path produces the `NEEDS_HUMAN` decision, no agent execution
     - Issue title: `Needs review: <source PR title>` (truncated if long).
     - Issue label: `needs-human`.
     - Issue body includes:
-        - Opening sentence linking to the source PR and `@`-mentioning the original author: "[title](url) by @author was merged in `source-repo` but could not be automatically ported."
+        - Opening sentence linking to the source PR and `@`-mentioning the original author in a parenthetical attribution: "[title](url) (originally authored by @author) was merged in `source-repo` but could not be automatically ported."
         - **Why**: the classifier's or engine's reason for the decision.
         - **Changed files**: count of files in the source change.
     - No branch is pushed. No PR is created.
