@@ -198,6 +198,26 @@ describe('decide', () => {
 		expect(result.trace.heuristicName).toBe('checkDocsOnly')
 	})
 
+	test('treats mixed docs and changeset metadata as docs-only', async () => {
+		const context = makeContext({
+			labels: [],
+			files: [
+				{ path: 'docs/guide.md', status: 'modified', additions: 3, deletions: 1 },
+				{
+					path: '.changeset/feature.md',
+					status: 'modified',
+					additions: 2,
+					deletions: 0,
+				},
+			],
+		})
+
+		const result = await decide(context)
+
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.trace.heuristicName).toBe('checkDocsOnly')
+	})
+
 	test('returns PORT_NOT_REQUIRED for config-only changes', async () => {
 		const context = makeContext({
 			labels: [],

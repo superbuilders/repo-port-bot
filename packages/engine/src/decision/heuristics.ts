@@ -148,7 +148,9 @@ function checkDocsOnly(context: PortContext): PortDecision | null {
 		return null
 	}
 
-	const docsOnly = files.every(file => isDocumentationPath(file.path) && !isConfigPath(file.path))
+	const docsOnly =
+		files.every(file => isDocumentationPath(file.path)) &&
+		files.some(file => !isConfigPath(file.path))
 
 	if (docsOnly) {
 		return {
