@@ -447,8 +447,9 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 	const sourceRepo = `${input.context.sourceRepo.owner}/${input.context.sourceRepo.name}`
 	const sourceRepoUrl = `https://github.com/${sourceRepo}`
 	const sourceRepoLink = `[\`${sourceRepo}\`](${sourceRepoUrl})`
+	const authorMention = sourcePullRequest?.author ? ` by @${sourcePullRequest.author}` : ''
 	const sourceNarrativePrefix = sourcePullRequest
-		? `Ported from [${sourcePullRequest.title}](${sourcePullRequest.url}) in ${sourceRepoLink}.`
+		? `Ported from [${sourcePullRequest.title}](${sourcePullRequest.url})${authorMention} in ${sourceRepoLink}.`
 		: `Ported from commit \`${input.context.sourceChange.mergedCommitSha}\` in ${sourceRepoLink}.`
 	const summaryParts = renderAttemptSummaryParts(input.execution)
 	const reasonBlockquote = input.decision.reason
@@ -499,8 +500,9 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 export function renderNeedsHumanIssueBody(input: RenderNeedsHumanIssueBodyInput): string {
 	const sourcePullRequest = input.context.sourceChange.pullRequest
 	const sourceRepo = `${input.context.sourceRepo.owner}/${input.context.sourceRepo.name}`
+	const authorMention = sourcePullRequest?.author ? ` by @${sourcePullRequest.author}` : ''
 	const openingSentence = sourcePullRequest
-		? `[${sourcePullRequest.title}](${sourcePullRequest.url}) was merged in \`${sourceRepo}\` but could not be automatically ported.`
+		? `[${sourcePullRequest.title}](${sourcePullRequest.url})${authorMention} was merged in \`${sourceRepo}\` but could not be automatically ported.`
 		: `Commit \`${input.context.sourceChange.mergedCommitSha}\` was pushed to \`${sourceRepo}\` but could not be automatically ported.`
 	const fileCount = String(input.context.sourceChange.files.length)
 

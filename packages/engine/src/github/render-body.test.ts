@@ -40,6 +40,7 @@ function makeContext(): PortContext {
 				body: 'Body',
 				url: 'https://github.com/acme/source-repo/pull/42',
 				labels: ['sdk'],
+				author: 'jdoe',
 			},
 			files: [{ path: 'src/app.ts', status: 'modified', additions: 5, deletions: 2 }],
 		},
@@ -195,7 +196,7 @@ describe('render-body', () => {
 		expect(body).toContain('## Port rationale')
 		expect(body).toContain('> Decision reason')
 		expect(body).toContain(
-			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in [`acme/source-repo`](https://github.com/acme/source-repo). This port updated 1 file',
+			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) by @jdoe in [`acme/source-repo`](https://github.com/acme/source-repo). This port updated 1 file',
 		)
 		expect(body).toContain('## What was ported')
 
@@ -228,6 +229,45 @@ describe('render-body', () => {
 		expect(body).toContain(
 			'Ported by: [Repo Port Bot](https://github.com/superbuilders/repo-port-bot)',
 		)
+	})
+
+	test('omits author mention when author is absent', () => {
+		const context = makeContext()
+
+		context.sourceChange.pullRequest = {
+			...context.sourceChange.pullRequest!,
+			author: undefined,
+		}
+
+		const body = renderPortPullRequestBody({
+			context,
+			decision: makeDecision('PORT_REQUIRED'),
+			execution: makeExecution(true),
+		})
+
+		expect(body).toContain(
+			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in [`acme/source-repo`]',
+		)
+		expect(body).not.toContain(' by @')
+	})
+
+	test('omits author mention in needs-human issue when author is absent', () => {
+		const context = makeContext()
+
+		context.sourceChange.pullRequest = {
+			...context.sourceChange.pullRequest!,
+			author: undefined,
+		}
+
+		const body = renderNeedsHumanIssueBody({
+			context,
+			decision: makeDecision('NEEDS_HUMAN'),
+		})
+
+		expect(body).toContain(
+			'[Add execution orchestration](https://github.com/acme/source-repo/pull/42) was merged in `acme/source-repo`',
+		)
+		expect(body).not.toContain(' by @')
 	})
 
 	test('renders draft/stalled PR with details open and failure info', () => {
@@ -384,7 +424,7 @@ describe('render-body', () => {
 
 		expect(title).toBe('Needs review: Add execution orchestration')
 		expect(body).toContain(
-			'[Add execution orchestration](https://github.com/acme/source-repo/pull/42) was merged in `acme/source-repo`',
+			'[Add execution orchestration](https://github.com/acme/source-repo/pull/42) by @jdoe was merged in `acme/source-repo`',
 		)
 		expect(body).toContain('**Why:** Decision reason')
 		expect(body).toContain('**Changed files:** 1')
