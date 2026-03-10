@@ -90,7 +90,7 @@ Define what a productive debugging session looks like. The maintainer should be 
     - **Config issue** (wrong path mappings, missing validation commands): adjust `port-bot.json` or workflow inputs. Next merge will use the updated config.
     - **Agent quality issue** (wrong edits, missed files): adjust the custom prompt, add naming conventions, or refine path mappings to give the agent better guidance.
     - **Infrastructure issue** (API 403, rate limit, timeout): fix token permissions or retry. The run ID correlates the failure across the source comment, job summary, and artifact.
-    - **Classifier issue** (wrong decision): the classifier's reason string reveals its reasoning. Adjust ignore patterns or prompt to steer future decisions.
+    - **Classifier issue** (wrong decision): the classifier's reason string reveals its reasoning. Adjust ignore patterns or prompt to steer future decisions. Note that ignore patterns filter files from the diff and file list before the classifier sees them, so adding a pattern will prevent the classifier from even considering those files.
 
 10. **Maintainer expects stable target artifacts on rerun**
     - If they rerun the same source change, they should not have to hunt across duplicate target PRs or duplicate `needs-human` issues.

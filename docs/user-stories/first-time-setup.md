@@ -110,7 +110,7 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
         - **Path mappings** — help the agent understand where source paths correspond to target paths when the directory structures differ.
         - **Naming conventions** — guide the agent on language-specific conventions (e.g., `camelCase` vs `snake_case`).
         - **Custom prompt** — add repo-specific context the agent needs to make good decisions.
-        - **Ignore patterns** — exclude paths that should never trigger a port (scripts, CI config, tooling). This is only configurable via `port-bot.json`, not as an action input.
+        - **Ignore patterns** — exclude paths that should never trigger a port (scripts, CI config, tooling). Ignored files are filtered from the diff and file list before the LLM sees them, and the ignore patterns are communicated in the agent prompt so the agent won't port them even if it discovers them during exploration. When all changed files match ignore patterns, the run skips automatically. This is only configurable via `port-bot.json`, not as an action input.
     - Validation commands, path mappings, naming conventions, and prompt can be set in the workflow YAML (action inputs) or in a config file. Action inputs are better for values that rarely change; a config file is better for values that evolve with the codebase and should be versioned alongside the source code.
 
 ## User-visible definition of success

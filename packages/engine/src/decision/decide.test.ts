@@ -143,6 +143,31 @@ describe('decide', () => {
 		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
+	test('returns PORT_NOT_REQUIRED for docs under dot-prefixed directories', async () => {
+		const context = makeContext({
+			labels: [],
+			files: [
+				{
+					path: 'docs/apis/.originals/openapi.yaml',
+					status: 'modified',
+					additions: 10,
+					deletions: 0,
+				},
+				{
+					path: 'docs/apis/endpoints.yaml',
+					status: 'modified',
+					additions: 5,
+					deletions: 0,
+				},
+			],
+		})
+
+		const result = await decide(context)
+
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.trace.heuristicName).toBe('checkDocsOnly')
+	})
+
 	test('returns PORT_NOT_REQUIRED for config-only changes', async () => {
 		const context = makeContext({
 			labels: [],

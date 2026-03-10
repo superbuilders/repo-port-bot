@@ -95,6 +95,7 @@ The agent uses absolute paths to read source files and the diff, and relative pa
 An `ExecutePortResult` containing:
 
 - `outcome`: final execution status, attempt count, touched files, and optional failure reason
+- `incompleteReason`: when the agent was cut off before finishing (e.g. "reached max turns", "reached budget limit"), this human-readable reason is surfaced in the attempt notes and PR body
 - `summary`: structured `PortSummary` from the last attempt when available — prose overview plus per-file descriptions for PR body rendering
 - `trace`: stage observability including model, duration, aggregate tool calls/events, and per-attempt diagnostics
 
@@ -132,7 +133,7 @@ Called by the decision stage when no fast heuristic matches. Determines whether 
 - `trace.source` — `heuristic`, `classifier`, or `fallback`
 - `trace.toolCallLog` / `trace.events` / `trace.model` — observability when classification uses the LLM path
 
-The decision stage runs fast heuristics first (missing PR, loop prevention via `auto-port` label, `no-port` label, docs-only, config-only). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
+The decision stage runs fast heuristics first (missing PR, loop prevention via `auto-port` label, `no-port` label, docs-only, config-only, no remaining files after ignore filtering). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
 
 ### `executePort` — editing
 
@@ -149,6 +150,7 @@ Called by the execution stage for each attempt.
 
 - Files touched
 - Whether the agent believes edits are complete
+- `incompleteReason` when `complete` is false (e.g. "reached max turns", "reached budget limit")
 - Optional structured `summary` (`PortSummary`) with a prose overview and per-file descriptions, used for PR body rendering
 - `trace` payload with notes, tool calls, events, and optional model
 
@@ -173,7 +175,7 @@ Uses `@anthropic-ai/claude-agent-sdk` via the `ClaudeAgentProvider` class.
 - **Permissions**: runs in `bypassPermissions` mode for non-interactive CI usage.
 - **Observability**: both decision and execution return a shared trace shape (`notes`, `model`, `toolCallLog`, `events`), while execution also aggregates per-attempt traces under the stage trace.
 - **Default model**: `claude-sonnet-4-6` (configurable via action input).
-- **Budget**: `maxTurns` (default 50) and optional `maxBudgetUsd` per attempt.
+- **Budget**: `maxTurns` (default 100) and optional `maxBudgetUsd` per attempt.
 
 ### Future providers
 

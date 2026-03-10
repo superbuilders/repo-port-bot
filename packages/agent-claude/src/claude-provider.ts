@@ -23,7 +23,7 @@ import type {
 import type { ClaudeProviderOptions, QueryFn } from './types.ts'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
-const DEFAULT_MAX_TURNS = 50
+const DEFAULT_MAX_TURNS = 100
 const EDIT_TOOL = 'Edit'
 const WRITE_TOOL = 'Write'
 const FILE_PATH_KEY = 'file_path'
@@ -402,6 +402,10 @@ export class ClaudeAgentProvider implements AgentProvider {
 		return {
 			touchedFiles: [...touchedFiles],
 			complete: resultMessage.subtype === 'success',
+			incompleteReason:
+				resultMessage.subtype !== 'success'
+					? humanizeStopReason(resultMessage.subtype)
+					: undefined,
 			summary,
 			trace: {
 				notes,
@@ -456,6 +460,21 @@ function readStructuredExecuteOutput(message: SDKResultMessage): PortSummary | u
 		text: summary,
 		files: parsedFiles,
 	}
+}
+
+const STOP_REASON_LABELS: Record<string, string> = {
+	error_max_turns: 'reached max turns',
+	error_max_budget: 'reached budget limit',
+}
+
+/**
+ * Map an SDK result subtype to a human-readable label.
+ *
+ * @param subtype - SDK result subtype.
+ * @returns Human-readable stop reason.
+ */
+function humanizeStopReason(subtype: string): string {
+	return STOP_REASON_LABELS[subtype] ?? subtype
 }
 
 /**

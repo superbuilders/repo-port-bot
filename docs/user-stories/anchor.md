@@ -45,6 +45,7 @@ Define what "working" means from a maintainer perspective when a change in one r
         - docs-only, config-only → `PORT_NOT_REQUIRED`
         - `no-port` label → `PORT_NOT_REQUIRED`
         - `auto-port` label → `PORT_NOT_REQUIRED` (loop prevention)
+        - all files match ignore patterns → `PORT_NOT_REQUIRED`
     - If no heuristic matches, the LLM classifier makes the call:
         - `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
     - In the happy path, the result is `PORT_REQUIRED`.

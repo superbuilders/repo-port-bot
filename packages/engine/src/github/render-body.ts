@@ -48,7 +48,6 @@ interface RenderRunSummaryInput {
 
 const SHORT_SHA_LENGTH = 7
 const MAX_NEEDS_HUMAN_SOURCE_TITLE_LENGTH = 60
-const MAX_WORK_LOG_BLOCKS = 24
 const LOW_SIGNAL_TOOL_NAMES = new Set(['Glob', 'Grep', 'StructuredOutput'])
 
 /**
@@ -277,13 +276,6 @@ function renderEventBlocks(
 
 		return ['```', ...block.lines, '```'].join('\n')
 	})
-
-	if (rendered.length > MAX_WORK_LOG_BLOCKS) {
-		return [
-			...rendered.slice(0, MAX_WORK_LOG_BLOCKS),
-			`_...and ${String(rendered.length - MAX_WORK_LOG_BLOCKS)} more._`,
-		].join('\n\n')
-	}
 
 	return rendered.join('\n\n')
 }
