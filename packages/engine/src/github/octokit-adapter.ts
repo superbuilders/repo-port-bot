@@ -62,6 +62,7 @@ export function createOctokitReader(octokit: Octokit): GitHubReader {
 				labels: pr.labels
 					.map(label => (typeof label === 'string' ? label : (label.name ?? '')))
 					.filter(label => label.length > 0),
+				author: pr.user?.login,
 			}))
 		},
 

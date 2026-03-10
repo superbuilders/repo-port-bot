@@ -68,6 +68,12 @@ export interface PullRequestRef {
 	 * Labels present on the source PR at processing time.
 	 */
 	labels: string[]
+
+	/**
+	 * GitHub username of the PR author. Used to `@`-mention the original author
+	 * in target PR bodies so they receive a notification about the port.
+	 */
+	author?: string
 }
 
 /**
