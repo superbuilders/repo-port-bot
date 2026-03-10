@@ -99,7 +99,7 @@ Port: <source PR title>
 
 > <decision reason as blockquote>
 
-Ported from [<source PR title>](url) by @author in [`<owner>/<repo>`](<repo url>). This port updated 2 files over 18.6s and was completed by [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) in a single attempt, using 5 tool calls.
+Ported from [<source PR title>](url) (originally authored by @author) in [`<owner>/<repo>`](<repo url>). This port updated 2 files over 18.6s and was completed by [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) in a single attempt, using 5 tool calls.
 
 ## What was ported
 
@@ -144,7 +144,7 @@ Ported by: [Repo Port Bot](<bot repo url>)
 Key design choices:
 
 - **`## Port rationale`** starts with the decision rationale as a blockquote — the "why" is still first, but it remains visually distinguished from the rest of the narrative
-- **The provenance sentence follows the rationale** — source PR/repo traceability plus an `@`-mention of the original PR author (so they receive a GitHub notification about the port) plus execution attribution (model, files changed, attempts, tool calls, duration) reads as one natural sentence
+- **The provenance sentence follows the rationale** — source PR/repo traceability plus a parenthetical `@`-mention of the original PR author (so they receive a GitHub notification about the port without implying they authored the port itself) plus execution attribution (model, files changed, attempts, tool calls, duration) reads as one natural sentence
 - **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing without extra metadata interrupting the section
 - **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks, rendered in full (no truncation). The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
@@ -176,7 +176,7 @@ When the decision stage returns `NEEDS_HUMAN`, the engine opens or updates an is
 **Example body:**
 
 ```md
-[Add formatting/date helpers](https://github.com/handlebauer/port-bot-test-source/pull/1) by @author was merged in `port-bot-test-source` but could not be automatically ported.
+[Add formatting/date helpers](https://github.com/handlebauer/port-bot-test-source/pull/1) (originally authored by @author) was merged in `port-bot-test-source` but could not be automatically ported.
 
 **Why:** Classifier could not determine a safe automatic port target.
 

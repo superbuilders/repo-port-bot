@@ -196,7 +196,7 @@ describe('render-body', () => {
 		expect(body).toContain('## Port rationale')
 		expect(body).toContain('> Decision reason')
 		expect(body).toContain(
-			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) by @jdoe in [`acme/source-repo`](https://github.com/acme/source-repo). This port updated 1 file',
+			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) (originally authored by @jdoe) in [`acme/source-repo`](https://github.com/acme/source-repo). This port updated 1 file',
 		)
 		expect(body).toContain('## What was ported')
 
@@ -248,7 +248,7 @@ describe('render-body', () => {
 		expect(body).toContain(
 			'Ported from [Add execution orchestration](https://github.com/acme/source-repo/pull/42) in [`acme/source-repo`]',
 		)
-		expect(body).not.toContain(' by @')
+		expect(body).not.toContain('(originally authored by @')
 	})
 
 	test('omits author mention in needs-human issue when author is absent', () => {
@@ -267,7 +267,7 @@ describe('render-body', () => {
 		expect(body).toContain(
 			'[Add execution orchestration](https://github.com/acme/source-repo/pull/42) was merged in `acme/source-repo`',
 		)
-		expect(body).not.toContain(' by @')
+		expect(body).not.toContain('(originally authored by @')
 	})
 
 	test('renders draft/stalled PR with details open and failure info', () => {
@@ -424,7 +424,7 @@ describe('render-body', () => {
 
 		expect(title).toBe('Needs review: Add execution orchestration')
 		expect(body).toContain(
-			'[Add execution orchestration](https://github.com/acme/source-repo/pull/42) by @jdoe was merged in `acme/source-repo`',
+			'[Add execution orchestration](https://github.com/acme/source-repo/pull/42) (originally authored by @jdoe) was merged in `acme/source-repo`',
 		)
 		expect(body).toContain('**Why:** Decision reason')
 		expect(body).toContain('**Changed files:** 1')
