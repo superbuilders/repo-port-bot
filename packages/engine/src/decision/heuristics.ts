@@ -9,6 +9,7 @@ const MATCH_OPTIONS: micromatch.Options = { dot: true }
 const DOC_PATTERNS = ['README.md', '**/*.md', 'docs/**', 'LICENSE', 'CHANGELOG*']
 
 const CONFIG_PATTERNS = [
+	'.changeset/**',
 	'.github/**',
 	'.gitignore',
 	'*.config.*',
@@ -21,6 +22,24 @@ const CONFIG_PATTERNS = [
 ]
 
 /**
+ * Build a skip reason that includes ignore-filter context when available.
+ *
+ * @param context - Decision context.
+ * @param baseReason - Reason used when no files were filtered out.
+ * @param filteredReason - Reason used when files were filtered out.
+ * @returns Human-readable skip reason.
+ */
+function skipReason(context: PortContext, baseReason: string, filteredReason: string): string {
+	const filtering = context.filtering
+
+	if (!filtering || filtering.removedFileCount === 0) {
+		return baseReason
+	}
+
+	return `${String(filtering.removedFileCount)} of ${String(filtering.originalFileCount)} files excluded by ignore patterns. ${filteredReason}`
+}
+
+/**
  * Skip when no changed files remain after pipeline-level filtering.
  *
  * @param context - Decision context.
@@ -28,9 +47,15 @@ const CONFIG_PATTERNS = [
  */
 function checkNoRemainingFiles(context: PortContext): PortDecision | null {
 	if (context.sourceChange.files.length === 0) {
+		const filtering = context.filtering
+		const reason =
+			filtering && filtering.removedFileCount > 0
+				? `Skipping because all ${String(filtering.originalFileCount)} changed files were excluded by ignore patterns.`
+				: 'Skipping because no changed files remain after ignore filtering.'
+
 		return {
 			kind: 'PORT_NOT_REQUIRED',
-			reason: 'Skipping because no changed files remain after ignore filtering.',
+			reason,
 		}
 	}
 
@@ -123,12 +148,18 @@ function checkDocsOnly(context: PortContext): PortDecision | null {
 		return null
 	}
 
-	const docsOnly = files.every(file => isDocumentationPath(file.path))
+	const docsOnly =
+		files.every(file => isDocumentationPath(file.path)) &&
+		files.some(file => !isConfigPath(file.path))
 
 	if (docsOnly) {
 		return {
 			kind: 'PORT_NOT_REQUIRED',
-			reason: 'Skipping because all changed files are documentation-only.',
+			reason: skipReason(
+				context,
+				'Skipping because all changed files are documentation-only.',
+				'Remaining files are documentation-only.',
+			),
 		}
 	}
 
@@ -191,7 +222,11 @@ function checkConfigOnly(context: PortContext): PortDecision | null {
 	if (configOnly) {
 		return {
 			kind: 'PORT_NOT_REQUIRED',
-			reason: 'Skipping because all changed files are config-only or explicitly ignored.',
+			reason: skipReason(
+				context,
+				'Skipping because all changed files are config-only or explicitly ignored.',
+				'Remaining files are config-only or explicitly ignored.',
+			),
 		}
 	}
 

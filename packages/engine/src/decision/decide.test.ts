@@ -5,6 +5,7 @@ import { decide } from './decide.ts'
 import type {
 	AgentProvider,
 	ChangedFile,
+	FilteringMetadata,
 	PluginConfig,
 	PortContext,
 	PullRequestRef,
@@ -47,6 +48,7 @@ const BASE_PULL_REQUEST: PullRequestRef = {
  * @param input.labels - Optional pull request labels override.
  * @param input.pullRequest - Optional pull request override. Pass `null` to simulate missing PR context.
  * @param input.ignorePatterns - Optional ignore patterns override.
+ * @param input.filtering - Optional filtering metadata override.
  * @returns Context ready for `decide()`.
  */
 function makeContext(input: {
@@ -54,6 +56,7 @@ function makeContext(input: {
 	labels?: string[]
 	pullRequest?: PullRequestRef | null
 	ignorePatterns?: string[]
+	filtering?: FilteringMetadata
 }): PortContext {
 	const pullRequest =
 		input.pullRequest === null
@@ -78,6 +81,7 @@ function makeContext(input: {
 			...BASE_PLUGIN_CONFIG,
 			ignorePatterns: input.ignorePatterns ?? [],
 		},
+		filtering: input.filtering,
 	}
 }
 
@@ -85,6 +89,10 @@ describe('decide', () => {
 	test('returns PORT_NOT_REQUIRED when no changed files remain', async () => {
 		const context = makeContext({
 			files: [],
+			filtering: {
+				originalFileCount: 11,
+				removedFileCount: 11,
+			},
 		})
 
 		const result = await decide(context)
@@ -92,6 +100,9 @@ describe('decide', () => {
 		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
 		expect(result.trace.source).toBe('heuristic')
 		expect(result.trace.heuristicName).toBe('checkNoRemainingFiles')
+		expect(result.outcome.reason).toBe(
+			'Skipping because all 11 changed files were excluded by ignore patterns.',
+		)
 	})
 
 	test('returns PORT_NOT_REQUIRED when pull request metadata is missing', async () => {
@@ -143,6 +154,25 @@ describe('decide', () => {
 		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
 	})
 
+	test('includes filtering context in docs-only skip reason', async () => {
+		const context = makeContext({
+			labels: [],
+			files: [{ path: 'README.md', status: 'modified', additions: 5, deletions: 1 }],
+			filtering: {
+				originalFileCount: 11,
+				removedFileCount: 10,
+			},
+		})
+
+		const result = await decide(context)
+
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.trace.heuristicName).toBe('checkDocsOnly')
+		expect(result.outcome.reason).toBe(
+			'10 of 11 files excluded by ignore patterns. Remaining files are documentation-only.',
+		)
+	})
+
 	test('returns PORT_NOT_REQUIRED for docs under dot-prefixed directories', async () => {
 		const context = makeContext({
 			labels: [],
@@ -157,6 +187,26 @@ describe('decide', () => {
 					path: 'docs/apis/endpoints.yaml',
 					status: 'modified',
 					additions: 5,
+					deletions: 0,
+				},
+			],
+		})
+
+		const result = await decide(context)
+
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.trace.heuristicName).toBe('checkDocsOnly')
+	})
+
+	test('treats mixed docs and changeset metadata as docs-only', async () => {
+		const context = makeContext({
+			labels: [],
+			files: [
+				{ path: 'docs/guide.md', status: 'modified', additions: 3, deletions: 1 },
+				{
+					path: '.changeset/feature.md',
+					status: 'modified',
+					additions: 2,
 					deletions: 0,
 				},
 			],
@@ -185,6 +235,51 @@ describe('decide', () => {
 		const result = await decide(context)
 
 		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+	})
+
+	test('includes filtering context in config-only skip reason', async () => {
+		const context = makeContext({
+			labels: [],
+			files: [
+				{
+					path: '.github/workflows/port-bot.yml',
+					status: 'modified',
+					additions: 2,
+					deletions: 1,
+				},
+			],
+			filtering: {
+				originalFileCount: 11,
+				removedFileCount: 10,
+			},
+		})
+
+		const result = await decide(context)
+
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.trace.heuristicName).toBe('checkConfigOnly')
+		expect(result.outcome.reason).toBe(
+			'10 of 11 files excluded by ignore patterns. Remaining files are config-only or explicitly ignored.',
+		)
+	})
+
+	test('treats changeset markdown files as config-only instead of docs-only', async () => {
+		const context = makeContext({
+			labels: [],
+			files: [
+				{
+					path: '.changeset/cli-commented-config.md',
+					status: 'modified',
+					additions: 2,
+					deletions: 1,
+				},
+			],
+		})
+
+		const result = await decide(context)
+
+		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.trace.heuristicName).toBe('checkConfigOnly')
 	})
 
 	test('treats ignored paths as config-only for skip decision', async () => {
