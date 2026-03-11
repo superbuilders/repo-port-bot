@@ -6,6 +6,8 @@ import type { LogLevel } from '@repo-port-bot/logger'
 import type { ParseActionInputsDependencies, ParsedActionInputs, ParsedRepo } from '../types.ts'
 
 const REPO_SEGMENT_COUNT = 2
+const DEFAULT_EXECUTION_MAX_TURNS = 250
+const DEFAULT_DECISION_MAX_TURNS = 50
 
 /**
  * Parse integer action input with lower-bound validation.
@@ -23,6 +25,24 @@ function parseInteger(name: string, value: string, minimum = 1): number {
 	}
 
 	return parsed
+}
+
+/**
+ * Parse optional integer action input with lower-bound validation.
+ *
+ * @param name - Input name.
+ * @param value - Raw input value.
+ * @param minimum - Inclusive minimum.
+ * @returns Parsed integer or undefined.
+ */
+function parseOptionalInteger(name: string, value: string, minimum = 1): number | undefined {
+	const trimmed = value.trim()
+
+	if (trimmed.length === 0) {
+		return undefined
+	}
+
+	return parseInteger(name, trimmed, minimum)
 }
 
 /**
@@ -220,7 +240,12 @@ export function parseActionInputs(
 	const targetDefaultBranch = getInput('target-default-branch').trim() || 'main'
 	const model = getInput('model').trim() || 'claude-sonnet-4-6'
 	const maxAttempts = parseInteger('max-attempts', getInput('max-attempts'))
-	const maxTurns = parseInteger('max-turns', getInput('max-turns'))
+	const maxTurnsExecution =
+		parseOptionalInteger('max-turns-execution', getInput('max-turns-execution')) ??
+		DEFAULT_EXECUTION_MAX_TURNS
+	const maxTurnsDecision =
+		parseOptionalInteger('max-turns-decision', getInput('max-turns-decision')) ??
+		DEFAULT_DECISION_MAX_TURNS
 	const maxBudgetUsd = parseOptionalNumber('max-budget-usd', getInput('max-budget-usd'))
 	const validationCommands = parseValidationCommands(getInput('validation-commands'))
 	const pathMappings = parsePathMappings(getInput('path-mappings'))
@@ -246,7 +271,8 @@ export function parseActionInputs(
 		llmApiKey,
 		model,
 		maxAttempts,
-		maxTurns,
+		maxTurnsExecution,
+		maxTurnsDecision,
 		maxBudgetUsd,
 		validationCommands,
 		pathMappings,

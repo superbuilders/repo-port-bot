@@ -24,7 +24,8 @@ export interface ParsedActionInputs {
 	llmApiKey: string
 	model: string
 	maxAttempts: number
-	maxTurns: number
+	maxTurnsExecution: number
+	maxTurnsDecision: number
 	maxBudgetUsd?: number
 	validationCommands: string[]
 	pathMappings: Record<string, string>
@@ -99,7 +100,8 @@ export interface RunActionDependencies {
 	createAgentProvider(input: {
 		apiKey: string
 		model: string
-		maxTurns: number
+		maxTurnsExecution: number
+		maxTurnsDecision: number
 		maxBudgetUsd?: number
 	}): AgentProvider
 	createLogger(level: LogLevel): Logger

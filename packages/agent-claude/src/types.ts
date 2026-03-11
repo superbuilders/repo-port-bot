@@ -9,7 +9,8 @@ export type QueryFn = (input: QueryInput) => AsyncGenerator<SDKMessage, void>
 
 export interface ClaudeProviderOptions {
 	model?: string
-	maxTurns?: number
+	maxTurnsExecution?: number
+	maxTurnsDecision?: number
 	maxBudgetUsd?: number
 	apiKey?: string
 	queryFn?: QueryFn

@@ -24,11 +24,11 @@ import type {
 import type { ClaudeProviderOptions, QueryFn } from './types.ts'
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
-const DEFAULT_MAX_TURNS = 100
+const DEFAULT_EXECUTION_MAX_TURNS = 250
 const EDIT_TOOL = 'Edit'
 const WRITE_TOOL = 'Write'
 const FILE_PATH_KEY = 'file_path'
-const DECIDE_MAX_TURNS = 8
+const DEFAULT_DECISION_MAX_TURNS = 50
 const DECIDE_MAX_BUDGET_USD = 50
 
 const DECIDE_PORT_OUTPUT_FORMAT = {
@@ -111,7 +111,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 			cwd: input.targetWorkingDirectory,
 			systemPrompt,
 			model: this.options.model ?? DEFAULT_MODEL,
-			maxTurns: Math.min(this.options.maxTurns ?? DEFAULT_MAX_TURNS, DECIDE_MAX_TURNS),
+			maxTurns: this.options.maxTurnsDecision ?? DEFAULT_DECISION_MAX_TURNS,
 			maxBudgetUsd: Math.min(
 				this.options.maxBudgetUsd ?? DECIDE_MAX_BUDGET_USD,
 				DECIDE_MAX_BUDGET_USD,
@@ -272,7 +272,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 			cwd: input.targetWorkingDirectory,
 			systemPrompt,
 			model: this.options.model ?? DEFAULT_MODEL,
-			maxTurns: this.options.maxTurns ?? DEFAULT_MAX_TURNS,
+			maxTurns: this.options.maxTurnsExecution ?? DEFAULT_EXECUTION_MAX_TURNS,
 			maxBudgetUsd: this.options.maxBudgetUsd,
 			allowedTools: ['Read', EDIT_TOOL, WRITE_TOOL, 'Glob', 'Grep', 'Bash'],
 			tools: ['Read', EDIT_TOOL, WRITE_TOOL, 'Glob', 'Grep', 'Bash'],

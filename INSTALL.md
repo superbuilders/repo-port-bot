@@ -299,7 +299,8 @@ with:
 | `commit-sha`            | —                   | Override the source commit SHA to process (defaults to the workflow event SHA) |
 | `model`                 | `claude-sonnet-4-6` | Claude model to use                                                            |
 | `max-attempts`          | `3`                 | Maximum execution attempts before opening a draft PR                           |
-| `max-turns`             | `50`                | Maximum Claude SDK turns per attempt                                           |
+| `max-turns-execution`   | `250`               | Maximum Claude SDK turns per execution attempt                                 |
+| `max-turns-decision`    | `50`                | Maximum Claude SDK turns for the decision/classification phase                 |
 | `max-budget-usd`        | —                   | Optional budget cap (USD) per attempt                                          |
 | `log-level`             | `info`              | Minimum log level (`error`, `warn`, `info`, `debug`)                           |
 

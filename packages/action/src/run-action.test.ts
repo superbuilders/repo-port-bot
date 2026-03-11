@@ -60,6 +60,7 @@ describe('runAction', () => {
 	test('wires split source/target tokens through runPort', async () => {
 		const sourceReader = createReaderFake()
 		const targetWriter = createWriterFake()
+		const createAgentProviderCalls: unknown[] = []
 		const runPortCalls: unknown[] = []
 		const portResult: PortRunResult = {
 			runId: 'run-1',
@@ -102,7 +103,8 @@ describe('runAction', () => {
 				llmApiKey: 'llm-key',
 				model: 'claude-sonnet-4-6',
 				maxAttempts: 3,
-				maxTurns: 50,
+				maxTurnsExecution: 250,
+				maxTurnsDecision: 50,
 				maxBudgetUsd: undefined,
 				validationCommands: ['bun run check'],
 				pathMappings: { 'src/': 'src/' },
@@ -121,8 +123,10 @@ describe('runAction', () => {
 			cloneTargetRepo: async () => '/tmp/target-repo',
 			createReader: token => (token === 'source-token' ? sourceReader : createReaderFake()),
 			createWriter: token => (token === 'target-token' ? targetWriter : createWriterFake()),
-			createAgentProvider: () =>
-				({
+			createAgentProvider: input => {
+				createAgentProviderCalls.push(input)
+
+				return {
 					async decidePort() {
 						return {
 							outcome: {
@@ -146,7 +150,8 @@ describe('runAction', () => {
 							},
 						}
 					},
-				}) as AgentProvider,
+				} as AgentProvider
+			},
 			createLogger: () =>
 				({
 					error: () => {},
@@ -209,6 +214,15 @@ describe('runAction', () => {
 		})
 
 		expect(runPortCalls).toHaveLength(1)
+		expect(createAgentProviderCalls).toEqual([
+			{
+				apiKey: 'llm-key',
+				model: 'claude-sonnet-4-6',
+				maxTurnsExecution: 250,
+				maxTurnsDecision: 50,
+				maxBudgetUsd: undefined,
+			},
+		])
 
 		const call = runPortCalls[0] as {
 			reader: GitHubReader
