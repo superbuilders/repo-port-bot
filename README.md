@@ -203,7 +203,8 @@ Note: `ignore` patterns are only configurable via the config file, not as an act
 | `commit-sha`            | no       | —                   | Override the source commit SHA to process (defaults to the workflow event SHA) |
 | `model`                 | no       | `claude-sonnet-4-6` | Claude model to use                                                            |
 | `max-attempts`          | no       | `3`                 | Maximum execution attempts before stalling                                     |
-| `max-turns`             | no       | `50`                | Maximum Claude SDK turns per attempt                                           |
+| `max-turns-execution`   | no       | `250`               | Maximum Claude SDK turns per execution attempt                                 |
+| `max-turns-decision`    | no       | `50`                | Maximum Claude SDK turns for the decision/classification phase                 |
 | `max-budget-usd`        | no       | —                   | Optional budget cap (USD) for a single attempt                                 |
 | `log-level`             | no       | `info`              | Minimum log level (`error`, `warn`, `info`, `debug`)                           |
 

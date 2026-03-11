@@ -54,7 +54,8 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 				new ClaudeAgentProvider({
 					apiKey: input.apiKey,
 					model: input.model,
-					maxTurns: input.maxTurns,
+					maxTurnsExecution: input.maxTurnsExecution,
+					maxTurnsDecision: input.maxTurnsDecision,
 					maxBudgetUsd: input.maxBudgetUsd,
 				})),
 		createLogger: dependencies.createLogger ?? (level => createActionsLogger(level)),
@@ -68,7 +69,8 @@ export async function runAction(dependencies: Partial<RunActionDependencies> = {
 	const agentProvider = resolvedDependencies.createAgentProvider({
 		apiKey: inputs.llmApiKey,
 		model: inputs.model,
-		maxTurns: inputs.maxTurns,
+		maxTurnsExecution: inputs.maxTurnsExecution,
+		maxTurnsDecision: inputs.maxTurnsDecision,
 		maxBudgetUsd: inputs.maxBudgetUsd,
 	})
 	const logger = resolvedDependencies.createLogger(inputs.logLevel)

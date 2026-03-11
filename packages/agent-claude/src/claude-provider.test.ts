@@ -131,6 +131,7 @@ describe('ClaudeAgentProvider', () => {
 		expect(queryCalls[0]!.options).toMatchObject({
 			allowedTools: ['Read', 'Glob', 'Grep'],
 			tools: ['Read', 'Glob', 'Grep'],
+			maxTurns: 50,
 			outputFormat: {
 				type: 'json_schema',
 				schema: {
@@ -260,6 +261,87 @@ describe('ClaudeAgentProvider', () => {
 			toolName: 'Read',
 			toolInput: { file_path: 'src/example.ts' },
 		})
+	})
+
+	test('supports separate decision and execution turn limits', async () => {
+		const queryCalls: { options: unknown }[] = []
+		let callCount = 0
+		const provider = new ClaudeAgentProvider({
+			maxTurnsDecision: 30,
+			maxTurnsExecution: 120,
+			queryFn: ({ options }) =>
+				(async function* queryFn(): AsyncGenerator<SDKMessage, void> {
+					queryCalls.push({ options })
+					callCount += 1
+
+					if (callCount === 1) {
+						yield {
+							type: 'result',
+							subtype: 'success',
+							duration_ms: 10,
+							duration_api_ms: 8,
+							is_error: false,
+							num_turns: 1,
+							result: '',
+							stop_reason: null,
+							total_cost_usd: DECISION_COST_USD,
+							usage: {
+								input_tokens: 1,
+								output_tokens: 1,
+								cache_creation_input_tokens: 0,
+								cache_read_input_tokens: 0,
+								service_tier: 'standard',
+							},
+							permission_denials: [],
+							structured_output: {
+								decision: 'required',
+								reason: 'Port required for parity.',
+							},
+							uuid: 'uuid-result-1',
+							session_id: 'session-1',
+						} as unknown as SDKMessage
+
+						return
+					}
+
+					yield {
+						type: 'result',
+						subtype: 'success',
+						duration_ms: 10,
+						duration_api_ms: 8,
+						is_error: false,
+						num_turns: 1,
+						result: '',
+						stop_reason: null,
+						total_cost_usd: EXECUTION_COST_USD,
+						usage: {
+							input_tokens: 1,
+							output_tokens: 1,
+							cache_creation_input_tokens: 0,
+							cache_read_input_tokens: 0,
+							service_tier: 'standard',
+						},
+						permission_denials: [],
+						structured_output: {
+							summary: 'Applied parity changes.',
+							files: [],
+						},
+						uuid: 'uuid-result-2',
+						session_id: 'session-1',
+					} as unknown as SDKMessage
+				})(),
+		})
+
+		await provider.decidePort({
+			files: makeInput().files,
+			targetWorkingDirectory: '/tmp/target',
+			pluginConfig: makePluginConfig(),
+		})
+		await provider.executePort(makeInput())
+
+		expect(queryCalls).toHaveLength(2)
+		expect(queryCalls[0]!.options).toMatchObject({ maxTurns: 30 })
+		expect(queryCalls[1]!.options).toMatchObject({ maxTurns: 120 })
 	})
 
 	test('decidePort maps needs_human decision to NEEDS_HUMAN outcome', async () => {
@@ -536,6 +618,7 @@ describe('ClaudeAgentProvider', () => {
 			durationMs: expect.any(Number),
 		})
 		expect(queryCalls[0]!.options).toMatchObject({
+			maxTurns: 250,
 			outputFormat: {
 				type: 'json_schema',
 				schema: {
