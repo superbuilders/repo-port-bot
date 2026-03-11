@@ -1,10 +1,10 @@
 import {
 	formatTokenCount,
 	formatUsd,
+	inputOutputTokens,
 	sumAggregatedTelemetry,
 	sumStageTelemetry,
 	toAggregatedTelemetry,
-	totalTokens,
 } from '../lib/telemetry.ts'
 import { formatDuration, joinNonEmptyLines } from '../utils.ts'
 
@@ -466,7 +466,7 @@ function renderCostTelemetryDetails(input: {
 	}
 
 	const lines = [
-		'<details><summary>Cost & token usage</summary>',
+		'<details><summary>Cost & Tokens</summary>',
 		'',
 		`- Decision: ${formatTelemetryLine(telemetry.decision)}`,
 	]
@@ -513,13 +513,13 @@ function aggregateTelemetry(
 }
 
 /**
- * Render one line of telemetry as cost + token total.
+ * Render one line of telemetry as cost + input/output token total.
  *
  * @param telemetry - Aggregated telemetry.
  * @returns Human-readable telemetry text.
  */
 function formatTelemetryLine(telemetry: AggregatedTelemetry): string {
-	return `${formatUsd(telemetry.costUsd)}, ${formatTokenCount(totalTokens(telemetry.usage))} tokens`
+	return `${formatUsd(telemetry.costUsd)}, ${formatTokenCount(inputOutputTokens(telemetry.usage))} input/output tokens`
 }
 
 /**

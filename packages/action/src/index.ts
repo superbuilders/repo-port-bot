@@ -7,9 +7,9 @@ import {
 	formatDuration,
 	formatTokenCount,
 	formatUsd,
+	inputOutputTokens,
 	renderDecisionLogSummary,
 	renderExecutionLogSummary,
-	totalTokens,
 } from '@repo-port-bot/engine'
 
 import { runAction } from './run-action.ts'
@@ -128,7 +128,7 @@ async function writeActionSummary(input: {
 			? ` · ${formatDuration(decisionTrace.durationMs)}`
 			: ''
 	const decisionTelemetryLabel = decisionTelemetry
-		? ` · ${formatUsd(decisionTelemetry.costUsd)} · ${formatTokenCount(totalTokens(decisionTelemetry.usage))} tokens`
+		? ` · ${formatUsd(decisionTelemetry.costUsd)} · ${formatTokenCount(inputOutputTokens(decisionTelemetry.usage))} input/output tokens`
 		: ''
 	const decisionLabel = `Decision (${String(input.decisionToolCalls.length)} tool call${input.decisionToolCalls.length === 1 ? '' : 's'}${decisionDuration}${decisionTelemetryLabel})`
 	const decisionLog = renderDecisionLogSummary(decisionTrace)
@@ -164,7 +164,7 @@ async function writeActionSummary(input: {
 				? ` · ${formatDuration(input.result.execution.trace.durationMs)}`
 				: ''
 		const executionTelemetryLabel = executionTelemetry
-			? ` · ${formatUsd(executionTelemetry.costUsd)} · ${formatTokenCount(totalTokens(executionTelemetry.usage))} tokens`
+			? ` · ${formatUsd(executionTelemetry.costUsd)} · ${formatTokenCount(inputOutputTokens(executionTelemetry.usage))} input/output tokens`
 			: ''
 		const executionLabel = `Execution (${String(input.executionToolCalls.length)} tool call${input.executionToolCalls.length === 1 ? '' : 's'}${execDuration}${executionTelemetryLabel})`
 
@@ -213,7 +213,7 @@ async function writeActionSummary(input: {
 		core.summary.addRaw(
 			[
 				'',
-				`**Totals:** ${formatUsd(totalTelemetry.costUsd)} · ${formatTokenCount(totalTokens(totalTelemetry.usage))} tokens`,
+				`**Totals:** ${formatUsd(totalTelemetry.costUsd)} · ${formatTokenCount(inputOutputTokens(totalTelemetry.usage))} input/output tokens`,
 				'',
 			].join('\n'),
 		)

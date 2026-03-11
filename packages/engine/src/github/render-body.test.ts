@@ -330,10 +330,10 @@ describe('render-body', () => {
 			includeCostTelemetry: true,
 		})
 
-		expect(body).toContain('<details><summary>Cost & token usage</summary>')
-		expect(body).toContain('- Decision: $0.12, 2.5k tokens')
-		expect(body).toContain('- Execution: $1.50, 5.3k tokens across 2 attempts')
-		expect(body).toContain('- Total: $1.62, 7.8k tokens')
+		expect(body).toContain('<details><summary>Cost & Tokens</summary>')
+		expect(body).toContain('- Decision: $0.12, 1.2K input/output tokens')
+		expect(body).toContain('- Execution: $1.50, 3.7K input/output tokens across 2 attempts')
+		expect(body).toContain('- Total: $1.62, 4.9K input/output tokens')
 	})
 
 	test('omits cost telemetry details in target PR body when disabled', () => {
@@ -345,7 +345,7 @@ describe('render-body', () => {
 			includeCostTelemetry: false,
 		})
 
-		expect(body).not.toContain('Cost & token usage')
+		expect(body).not.toContain('Cost & Tokens')
 	})
 
 	test('omits author mention in needs-human issue when author is absent', () => {
@@ -570,8 +570,8 @@ describe('render-body', () => {
 			runId: 'run-telemetry-1',
 		})
 
-		expect(body).toContain('<details><summary>Cost & token usage</summary>')
-		expect(body).toContain('- Decision: $0.12, 2.5k tokens')
+		expect(body).toContain('<details><summary>Cost & Tokens</summary>')
+		expect(body).toContain('- Decision: $0.12, 1.2K input/output tokens')
 		expect(body).not.toContain('- Execution:')
 		expect(body).not.toContain('- Total:')
 	})
@@ -588,7 +588,7 @@ describe('render-body', () => {
 			runId: 'run-telemetry-2',
 		})
 
-		expect(body).not.toContain('Cost & token usage')
+		expect(body).not.toContain('Cost & Tokens')
 	})
 
 	test('renders source comment for draft_pr_opened and needs_human with warning admonition', () => {

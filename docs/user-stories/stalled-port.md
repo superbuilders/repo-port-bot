@@ -53,7 +53,7 @@ Define what "good failure" looks like when an automated port is attempted but ca
     - PR body follows the same compact layout as successful ports, but with key differences:
         - `## Port rationale` heading with the decision rationale quoted/blocked
         - source narrative directly below, extended into a natural provenance sentence that includes a parenthetical `@`-mention of the original PR author (so they receive a GitHub notification about the stalled port without implying they authored the port itself) and includes model name and at-a-glance execution stats
-        - collapsed `Cost & token usage` block showing decision totals, execution totals aggregated across attempts, and overall run totals
+        - collapsed `Cost & Tokens` block showing decision totals, execution totals aggregated across attempts, and overall run totals
         - `### What was ported` — polished summary of what changed
         - collapsed `Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (not repeated in the log). For retries, per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.)
         - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes and failure reason
@@ -61,7 +61,7 @@ Define what "good failure" looks like when an automated port is attempted but ca
 
 6. **Source PR receives a notification comment**
     - Best-effort `[!WARNING]` admonition comment on the merged source PR indicating validation failed and a draft PR was opened, with a collapsible reason.
-    - The comment also includes a collapsed `Cost & token usage` block so the maintainer can see decision totals, execution totals across retries, and the overall spend/token footprint without opening the Actions run first.
+    - The comment also includes a collapsed `Cost & Tokens` block so the maintainer can see decision totals, execution totals across retries, and the overall spend/token footprint without opening the Actions run first.
     - This is how the maintainer discovers the stall without having to check the target repo.
 
 7. **Maintainer triages the draft PR**
@@ -98,7 +98,7 @@ The maintainer experiences the stall as "the bot got close and told me exactly w
     - Draft PR carries the `port-stalled` label in addition to `auto-port`.
 
 4. **Diagnostic body**
-    - PR body includes validation results (pass/fail per command with exit codes), failure reason, files touched, per-attempt notes, and collapsed cost/token telemetry. A reviewer should not need to open the Actions log to understand what went wrong at a high level.
+    - PR body includes validation results (pass/fail per command with exit codes), failure reason, files touched, per-attempt notes, and collapsed cost/token telemetry. The displayed token totals are input/output-only for readability. A reviewer should not need to open the Actions log to understand what went wrong at a high level.
 
 5. **Incremental progress preserved**
     - The committed state reflects the agent's best effort across all attempts, not just the first or last. Partial fixes from earlier attempts are preserved.

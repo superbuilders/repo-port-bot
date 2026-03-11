@@ -1,8 +1,10 @@
 import type { AggregatedTelemetry, TokenUsage } from '../types.ts'
 
-const TOKEN_SCALE = 1000
-const TOKEN_DECIMAL_PLACES = 1
 const USD_DECIMAL_PLACES = 2
+const TOKEN_COUNT_FORMATTER = new Intl.NumberFormat('en-US', {
+	notation: 'compact',
+	maximumFractionDigits: 1,
+})
 
 /**
  * Build an aggregate telemetry object from one stage trace payload.
@@ -114,6 +116,20 @@ export function totalTokens(usage: AggregatedTelemetry['usage']): number {
 }
 
 /**
+ * Compute display-friendly token count using only direct model IO buckets.
+ *
+ * Cache creation/read tokens are tracked separately by Anthropic and billed at
+ * different rates, so the UI surfaces input/output tokens explicitly instead of
+ * folding cache traffic into the displayed total.
+ *
+ * @param usage - Aggregated usage counters.
+ * @returns Input + output token count.
+ */
+export function inputOutputTokens(usage: AggregatedTelemetry['usage']): number {
+	return usage.inputTokens + usage.outputTokens
+}
+
+/**
  * Format USD cost for compact markdown display.
  *
  * @param costUsd - Dollar amount.
@@ -124,15 +140,11 @@ export function formatUsd(costUsd: number): string {
 }
 
 /**
- * Format token totals, using `k` notation for large values.
+ * Format token totals using locale-aware compact notation.
  *
  * @param tokens - Total tokens.
  * @returns Compact token count.
  */
 export function formatTokenCount(tokens: number): string {
-	if (tokens < TOKEN_SCALE) {
-		return String(tokens)
-	}
-
-	return `${(tokens / TOKEN_SCALE).toFixed(TOKEN_DECIMAL_PLACES)}k`
+	return TOKEN_COUNT_FORMATTER.format(tokens)
 }
