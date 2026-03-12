@@ -198,6 +198,38 @@ describe('resolvePluginConfig', () => {
 		}).toThrow('Sync operation target must not traverse outside the repo checkout.')
 	})
 
+	test('rejects traversal hidden inside normalized path segments', () => {
+		expect(() => {
+			resolvePluginConfig({
+				portBotJson: {
+					target: 'acme/target-repo',
+					sync: [
+						{
+							source: 'fixtures/../secrets/**',
+							target: 'fixtures/',
+							mode: 'mirror',
+						},
+					],
+				},
+			})
+		}).toThrow('must not traverse outside the repo checkout')
+
+		expect(() => {
+			resolvePluginConfig({
+				portBotJson: {
+					target: 'acme/target-repo',
+					sync: [
+						{
+							source: 'tests/manifest.json',
+							target: 'dir/../escape.json',
+							mode: 'copy',
+						},
+					],
+				},
+			})
+		}).toThrow('must not traverse outside the repo checkout')
+	})
+
 	test('rejects glob source in copy mode', () => {
 		expect(() => {
 			resolvePluginConfig({

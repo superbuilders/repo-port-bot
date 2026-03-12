@@ -1,5 +1,3 @@
-import { posix } from 'node:path'
-
 import micromatch from 'micromatch'
 
 import { parseAndDecodePortBotJson } from './port-bot-json.decoder.ts'
@@ -59,9 +57,9 @@ function validateRepoRelativeConfigPath(value: string, field: string): void {
 		throw new Error(`${field} must be repo-relative, not absolute.`)
 	}
 
-	const segments = posix.normalize(canonical).split('/').filter(Boolean)
+	const rawSegments = canonical.split('/').filter(Boolean)
 
-	if (segments.includes('..')) {
+	if (rawSegments.includes('..')) {
 		throw new Error(`${field} must not traverse outside the repo checkout.`)
 	}
 }

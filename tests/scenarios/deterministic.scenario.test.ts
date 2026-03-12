@@ -94,6 +94,35 @@ describe('deterministic-only scenarios', () => {
 		expect(pr.labels).toContain('port-stalled')
 	})
 
+	test('validation that reverts synced files produces skip, not phantom PR', async () => {
+		const repos = await createRepos(
+			{ 'tests/fixtures/a.json': '{"old":true}' },
+			{ 'tests/fixtures/a.json': '{"new":true}' },
+		)
+		const { writer, state } = createTrackingWriter()
+
+		const result = await runScenario({
+			sourceChange: makeDocsOnlyChange(),
+			repos,
+			writer,
+			portBotJson: {
+				target: 'acme/target-repo',
+				sync: [
+					{
+						source: 'tests/fixtures/a.json',
+						target: 'tests/fixtures/a.json',
+						mode: 'copy',
+					},
+				],
+				validation: ['git checkout -- tests/fixtures/a.json'],
+			},
+		})
+
+		expect(result.outcome).toBe('skipped_not_required')
+		expect(state.pullRequests).toHaveLength(0)
+		expect(result.targetPullRequestUrl).toBeUndefined()
+	})
+
 	test('deterministic sync with no actual diff skips without PR', async () => {
 		const repos = await createRepos(
 			{ 'tests/fixtures/a.json': '{"same":true}' },

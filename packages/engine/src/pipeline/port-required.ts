@@ -90,13 +90,14 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 	})()
 
 	if (delivery.outcome === 'skipped') {
+		const errorMessage = 'PORT_REQUIRED execution produced no deliverable changes.'
 		const notifyMs = await postSourcePrCommentBestEffort({
 			commentStage: input.commentStage,
 			context: input.context,
 			decision: input.decision.outcome,
 			decisionTrace: input.decision.trace,
 			writer: input.writer,
-			outcome: 'skipped_not_required',
+			outcome: 'failed',
 			includeCostTelemetry: input.includeCostTelemetry,
 			runId: input.runId,
 			logger: input.logger,
@@ -104,27 +105,23 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 
 		if (notifyMs !== undefined) {
 			logStage(input.logger, input.runId, 'notify', {
-				outcome: 'skipped_not_required',
+				outcome: 'failed',
 				notifyMs: (input.stageTimings.notifyMs = notifyMs),
 			})
 		}
 
-		logOutcome(
-			input.logger,
-			input.runId,
-			'skipped_not_required',
-			getDurationMs(input.startedAtMs),
-		)
+		logOutcome(input.logger, input.runId, 'failed', getDurationMs(input.startedAtMs))
 
 		return {
 			runId: input.runId,
 			sourceTitle: input.sourceTitle,
-			outcome: 'skipped_not_required',
+			outcome: 'failed',
 			decision: input.decision,
 			execution,
 			summary: renderRunSummary({
-				outcome: 'skipped_not_required',
+				outcome: 'failed',
 				decision: input.decision,
+				errorMessage,
 			}),
 			durationMs: getDurationMs(input.startedAtMs),
 			stageTimings: input.stageTimings,

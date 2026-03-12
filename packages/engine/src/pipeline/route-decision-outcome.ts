@@ -257,6 +257,28 @@ async function runDeterministicPrFlow(input: RunDeterministicPrFlowInput): Promi
 		deliverMs: (input.stageTimings.deliverMs = getDurationMs(deliverStartedAtMs)),
 	})
 
+	if (delivery.outcome === 'skipped') {
+		logOutcome(
+			input.logger,
+			input.runId,
+			'skipped_not_required',
+			getDurationMs(input.startedAtMs),
+		)
+
+		return {
+			runId: input.runId,
+			sourceTitle: input.sourceTitle,
+			outcome: 'skipped_not_required',
+			decision: input.portDecision,
+			summary: renderRunSummary({
+				outcome: 'skipped_not_required',
+				decision: input.portDecision,
+			}),
+			durationMs: getDurationMs(input.startedAtMs),
+			stageTimings: input.stageTimings,
+		}
+	}
+
 	const outcome = delivery.outcome === 'draft_pr_opened' ? 'draft_pr_opened' : 'pr_opened'
 	const notifyMs = await postSourcePrCommentBestEffort({
 		commentStage: input.commentStage,

@@ -119,7 +119,7 @@ describe('port-required scenarios', () => {
 		expect(await fileExists(repos.targetDir, 'src/partial.ts')).toBe(true)
 	})
 
-	test('agent that produces no changes results in skip', async () => {
+	test('agent that produces no changes results in failure, not silent skip', async () => {
 		const repos = await createRepos({ 'src/existing.ts': 'untouched' })
 		const { writer, state } = createTrackingWriter()
 		const agent = createScriptedAgent(repos.targetDir, { edits: [] })
@@ -131,8 +131,9 @@ describe('port-required scenarios', () => {
 			agentProvider: agent,
 		})
 
-		expect(result.outcome).toBe('skipped_not_required')
+		expect(result.outcome).toBe('failed')
 		expect(state.pullRequests).toHaveLength(0)
+		expect(state.comments).toHaveLength(1)
 	})
 
 	test('deterministic sync + agent edits both appear in the final PR', async () => {
