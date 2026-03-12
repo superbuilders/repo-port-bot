@@ -64,6 +64,7 @@ describe('renderPrompt', () => {
 			namingConventions: undefined,
 			additionalInstructions: undefined,
 			ignorePatterns: undefined,
+			deterministicContext: undefined,
 		})
 
 		expect(result).toContain('You are a code porting agent')
@@ -81,6 +82,7 @@ describe('renderPrompt', () => {
 			namingConventions: undefined,
 			additionalInstructions: undefined,
 			ignorePatterns: undefined,
+			deterministicContext: undefined,
 		})
 
 		expect(result).toContain('classification agent')

@@ -50,6 +50,7 @@ function makeContext(): PortContext {
 			targetRepo: TARGET_REPO,
 			ignorePatterns: [],
 			validationCommands: ['bun run check'],
+			deterministicOperations: [],
 			pathMappings: {},
 		},
 	}
@@ -66,6 +67,32 @@ function makeContextWithoutValidationCommands(): PortContext {
 	context.pluginConfig.validationCommands = []
 
 	return context
+}
+
+/**
+ * Build deterministic phase fixture for rendering scenarios.
+ *
+ * @returns Deterministic phase fixture.
+ */
+function makeDeterministicPhase() {
+	return {
+		changed: true,
+		operations: [
+			{
+				kind: 'sync' as const,
+				mode: 'mirror' as const,
+				source: 'tests/fixtures/**',
+				target: 'tests/fixtures/',
+			},
+			{
+				kind: 'sync' as const,
+				mode: 'copy' as const,
+				source: 'tests/manifest.json',
+				target: 'tests/manifest.json',
+			},
+		],
+		touchedFiles: ['tests/fixtures/a.json', 'tests/manifest.json'],
+	}
 }
 
 /**
@@ -222,11 +249,36 @@ describe('render-body', () => {
 		expect(title).toBe('Port: Add execution orchestration')
 	})
 
+	test('appends [sync only] tag for deterministic_only framing', () => {
+		const title = renderPortPullRequestTitle(makeContext(), 'deterministic_only')
+
+		expect(title).toBe('Port: Add execution orchestration [sync only]')
+	})
+
+	test('appends [needs review] tag for residual_handoff framing', () => {
+		const title = renderPortPullRequestTitle(makeContext(), 'residual_handoff')
+
+		expect(title).toBe('Port: Add execution orchestration [needs review]')
+	})
+
+	test('appends [stalled] tag for agent_stalled framing', () => {
+		const title = renderPortPullRequestTitle(makeContext(), 'agent_stalled')
+
+		expect(title).toBe('Port: Add execution orchestration [stalled]')
+	})
+
+	test('omits tag for agent_success framing', () => {
+		const title = renderPortPullRequestTitle(makeContext(), 'agent_success')
+
+		expect(title).toBe('Port: Add execution orchestration')
+	})
+
 	test('renders compact PR body with quoted rationale and expanded provenance sentence', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(true),
+			framingMode: 'agent_success',
 		})
 
 		expect(body).toContain('## Port rationale')
@@ -267,6 +319,54 @@ describe('render-body', () => {
 		)
 	})
 
+	test('renders deterministic-only framing without execution', () => {
+		const context = makeContext()
+
+		context.deterministic = makeDeterministicPhase()
+
+		const body = renderPortPullRequestBody({
+			context,
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
+			framingMode: 'deterministic_only',
+		})
+
+		expect(body).toContain('_This port was completed through deterministic operations only._')
+		expect(body).toContain('## What changed')
+		expect(body).toContain('Mirrored:')
+		expect(body).toContain('- `tests/fixtures/**` -> `tests/fixtures/`')
+		expect(body).toContain('Copied:')
+		expect(body).toContain('- `tests/manifest.json` -> `tests/manifest.json`')
+		expect(body).toContain('<details><summary>Work Log</summary>')
+		expect(body).not.toContain('## What was ported')
+	})
+
+	test('renders residual-handoff framing without execution', () => {
+		const context = makeContext()
+
+		context.deterministic = makeDeterministicPhase()
+
+		const body = renderPortPullRequestBody({
+			context,
+			decision: makeDecision('NEEDS_HUMAN'),
+			framingMode: 'residual_handoff',
+			validation: [
+				{
+					command: 'bun run check',
+					ok: true,
+					exitCode: 0,
+					stdout: 'ok',
+					stderr: '',
+					durationMs: 20,
+				},
+			],
+		})
+
+		expect(body).toContain('## What is already done')
+		expect(body).toContain('## What still needs human review')
+		expect(body).toContain('residual behavior')
+		expect(body).toContain('Validation & diagnostics')
+	})
+
 	test('omits author mention when author is absent', () => {
 		const context = makeContext()
 
@@ -279,6 +379,7 @@ describe('render-body', () => {
 			context,
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(true),
+			framingMode: 'agent_success',
 		})
 
 		expect(body).toContain(
@@ -327,13 +428,14 @@ describe('render-body', () => {
 			decision: makeDecision('PORT_REQUIRED'),
 			decisionTrace: makeDecisionTrace(),
 			execution,
+			framingMode: 'agent_success',
 			includeCostTelemetry: true,
 		})
 
-		expect(body).toContain('<details><summary>Cost & token usage</summary>')
-		expect(body).toContain('- Decision: $0.12, 2.5k tokens')
-		expect(body).toContain('- Execution: $1.50, 5.3k tokens across 2 attempts')
-		expect(body).toContain('- Total: $1.62, 7.8k tokens')
+		expect(body).toContain('<details><summary>Cost & Tokens</summary>')
+		expect(body).toContain('- Decision: $0.12, 1.2K input/output tokens')
+		expect(body).toContain('- Execution: $1.50, 3.7K input/output tokens across 2 attempts')
+		expect(body).toContain('- Total: $1.62, 4.9K input/output tokens')
 	})
 
 	test('omits cost telemetry details in target PR body when disabled', () => {
@@ -342,10 +444,11 @@ describe('render-body', () => {
 			decision: makeDecision('PORT_REQUIRED'),
 			decisionTrace: makeDecisionTrace(),
 			execution: makeExecution(true),
+			framingMode: 'agent_success',
 			includeCostTelemetry: false,
 		})
 
-		expect(body).not.toContain('Cost & token usage')
+		expect(body).not.toContain('Cost & Tokens')
 	})
 
 	test('omits author mention in needs-human issue when author is absent', () => {
@@ -372,6 +475,7 @@ describe('render-body', () => {
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(false),
+			framingMode: 'agent_stalled',
 		})
 
 		expect(body).toContain('<details open><summary>Validation & diagnostics</summary>')
@@ -401,6 +505,7 @@ describe('render-body', () => {
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution,
+			framingMode: 'agent_success',
 		})
 
 		expect(body).toContain('Ported scheduling behavior and synced related tests.')
@@ -421,6 +526,7 @@ describe('render-body', () => {
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution,
+			framingMode: 'agent_success',
 		})
 
 		expect(body).toContain('Fallback attempt summary from notes.')
@@ -431,6 +537,7 @@ describe('render-body', () => {
 			context: makeContextWithoutValidationCommands(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution: makeExecution(true),
+			framingMode: 'agent_success',
 		})
 
 		expect(body).not.toContain('Validation')
@@ -491,6 +598,7 @@ describe('render-body', () => {
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
 			execution,
+			framingMode: 'agent_stalled',
 		})
 
 		expect(body).toContain('### Attempt 1')
@@ -532,7 +640,7 @@ describe('render-body', () => {
 	test('renders source comment for skipped outcome with note admonition', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			outcome: 'skipped_not_required',
 			runId: 'run-0',
 		})
@@ -563,15 +671,15 @@ describe('render-body', () => {
 	test('renders source comment telemetry for decision-only outcomes', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			decisionTrace: makeDecisionTrace(),
 			outcome: 'skipped_not_required',
 			includeCostTelemetry: true,
 			runId: 'run-telemetry-1',
 		})
 
-		expect(body).toContain('<details><summary>Cost & token usage</summary>')
-		expect(body).toContain('- Decision: $0.12, 2.5k tokens')
+		expect(body).toContain('<details><summary>Cost & Tokens</summary>')
+		expect(body).toContain('- Decision: $0.12, 1.2K input/output tokens')
 		expect(body).not.toContain('- Execution:')
 		expect(body).not.toContain('- Total:')
 	})
@@ -588,7 +696,7 @@ describe('render-body', () => {
 			runId: 'run-telemetry-2',
 		})
 
-		expect(body).not.toContain('Cost & token usage')
+		expect(body).not.toContain('Cost & Tokens')
 	})
 
 	test('renders source comment for draft_pr_opened and needs_human with warning admonition', () => {
@@ -615,6 +723,21 @@ describe('render-body', () => {
 		expect(needsHumanBody).toContain('issue: https://github.com/acme/target-repo/issues/55')
 		expect(needsHumanBody).toContain('manual review')
 		expect(needsHumanBody).toContain('> <details><summary>Why does this need review?</summary>')
+	})
+
+	test('renders source comment residual handoff when decision is NEEDS_HUMAN but PR opens', () => {
+		const body = renderSourceComment({
+			context: makeContext(),
+			decision: makeDecision('NEEDS_HUMAN'),
+			outcome: 'pr_opened',
+			targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/444',
+			runId: 'run-residual-1',
+		})
+
+		expect(body).toContain('[!WARNING]')
+		expect(body).toContain('residual work still needs human review')
+		expect(body).toContain('https://github.com/acme/target-repo/pull/444')
+		expect(body).toContain('What still needs review?')
 	})
 
 	test('renders source comment for failed outcome with caution admonition', () => {

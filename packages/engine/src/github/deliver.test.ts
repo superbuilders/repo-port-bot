@@ -5,6 +5,7 @@ import { commentOnSourcePr, deliverResult } from './deliver.ts'
 import type {
 	CreatedIssue,
 	CreatedPullRequest,
+	DeterministicPhaseResult,
 	ExecutePortResult,
 	GitHubWriter,
 	PortContext,
@@ -55,8 +56,35 @@ function makeContext(): PortContext {
 			targetRepo: TARGET_REPO,
 			ignorePatterns: [],
 			validationCommands: ['bun run check'],
+			deterministicOperations: [],
 			pathMappings: {},
 		},
+		deterministic: {
+			changed: false,
+			operations: [],
+			touchedFiles: [],
+		},
+	}
+}
+
+/**
+ * Build deterministic phase fixture.
+ *
+ * @param changed - Whether deterministic operations changed files.
+ * @returns Deterministic phase fixture.
+ */
+function makeDeterministic(changed: boolean): DeterministicPhaseResult {
+	return {
+		changed,
+		operations: [
+			{
+				kind: 'sync',
+				mode: 'mirror',
+				source: 'tests/fixtures/**',
+				target: 'tests/fixtures/',
+			},
+		],
+		touchedFiles: changed ? ['tests/fixtures/example.json'] : [],
 	}
 }
 
@@ -205,14 +233,14 @@ function createWriterFake(): {
 }
 
 describe('deliverResult', () => {
-	test('returns skipped for PORT_NOT_REQUIRED without side effects', async () => {
+	test('returns skipped for NO_AGENT_PORT_NEEDED without side effects', async () => {
 		const { writer, createPrCalls, createIssueCalls, addLabelsCalls } = createWriterFake()
 		const commandCalls: string[][] = []
 
 		const result = await deliverResult({
 			writer,
 			context: makeContext(),
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			targetWorkingDirectory: '/tmp/unused',
 			runCommand: async ({ command }) => {
 				commandCalls.push(command)
@@ -363,6 +391,164 @@ describe('deliverResult', () => {
 		])
 	})
 
+	test('opens deterministic-only ready PR for NO_AGENT_PORT_NEEDED when deterministic changed and validation passes', async () => {
+		const { writer, createPrCalls, addLabelsCalls, createIssueCalls } = createWriterFake()
+		const context = makeContext()
+
+		context.deterministic = makeDeterministic(true)
+
+		const result = await deliverResult({
+			writer,
+			context,
+			deterministic: context.deterministic,
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
+			validation: makeValidation(true),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '?? tests/fixtures/example.json\n', stderr: '' }
+				}
+
+				if (command.join(' ') === 'git diff --cached --quiet') {
+					return { exitCode: 1, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(result.outcome).toBe('pr_opened')
+		expect(result.targetPullRequestUrl).toContain('/pull/901')
+		expect(createIssueCalls).toEqual([])
+		expect((createPrCalls[0] as { draft: boolean }).draft).toBe(false)
+		expect((addLabelsCalls[0] as { labels: string[] }).labels).toEqual(['auto-port'])
+	})
+
+	test('opens deterministic-only draft PR for NO_AGENT_PORT_NEEDED when deterministic changed and validation fails', async () => {
+		const { writer, createPrCalls, addLabelsCalls, createIssueCalls } = createWriterFake()
+		const context = makeContext()
+
+		context.deterministic = makeDeterministic(true)
+
+		const result = await deliverResult({
+			writer,
+			context,
+			deterministic: context.deterministic,
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
+			validation: makeValidation(false),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '?? tests/fixtures/example.json\n', stderr: '' }
+				}
+
+				if (command.join(' ') === 'git diff --cached --quiet') {
+					return { exitCode: 1, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(result.outcome).toBe('draft_pr_opened')
+		expect(createIssueCalls).toEqual([])
+		expect((createPrCalls[0] as { draft: boolean }).draft).toBe(true)
+		expect((addLabelsCalls[0] as { labels: string[] }).labels).toEqual([
+			'auto-port',
+			'port-stalled',
+		])
+	})
+
+	test('opens residual-handoff ready PR for NEEDS_HUMAN when deterministic changed and validation passes', async () => {
+		const { writer, createPrCalls, createIssueCalls } = createWriterFake()
+		const context = makeContext()
+
+		context.deterministic = makeDeterministic(true)
+
+		const result = await deliverResult({
+			writer,
+			context,
+			deterministic: context.deterministic,
+			decision: makeDecision('NEEDS_HUMAN'),
+			validation: makeValidation(true),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '?? tests/fixtures/example.json\n', stderr: '' }
+				}
+
+				if (command.join(' ') === 'git diff --cached --quiet') {
+					return { exitCode: 1, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(result.outcome).toBe('pr_opened')
+		expect(result.targetPullRequestUrl).toContain('/pull/901')
+		expect(createIssueCalls).toEqual([])
+		expect((createPrCalls[0] as { draft: boolean }).draft).toBe(false)
+	})
+
+	test('opens residual-handoff draft PR for NEEDS_HUMAN when deterministic changed and validation fails', async () => {
+		const { writer, createPrCalls, createIssueCalls } = createWriterFake()
+		const context = makeContext()
+
+		context.deterministic = makeDeterministic(true)
+
+		const result = await deliverResult({
+			writer,
+			context,
+			deterministic: context.deterministic,
+			decision: makeDecision('NEEDS_HUMAN'),
+			validation: makeValidation(false),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '?? tests/fixtures/example.json\n', stderr: '' }
+				}
+
+				if (command.join(' ') === 'git diff --cached --quiet') {
+					return { exitCode: 1, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(result.outcome).toBe('draft_pr_opened')
+		expect(createIssueCalls).toEqual([])
+		expect((createPrCalls[0] as { draft: boolean }).draft).toBe(true)
+	})
+
+	test('skips delivery when target-side diff guard finds no changes', async () => {
+		const { writer, createPrCalls, createIssueCalls } = createWriterFake()
+		const context = makeContext()
+
+		context.deterministic = makeDeterministic(true)
+
+		const result = await deliverResult({
+			writer,
+			context,
+			deterministic: context.deterministic,
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
+			validation: makeValidation(true),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(result).toEqual({ outcome: 'skipped' })
+		expect(createPrCalls).toEqual([])
+		expect(createIssueCalls).toEqual([])
+	})
+
 	test('updates existing PR when port branch already has an open PR', async () => {
 		const { writer } = createWriterFake()
 		const updatePrCalls: unknown[] = []
@@ -410,6 +596,66 @@ describe('deliverResult', () => {
 		expect((updatePrCalls[0] as { pullNumber: number }).pullNumber).toBe(
 			EXISTING_PORT_PR_NUMBER,
 		)
+	})
+
+	test('treats untracked files as target-side diff for deterministic-only delivery', async () => {
+		const { writer, createPrCalls } = createWriterFake()
+		const context = makeContext()
+
+		context.deterministic = makeDeterministic(true)
+
+		const result = await deliverResult({
+			writer,
+			context,
+			deterministic: context.deterministic,
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
+			validation: makeValidation(true),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return {
+						exitCode: 0,
+						stdout: '?? tests/fixtures/first-sync.json\n',
+						stderr: '',
+					}
+				}
+
+				if (command.join(' ') === 'git diff --cached --quiet') {
+					return { exitCode: 1, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(result.outcome).toBe('pr_opened')
+		expect(createPrCalls).toHaveLength(1)
+	})
+
+	test('ignores unrelated untracked files outside touched paths', async () => {
+		const { writer, createPrCalls } = createWriterFake()
+		const context = makeContext()
+
+		context.deterministic = makeDeterministic(true)
+
+		const result = await deliverResult({
+			writer,
+			context,
+			deterministic: context.deterministic,
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
+			validation: makeValidation(true),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(result).toEqual({ outcome: 'skipped' })
+		expect(createPrCalls).toEqual([])
 	})
 
 	test('throws when PORT_REQUIRED is delivered without execution result', async () => {

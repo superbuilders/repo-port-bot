@@ -44,7 +44,7 @@ Each stage has an explicit input/output type. Modules compose through these — 
 ### Key types (`types.ts`)
 
 - **`PortContext`** — source PR metadata, diff, resolved plugin config
-- **`PortDecision`** — `PORT_REQUIRED | PORT_NOT_REQUIRED | NEEDS_HUMAN` + reason string
+- **`PortDecision`** — `PORT_REQUIRED | NO_AGENT_PORT_NEEDED | NEEDS_HUMAN` + reason string
 - **`ExecutionResult`** — success/failure, retry count, touched files, validation logs
 - **`PortRunResult`** — final outcome + PR/issue URLs + summary payload
 

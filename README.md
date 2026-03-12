@@ -7,17 +7,20 @@ Automatically port changes between paired repositories. When a PR merges in one 
 1. A PR merges in your source repo
 2. A GitHub Action triggers the port bot engine
 3. The engine clones the source repo at the merge commit and computes a full diff
-4. Heuristics run first (docs-only, config-only, label checks). If inconclusive, an LLM classifier inspects both repos and decides: `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
-5. If required, an agent reads the source diff, applies equivalent changes in the target repo, and produces a structured summary
-6. Validation commands run. If they fail, the agent iterates with feedback (up to a configured max)
-7. A PR opens in the target repo linking back to the source, with a reviewer-facing summary and collapsible work log
+4. Pre-deterministic skip signals are checked (missing PR, `auto-port` label, `no-port` label). If any match, the run exits immediately with no target-side changes
+5. If deterministic operations are configured (currently: file syncing via `sync`), they are applied to the target working tree — no agent involvement
+6. Heuristics run on the residual work (docs-only, config-only). If inconclusive, an LLM classifier inspects both repos and decides: `PORT_REQUIRED`, `NO_AGENT_PORT_NEEDED`, or `NEEDS_HUMAN`
+7. If required, an agent reads the source diff, applies equivalent changes in the target repo (on top of any deterministic baseline), and produces a structured summary
+8. Validation commands run. If they fail, the agent iterates with feedback (up to a configured max)
+9. A PR opens in the target repo linking back to the source, with a reviewer-facing summary and collapsible work log
 
 Possible outcomes:
 
-- **PR opened**: validations passed; PR is ready for review (labeled `auto-port`)
+- **PR opened**: validations passed; PR is ready for review (labeled `auto-port`). This can be agent-authored, deterministic-only, or a mix of both.
 - **Draft PR opened**: validations failed after retries; draft PR opened for manual intervention (labeled `auto-port`, `port-stalled`)
-- **Issue opened**: the classifier determined the change needs human judgment (labeled `needs-human`)
-- **Skipped**: heuristics or classifier determined no port is needed; a comment is posted on the source PR explaining why
+- **Issue opened**: the classifier determined the change needs human judgment and no deterministic changes exist (labeled `needs-human`)
+- **PR with residual handoff**: deterministic changes were applied but the remaining work needs human judgment — a PR is opened with a handoff note instead of an issue
+- **Skipped**: heuristics or classifier determined no port is needed and no deterministic changes exist; a comment is posted on the source PR explaining why
 
 A notification comment is posted on the source PR for every outcome.
 
@@ -158,7 +161,19 @@ Example:
 ```json
 {
 	"target": "org/other-repo",
-	"ignore": ["docs/**", ".github/**"],
+	"sync": [
+		{
+			"source": "tests/fixtures/**",
+			"target": "tests/fixtures/",
+			"mode": "mirror"
+		},
+		{
+			"source": "tests/manifest.json",
+			"target": "tests/manifest.json",
+			"mode": "copy"
+		}
+	],
+	"ignore": ["docs/**", ".github/**", "tests/fixtures/**", "tests/manifest.json"],
 	"validation": ["bun run test", "bun run check"],
 	"mapping": {
 		"src/client/": "packages/client/src/"
@@ -183,7 +198,20 @@ No code executes from the config file: it's purely declarative. Set `skip-port-b
 
 Action inputs take precedence when both exist. You can combine them — e.g., keep stable config in the workflow and use `port-bot.json` for repo-specific overrides that change more often.
 
-Note: `ignore` patterns are only configurable via the config file, not as an action input.
+Note: `ignore` patterns and `sync` operations are only configurable via the config file, not as action inputs.
+
+#### Deterministic operations
+
+Before the LLM classifier runs, the engine can apply deterministic, engine-owned operations to the target working tree — no agent involvement. These are opt-in via the config file.
+
+Currently the only supported deterministic operation is **file syncing** via the `sync` field. Two modes are available:
+
+- `mirror` — recursive copy with delete (like `rsync --delete`). Files removed in source are removed in target.
+- `copy` — overwrite a single target file from a single source file.
+
+Paths listed in `sync` should typically also appear in `ignore` so the agent does not re-port them independently. When deterministic operations produce target-side changes, a PR is opened regardless of the classifier's decision about the remaining work.
+
+Constraints: `mirror` source must be a glob (e.g., `tests/fixtures/**`); `copy` source must be a literal file path. All paths must be repo-relative (no absolute paths or `..` traversal). Mirror uses `rsync --delete` when available, with a built-in TypeScript fallback.
 
 ## Action inputs reference
 
@@ -231,13 +259,17 @@ The engine runs heuristics first, then falls through to the LLM classifier if no
 - Only CI/config changed (`.github/**`, `*.config.*`, `Dockerfile`, `Makefile`, root `*.json`, etc.)
 - All changed files match `ignorePatterns` from config
 
+**Deterministic operations** (before classification):
+
+If deterministic operations are configured (currently: file syncing via `sync`), the engine applies them to the target working tree before any heuristic or LLM classification. These are engine-owned and declarative. The classifier then evaluates only the residual work that remains.
+
 **LLM classification** (when heuristics are inconclusive):
 
 The classifier inspects both repos with read-only tools and returns one of three outcomes:
 
-- `PORT_REQUIRED` — proceed to execution
-- `PORT_NOT_REQUIRED` — skip silently
-- `NEEDS_HUMAN` — open a follow-up issue for manual review
+- `PORT_REQUIRED` — proceed to agent execution (on top of any deterministic baseline)
+- `NO_AGENT_PORT_NEEDED` — skip residual work (deterministic changes may still produce a PR)
+- `NEEDS_HUMAN` — escalate residual work (deterministic changes may still produce a PR with a handoff note)
 
 ## Labels
 

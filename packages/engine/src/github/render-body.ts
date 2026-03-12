@@ -1,10 +1,10 @@
 import {
 	formatTokenCount,
 	formatUsd,
+	inputOutputTokens,
 	sumAggregatedTelemetry,
 	sumStageTelemetry,
 	toAggregatedTelemetry,
-	totalTokens,
 } from '../lib/telemetry.ts'
 import { formatDuration, joinNonEmptyLines } from '../utils.ts'
 
@@ -15,11 +15,14 @@ import type {
 	AggregatedTelemetry,
 	AttemptEvent,
 	DecidePortResult,
+	DeterministicOperation,
+	DeterministicPhaseResult,
 	DecisionTrace,
 	ExecutePortAttemptResult,
 	ExecutePortResult,
 	PortContext,
 	PortDecision,
+	PrFramingMode,
 	PortRunOutcome,
 	ValidationCommandResult,
 } from '../types.ts'
@@ -27,7 +30,10 @@ import type {
 interface RenderPullRequestBodyInput {
 	context: PortContext
 	decision: PortDecision
-	execution: ExecutePortResult
+	execution?: ExecutePortResult
+	validation?: ValidationCommandResult[]
+	deterministic?: DeterministicPhaseResult
+	framingMode: PrFramingMode
 	decisionTrace?: DecisionTrace
 	includeCostTelemetry?: boolean
 }
@@ -106,16 +112,41 @@ function truncateForTitle(value: string, maxLength: number): string {
  * Render the standard target pull request title.
  *
  * @param context - Port context with source PR metadata.
+ * @param framingMode - Optional framing mode to append a tag suffix.
  * @returns Title in the canonical format.
  */
-export function renderPortPullRequestTitle(context: PortContext): string {
+export function renderPortPullRequestTitle(
+	context: PortContext,
+	framingMode?: PrFramingMode,
+): string {
 	const sourcePullRequest = context.sourceChange.pullRequest
+	const base = sourcePullRequest
+		? `Port: ${sourcePullRequest.title}`
+		: `Port: source change (${context.sourceChange.mergedCommitSha.slice(0, SHORT_SHA_LENGTH)})`
+	const tag = framingModeTag(framingMode)
 
-	if (!sourcePullRequest) {
-		return `Port: source change (${context.sourceChange.mergedCommitSha.slice(0, SHORT_SHA_LENGTH)})`
+	return tag ? `${base} ${tag}` : base
+}
+
+/**
+ * @param mode - PR framing mode.
+ * @returns Short tag suffix for the PR title, or undefined for no tag.
+ */
+function framingModeTag(mode?: PrFramingMode): string | undefined {
+	switch (mode) {
+		case 'deterministic_only': {
+			return '[sync only]'
+		}
+		case 'residual_handoff': {
+			return '[needs review]'
+		}
+		case 'agent_stalled': {
+			return '[stalled]'
+		}
+		default: {
+			return undefined
+		}
 	}
-
-	return `Port: ${sourcePullRequest.title}`
 }
 
 /**
@@ -165,6 +196,20 @@ function renderValidationSummary(execution: ExecutePortResult): string {
 }
 
 /**
+ * Render markdown summary lines for explicit validation results.
+ *
+ * @param validation - Validation command results.
+ * @returns Validation summary section.
+ */
+function renderValidationSummaryFromResults(validation?: ValidationCommandResult[]): string {
+	if (!validation || validation.length === 0) {
+		return '- No validation output recorded.'
+	}
+
+	return validation.map(renderValidationLine).join('\n')
+}
+
+/**
  * Render the collapsible validation & diagnostics block.
  *
  * @param execution - Execution details.
@@ -188,6 +233,98 @@ function renderDiagnosticsBlock(execution: ExecutePortResult): string {
 	]
 		.filter(isDefinedLine)
 		.join('\n')
+}
+
+/**
+ * Render diagnostics block from pre-computed validation results.
+ *
+ * @param validation - Validation command results.
+ * @returns Collapsible diagnostics block.
+ */
+function renderDiagnosticsBlockFromValidation(validation?: ValidationCommandResult[]): string {
+	const validationLines = renderValidationSummaryFromResults(validation)
+	const hasFailure = (validation ?? []).some(result => !result.ok)
+	const detailsTag = hasFailure ? '<details open>' : '<details>'
+	const failureLine = hasFailure
+		? '- Final status: validation failed.\n- Failure reason: One or more validation commands failed.'
+		: undefined
+
+	return [
+		detailsTag,
+		'<summary>Validation & diagnostics</summary>',
+		'',
+		validationLines,
+		failureLine,
+		'',
+		'</details>',
+	]
+		.filter(isDefinedLine)
+		.join('\n')
+}
+
+/**
+ * Render deterministic operations grouped by kind and mode.
+ *
+ * @param operations - Deterministic operations list.
+ * @returns Grouped markdown.
+ */
+function renderDeterministicOperations(operations: DeterministicOperation[]): string {
+	if (operations.length === 0) {
+		return '_No deterministic operations were recorded._'
+	}
+
+	const blocks: string[] = []
+
+	const syncOperations = operations.filter(
+		(operation): operation is DeterministicOperation & { kind: 'sync' } =>
+			operation.kind === 'sync',
+	)
+
+	if (syncOperations.length > 0) {
+		const mirrored = syncOperations.filter(operation => operation.mode === 'mirror')
+		const copied = syncOperations.filter(operation => operation.mode === 'copy')
+
+		if (mirrored.length > 0) {
+			blocks.push(
+				'Mirrored:',
+				...mirrored.map(
+					operation => `- \`${operation.source}\` -> \`${operation.target}\``,
+				),
+			)
+		}
+
+		if (copied.length > 0) {
+			blocks.push(
+				'Copied:',
+				...copied.map(operation => `- \`${operation.source}\` -> \`${operation.target}\``),
+			)
+		}
+	}
+
+	return blocks.length > 0 ? blocks.join('\n') : '_No deterministic operations were recorded._'
+}
+
+/**
+ * Render deterministic phase work log.
+ *
+ * @param deterministic - Deterministic phase result.
+ * @returns Work log details block.
+ */
+function renderDeterministicWorkLog(deterministic?: DeterministicPhaseResult): string {
+	const touchedFiles = deterministic?.touchedFiles ?? []
+	const touchedFileLines =
+		touchedFiles.length === 0
+			? ['- No target files were modified by deterministic operations.']
+			: touchedFiles.map(filePath => `- Updated \`${filePath}\``)
+
+	return [
+		'<details><summary>Work Log</summary>',
+		'',
+		'- Deterministic operations were applied by the engine.',
+		...touchedFileLines,
+		'',
+		'</details>',
+	].join('\n')
 }
 
 /**
@@ -466,7 +603,7 @@ function renderCostTelemetryDetails(input: {
 	}
 
 	const lines = [
-		'<details><summary>Cost & token usage</summary>',
+		'<details><summary>Cost & Tokens</summary>',
 		'',
 		`- Decision: ${formatTelemetryLine(telemetry.decision)}`,
 	]
@@ -513,13 +650,13 @@ function aggregateTelemetry(
 }
 
 /**
- * Render one line of telemetry as cost + token total.
+ * Render one line of telemetry as cost + input/output token total.
  *
  * @param telemetry - Aggregated telemetry.
  * @returns Human-readable telemetry text.
  */
 function formatTelemetryLine(telemetry: AggregatedTelemetry): string {
-	return `${formatUsd(telemetry.costUsd)}, ${formatTokenCount(totalTokens(telemetry.usage))} tokens`
+	return `${formatUsd(telemetry.costUsd)}, ${formatTokenCount(inputOutputTokens(telemetry.usage))} input/output tokens`
 }
 
 /**
@@ -532,6 +669,74 @@ function formatTelemetryLine(telemetry: AggregatedTelemetry): string {
  * @returns Pull request body markdown.
  */
 export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): string {
+	const deterministic = input.deterministic ?? input.context.deterministic
+	const telemetryBlock =
+		input.includeCostTelemetry === false
+			? undefined
+			: renderCostTelemetryDetails({
+					decisionTrace: input.decisionTrace,
+					execution: input.execution,
+				})
+
+	if (input.framingMode === 'deterministic_only') {
+		return [
+			'## Port rationale',
+			'',
+			'_This port was completed through deterministic operations only._',
+			'',
+			`> ${input.decision.reason}`,
+			'',
+			telemetryBlock,
+			'',
+			'## What changed',
+			'',
+			renderDeterministicOperations(deterministic?.operations ?? []),
+			'',
+			renderDeterministicWorkLog(deterministic),
+			'',
+			renderDiagnosticsBlockFromValidation(input.validation),
+			'',
+			'---',
+			`Ported by: [Repo Port Bot](${PORT_BOT_REPO_URL})`,
+		]
+			.filter(isDefinedLine)
+			.join('\n')
+	}
+
+	if (input.framingMode === 'residual_handoff') {
+		return [
+			'## Port rationale',
+			'',
+			'Deterministic operations produced safe side-effects, but the remaining port requires human judgment after the agent was unable to complete it confidently.',
+			'',
+			`> ${input.decision.reason}`,
+			'',
+			telemetryBlock,
+			'',
+			'## What is already done',
+			'',
+			renderDeterministicOperations(deterministic?.operations ?? []),
+			'',
+			'## What still needs human review',
+			'',
+			'- Review residual behavior not covered by deterministic operations.',
+			`- Source context: ${input.context.sourceChange.pullRequest?.url ?? `\`${input.context.sourceChange.mergedCommitSha}\``}`,
+			'',
+			renderDeterministicWorkLog(deterministic),
+			'',
+			renderDiagnosticsBlockFromValidation(input.validation),
+			'',
+			'---',
+			`Ported by: [Repo Port Bot](${PORT_BOT_REPO_URL})`,
+		]
+			.filter(isDefinedLine)
+			.join('\n')
+	}
+
+	if (!input.execution) {
+		throw new Error('Execution result is required for agent PR framing modes.')
+	}
+
 	const sourcePullRequest = input.context.sourceChange.pullRequest
 	const sourceRepo = `${input.context.sourceRepo.owner}/${input.context.sourceRepo.name}`
 	const sourceRepoUrl = `https://github.com/${sourceRepo}`
@@ -549,13 +754,6 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		.join('\n')
 	const executionAttribution = renderExecutionAttribution(input.execution)
 	const sourceNarrative = `${sourceNarrativePrefix} ${executionAttribution}`
-	const telemetryBlock =
-		input.includeCostTelemetry === false
-			? undefined
-			: renderCostTelemetryDetails({
-					decisionTrace: input.decisionTrace,
-					execution: input.execution,
-				})
 
 	const noValidationConfigured = input.context.pluginConfig.validationCommands.length === 0
 
@@ -575,6 +773,14 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'',
 		'## What was ported',
 		'',
+		deterministic?.changed
+			? [
+					'### Deterministic baseline',
+					'',
+					renderDeterministicOperations(deterministic.operations),
+				].join('\n')
+			: undefined,
+		deterministic?.changed ? '' : undefined,
 		summaryParts.summary,
 		summaryParts.details,
 		'',
@@ -686,6 +892,22 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			const fileCount = input.context.sourceChange.files.length
 			const shape = `${String(fileCount)} file${fileCount === 1 ? '' : 's'}`
 
+			if (input.decision.kind === 'NEEDS_HUMAN') {
+				return [
+					buildSourceCommentMarker(input.context),
+					'',
+					supersededNote,
+					supersededNote ? '' : undefined,
+					`> [!WARNING]\n> Deterministic changes were delivered to ${prLink} (${shape}), but residual work still needs human review.`,
+					'>',
+					buildReasonDetails('What still needs review?'),
+					'',
+					telemetryBlock,
+				]
+					.filter(isDefinedLine)
+					.join('\n')
+			}
+
 			return [
 				buildSourceCommentMarker(input.context),
 				'',
@@ -711,6 +933,22 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			const fileCount = input.context.sourceChange.files.length
 			const shape = `${String(fileCount)} file${fileCount === 1 ? '' : 's'}`
 
+			if (input.decision.kind === 'NEEDS_HUMAN') {
+				return [
+					buildSourceCommentMarker(input.context),
+					'',
+					supersededNote,
+					supersededNote ? '' : undefined,
+					`> [!WARNING]\n> Deterministic changes were prepared (${shape}), but validation failed. Opened ${prLink}, and residual work still needs human review.`,
+					'>',
+					buildReasonDetails('What still needs review?'),
+					'',
+					telemetryBlock,
+				]
+					.filter(isDefinedLine)
+					.join('\n')
+			}
+
 			return [
 				buildSourceCommentMarker(input.context),
 				'',
@@ -726,6 +964,22 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				.join('\n')
 		}
 		case 'needs_human': {
+			if (input.targetPullRequestUrl) {
+				return [
+					buildSourceCommentMarker(input.context),
+					'',
+					supersededNote,
+					supersededNote ? '' : undefined,
+					`> [!WARNING]\n> Deterministic changes were delivered to ${input.targetPullRequestUrl}, but residual work still needs human review.`,
+					'>',
+					buildReasonDetails('What still needs review?'),
+					'',
+					telemetryBlock,
+				]
+					.filter(isDefinedLine)
+					.join('\n')
+			}
+
 			const issueLink = input.followUpIssueUrl
 				? `an issue: ${input.followUpIssueUrl}`
 				: `an issue in \`${targetRepo}\``

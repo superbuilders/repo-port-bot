@@ -1,4 +1,4 @@
-import { DECISION_HEURISTICS } from './heuristics.ts'
+import { DECISION_HEURISTICS, PRE_DETERMINISTIC_SKIP_HEURISTICS } from './heuristics.ts'
 
 import type { AgentMessage, AgentProvider, DecidePortResult, PortContext } from '../types.ts'
 
@@ -41,6 +41,34 @@ function classifyWithStub(): DecidePortResult {
 			events: [],
 		},
 	}
+}
+
+/**
+ * Run only the heuristics that must suppress the run before deterministic
+ * operations mutate the target checkout.
+ *
+ * @param context - Port run context.
+ * @returns Heuristic decision result when a pre-deterministic skip applies.
+ */
+export function decidePreDeterministicSkip(context: PortContext): DecidePortResult | undefined {
+	for (const heuristic of PRE_DETERMINISTIC_SKIP_HEURISTICS) {
+		const decision = heuristic(context)
+
+		if (decision) {
+			return {
+				outcome: decision,
+				trace: {
+					source: 'heuristic',
+					heuristicName: heuristic.name,
+					notes: decision.reason,
+					toolCallLog: [],
+					events: [],
+				},
+			}
+		}
+	}
+
+	return undefined
 }
 
 /**
@@ -92,6 +120,7 @@ export async function decide(
 		sourceWorkingDirectory: options.sourceWorkingDirectory,
 		diffFilePath: options.diffFilePath,
 		pluginConfig: context.pluginConfig,
+		deterministic: context.deterministic,
 		onMessage: options.onMessage,
 	})
 }

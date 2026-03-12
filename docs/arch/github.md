@@ -34,7 +34,7 @@ Files matching `ignorePatterns` from `port-bot.json` are filtered from the chang
 and stripped from the diff file before the decision and execution stages see them. The agent's
 system prompt also lists the ignore patterns so it won't treat missing ignored files as gaps
 to fill during exploration. When all files are filtered, the `checkNoRemainingFiles` heuristic
-returns `PORT_NOT_REQUIRED`.
+returns `NO_AGENT_PORT_NEEDED`.
 
 Source: GitHub REST API for file list + stats; `git diff` from source clone for diff content.
 
@@ -57,7 +57,14 @@ The engine looks for a supported config filename at the merged commit SHA in thi
 
 ## Writes (target repo)
 
-These happen after the agent has produced edits and validation has passed (or retries are exhausted).
+These happen after deterministic operations and (optionally) agent execution have been applied to the target working tree. The full artifact-selection logic is in [`state-machine.md`](state-machine.md).
+
+### Delivery diff scoping
+
+Before creating a branch or PR, the engine checks whether the target working tree actually has deliverable changes. The scope of this check depends on the delivery path:
+
+- **Deterministic-only** (`NO_AGENT_PORT_NEEDED` or `NEEDS_HUMAN` with deterministic changes): the diff check and staging are scoped to the specific paths reported as touched by deterministic operations. This prevents unrelated files (validation artifacts, coverage output) from leaking into the PR.
+- **Agent execution** (`PORT_REQUIRED`): the diff check is skipped entirely. The engine always attempts delivery because the agent may have created files via `Bash` that are not tracked in `execution.outcome.touchedFiles`. Staging uses `git add -A` to capture all working-tree changes. The internal `git diff --cached --quiet` check after staging still prevents empty commits.
 
 ### Branch creation and push
 
@@ -101,7 +108,7 @@ Port: <source PR title>
 
 Ported from [<source PR title>](url) (originally authored by @author) in [`<owner>/<repo>`](<repo url>). This port updated 2 files over 18.6s and was completed by [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) in a single attempt, using 5 tool calls.
 
-<details><summary>Cost & token usage</summary>
+<details><summary>Cost & Tokens</summary>
 
 - Decision: $0.12, 2.5k tokens
 - Execution: $1.34, 18.9k tokens across 2 attempts
@@ -156,7 +163,7 @@ Key design choices:
 - **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing without extra metadata interrupting the section
 - **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks, rendered in full (no truncation). The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
-- **Cost/token telemetry lives in a collapsed details block in the target PR** — reviewer-facing PRs still stay focused on rationale, changes, and validation by default, while maintainers can expand a compact `Cost & token usage` block when they want execution telemetry
+- **Cost/token telemetry lives in a collapsed details block in the target PR** — reviewer-facing PRs still stay focused on rationale, changes, and validation by default, while maintainers can expand a compact `Cost & Tokens` block when they want execution telemetry
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
 
 Detailed event logs and per-stage token/cost totals are surfaced in the **job summary** as nested collapsible "Log" sections inside the Decision and Execution blocks — see [observability.md](observability.md) for the layout. The target PR carries the same telemetry in a compact collapsed block so reviewers can inspect spend/usage without leaving GitHub.
@@ -172,16 +179,19 @@ For **multi-attempt runs** (stalled ports), the `Work Log` section uses per-atte
 
 **PR state:**
 
-| Outcome                        | PR state         | Labels                      |
-| ------------------------------ | ---------------- | --------------------------- |
-| Validations pass               | Ready for review | `auto-port`                 |
-| Validations fail after retries | Draft            | `auto-port`, `port-stalled` |
+| Outcome                                        | PR state         | Labels                      |
+| ---------------------------------------------- | ---------------- | --------------------------- |
+| Validations pass (agent or deterministic-only) | Ready for review | `auto-port`                 |
+| Validations fail after retries                 | Draft            | `auto-port`, `port-stalled` |
+| Deterministic changes + residual `NEEDS_HUMAN` | Ready for review | `auto-port`                 |
+
+See [`state-machine.md`](state-machine.md) for the full artifact-selection logic.
 
 Source: GitHub REST API (`POST /repos/{owner}/{repo}/pulls`).
 
-### Issue creation (NEEDS_HUMAN)
+### Issue creation (NEEDS_HUMAN, no deterministic changes)
 
-When the decision stage returns `NEEDS_HUMAN`, the engine opens or updates an issue in the target repo instead of attempting a port.
+When the residual classification returns `NEEDS_HUMAN` and no deterministic operations produced target-side changes, the engine opens or updates an issue in the target repo instead of attempting a port. When deterministic changes exist, the engine opens a PR instead (see PR creation above and [`state-machine.md`](state-machine.md)).
 
 - Tagged `needs-human`
 - Compact title: `Needs review: <source PR title (truncated to 60 chars)>`
@@ -247,7 +257,7 @@ Source changes affect shared API surface that exists in both repos.
 
 </details>
 
-<details><summary>Cost & token usage</summary>
+<details><summary>Cost & Tokens</summary>
 
 - Decision: $0.12, 2.5k tokens
 - Execution: $1.34, 18.9k tokens across 2 attempts
@@ -351,7 +361,7 @@ The action supports manual replay through `workflow_dispatch` using the existing
 
 ## Plain pushes (no PR)
 
-Currently the engine skips (`PORT_NOT_REQUIRED`) when a push event cannot be associated with a merged pull request. Without PR metadata the pipeline lacks a changed-file list, labels, and title/body context needed by heuristics, agent prompts, and delivery rendering.
+Currently the engine skips (`NO_AGENT_PORT_NEEDED`) when a push event cannot be associated with a merged pull request. Without PR metadata the pipeline lacks a changed-file list, labels, and title/body context needed by heuristics, agent prompts, and delivery rendering.
 
 Future work to support plain pushes:
 

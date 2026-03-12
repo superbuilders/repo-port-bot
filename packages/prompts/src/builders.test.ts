@@ -24,6 +24,7 @@ function makePluginConfig(overrides?: Partial<PluginConfig>): PluginConfig {
 		},
 		ignorePatterns: [],
 		validationCommands: ['bun run check'],
+		deterministicOperations: [],
 		pathMappings: {},
 		...overrides,
 	}
@@ -126,6 +127,28 @@ describe('buildSystemPrompt', () => {
 		expect(prompt).toContain('Source diff file')
 		expect(prompt).toContain('/tmp/source/port-diff.patch')
 	})
+
+	test('includes deterministic baseline when deterministic changes exist', () => {
+		const prompt = buildSystemPrompt({
+			pluginConfig: makePluginConfig(),
+			deterministic: {
+				changed: true,
+				operations: [
+					{
+						kind: 'sync',
+						source: 'tests/fixtures/**',
+						target: 'tests/fixtures/',
+						mode: 'mirror',
+					},
+				],
+				touchedFiles: ['tests/fixtures/example.json'],
+			},
+		})
+
+		expect(prompt).toContain('Deterministic baseline')
+		expect(prompt).toContain('authoritative baseline')
+		expect(prompt).toContain('`tests/fixtures/example.json`')
+	})
 })
 
 describe('buildUserPrompt', () => {
@@ -219,6 +242,27 @@ describe('buildDecideSystemPrompt', () => {
 
 		expect(prompt).toContain('excluded from porting scope')
 		expect(prompt).toContain('`.github/**`')
+	})
+
+	test('includes deterministic baseline for classification when deterministic changes exist', () => {
+		const prompt = buildDecideSystemPrompt({
+			pluginConfig: makePluginConfig(),
+			deterministic: {
+				changed: true,
+				operations: [
+					{
+						kind: 'sync',
+						source: 'tests/manifest.json',
+						target: 'tests/manifest.json',
+						mode: 'copy',
+					},
+				],
+				touchedFiles: ['tests/manifest.json'],
+			},
+		})
+
+		expect(prompt).toContain('Deterministic baseline')
+		expect(prompt).toContain('[copy] `tests/manifest.json` -> `tests/manifest.json`')
 	})
 })
 

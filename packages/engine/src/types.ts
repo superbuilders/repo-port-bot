@@ -10,10 +10,10 @@
  * Supported outcome from the decision stage.
  *
  * - `PORT_REQUIRED`: proceed to execution
- * - `PORT_NOT_REQUIRED`: skip with explanation
+ * - `NO_AGENT_PORT_NEEDED`: skip with explanation
  * - `NEEDS_HUMAN`: agent cannot safely decide; request maintainer input
  */
-export type PortDecisionKind = 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED' | 'NEEDS_HUMAN'
+export type PortDecisionKind = 'PORT_REQUIRED' | 'NO_AGENT_PORT_NEEDED' | 'NEEDS_HUMAN'
 
 /**
  * Allowed git-style file change statuses used in diff metadata.
@@ -163,6 +163,11 @@ export interface PluginConfig {
 	validationCommands: string[]
 
 	/**
+	 * Deterministic sync operations applied before classification.
+	 */
+	deterministicOperations: DeterministicOperation[]
+
+	/**
 	 * Source-to-target path mapping hints used by the agent.
 	 */
 	pathMappings: Record<string, string>
@@ -176,6 +181,59 @@ export interface PluginConfig {
 	 * Optional extra instructions injected into the agent prompt.
 	 */
 	prompt?: string
+}
+
+/**
+ * File sync operation: mirror a directory or copy a single file.
+ */
+export interface SyncOperation {
+	/**
+	 * Discriminant tag for the deterministic operation union.
+	 */
+	kind: 'sync'
+
+	/**
+	 * Sync mode.
+	 */
+	mode: 'mirror' | 'copy'
+
+	/**
+	 * Source-repo path or glob configured for this operation.
+	 */
+	source: string
+
+	/**
+	 * Target-repo path receiving the deterministic change.
+	 */
+	target: string
+}
+
+/**
+ * Tagged union of all deterministic operation kinds.
+ *
+ * Each variant has a `kind` discriminant. The executor dispatches on `kind`.
+ * New operation kinds are added as union members here.
+ */
+export type DeterministicOperation = SyncOperation
+
+/**
+ * Result of the deterministic pre-classification phase.
+ */
+export interface DeterministicPhaseResult {
+	/**
+	 * Whether deterministic operations changed the target working tree.
+	 */
+	changed: boolean
+
+	/**
+	 * Operations evaluated/applied during this phase.
+	 */
+	operations: DeterministicOperation[]
+
+	/**
+	 * Target files touched by deterministic operations.
+	 */
+	touchedFiles: string[]
 }
 
 /**
@@ -226,6 +284,11 @@ export interface PortContext {
 	 * Optional metadata describing files removed by ignore filtering.
 	 */
 	filtering?: FilteringMetadata
+
+	/**
+	 * Result of deterministic operations that ran before classification.
+	 */
+	deterministic?: DeterministicPhaseResult
 }
 
 /**
@@ -457,6 +520,11 @@ export interface DecidePortInput {
 	pluginConfig: PluginConfig
 
 	/**
+	 * Deterministic baseline already applied to the target working tree.
+	 */
+	deterministic?: DeterministicPhaseResult
+
+	/**
 	 * Optional callback for streaming provider messages during classification.
 	 */
 	onMessage?: (message: AgentMessage) => void
@@ -529,6 +597,11 @@ export interface ExecutePortAttemptInput {
 	 * Resolved plugin config (path mappings, conventions, prompt).
 	 */
 	pluginConfig: PluginConfig
+
+	/**
+	 * Deterministic baseline already applied to the target working tree.
+	 */
+	deterministic?: DeterministicPhaseResult
 
 	/**
 	 * Previous attempt results provided on retries so the agent can learn
@@ -1059,12 +1132,20 @@ export interface ExecutePortResult {
 // ---------------------------------------------------------------------------
 
 /**
+ * Function type for running shell commands with captured output.
+ */
+export type CommandRunner = (input: {
+	command: string[]
+	workingDirectory: string
+}) => Promise<{ exitCode: number; stderr: string; stdout: string }>
+
+/**
  * Terminal outcome from the delivery stage before mapping to `PortRunOutcome`.
  *
  * - `pr_opened`: target PR created and ready for review
  * - `draft_pr_opened`: target draft PR created (validation failed after retries)
  * - `needs_human`: follow-up issue created in target repo
- * - `skipped`: no delivery performed (PORT_NOT_REQUIRED)
+ * - `skipped`: no delivery performed (NO_AGENT_PORT_NEEDED)
  */
 export type DeliveryOutcome = 'pr_opened' | 'draft_pr_opened' | 'needs_human' | 'skipped'
 
@@ -1087,6 +1168,15 @@ export interface DeliveryResult {
 	 */
 	followUpIssueUrl?: string
 }
+
+/**
+ * Reviewer-facing framing mode used to render target PR content.
+ */
+export type PrFramingMode =
+	| 'deterministic_only'
+	| 'residual_handoff'
+	| 'agent_success'
+	| 'agent_stalled'
 
 // ---------------------------------------------------------------------------
 // Pipeline result
@@ -1158,6 +1248,7 @@ export interface PortRunResult {
 	stageTimings?: {
 		contextMs?: number
 		configMs?: number
+		deterministicMs?: number
 		decisionMs?: number
 		executeMs?: number
 		deliverMs?: number

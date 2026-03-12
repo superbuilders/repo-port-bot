@@ -66,6 +66,7 @@ At `info` level, `runPort` emits one log line per stage transition so the Action
 ```
 [port-bot] run=<runId> stage=context source=acme/source-repo pr=42 files=5 contextMs=12
 [port-bot] run=<runId> stage=config target=acme/target-repo configMs=3
+[port-bot] run=<runId> stage=deterministic ops=2 changed=yes deterministicMs=150
 [port-bot] run=<runId> stage=decision kind=PORT_REQUIRED decisionMs=4500
 [port-bot] run=<runId> stage=execute tool=Read file=src/example.ts
 [port-bot] run=<runId> stage=execute tool=Edit file=src/ported.ts
@@ -75,6 +76,8 @@ At `info` level, `runPort` emits one log line per stage transition so the Action
 [port-bot] run=<runId> stage=notify outcome=pr_opened notifyMs=850
 [port-bot] run=<runId> stage=outcome outcome=pr_opened durationMs=7800
 ```
+
+The `stage=deterministic` line appears between config and decision. When no deterministic operations are configured, the line is omitted. When configured but no changes are produced, `changed=no`.
 
 At `debug` level, each stage additionally logs structured detail: full file lists, resolved config, classifier reasoning, validation stdout/stderr per command, delivery git operations, agent thinking blocks, and per-tool-call durations.
 
@@ -102,12 +105,15 @@ Typical collapsed view:
 ```
 > Context: acme/source-repo PR #42 (5 files)
 > Config: target=acme/target-repo
+> Deterministic: ops=2 changed=yes
 > Decision: PORT_REQUIRED
 > Attempt 1/3
 > Deliver: pr_opened
 > Notify: source PR comment
 [port-bot] run=<runId> stage=outcome outcome=pr_opened durationMs=7800
 ```
+
+The `Deterministic` group appears between Config and Decision when deterministic operations are configured. When no deterministic operations are configured, this group is omitted.
 
 Notes:
 
@@ -122,9 +128,9 @@ The action writes a summary via `core.summary` with a clean layout:
 - **H1**: source PR title (e.g. `# Port: Add formatting/date helpers`)
 - **One-liner**: outcome with linked target PR (e.g. `Ported to [target-repo#6](url)`)
 - **Timing table**: horizontal stage breakdown showing where time was spent
-- **Collapsible Decision** (`<n> tool calls · <duration> · $<cost> · <tokens> tokens`): decision kind, reason, heuristic name when applicable. When the classifier ran, a nested collapsible **Log** shows the humanized event trace.
-- **Collapsible Execution** (`<n> tool calls · <duration> · $<cost> · <tokens> tokens`): model, artifact name, run ID. A nested collapsible **Log** shows the humanized execution event trace. For multi-attempt runs, per-attempt headings (`### Attempt 1`, etc.) inside the log.
-- **Totals line**: aggregate decision + execution cost and token totals for the full run
+- **Collapsible Decision** (`<n> tool calls · <duration> · $<cost> · <tokens> input/output tokens`): decision kind, reason, heuristic name when applicable. When the classifier ran, a nested collapsible **Log** shows the humanized event trace.
+- **Collapsible Execution** (`<n> tool calls · <duration> · $<cost> · <tokens> input/output tokens`): model, artifact name, run ID. A nested collapsible **Log** shows the humanized execution event trace. For multi-attempt runs, per-attempt headings (`### Attempt 1`, etc.) inside the log.
+- **Totals line**: aggregate decision + execution cost plus input/output token totals for the full run
 
 The Decision and Execution sections are grouped by stage so the summary reads top-to-bottom: decision facts + decision log, then execution facts + execution log. Tool call counts, duration, and cost/token totals appear on the parent label; the nested log just contains the event narrative.
 
@@ -136,7 +142,9 @@ Both logs use the same humanization:
 
 The Decision log is only shown when the classifier ran (not for heuristic decisions). When no execution happens (skipped or needs-human outcomes), the summary still includes an `Execution` section with run metadata and a `No execution (skipped or needs-human)` note; only the nested execution log is absent.
 
-This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log, while keeping the target PR and source PR comment telemetry compact via matching `Cost & token usage` details blocks.
+This gives the maintainer a glanceable dashboard directly in the Actions UI without expanding the full log, while keeping the target PR and source PR comment telemetry compact via matching `Cost & Tokens` details blocks.
+
+The user-facing telemetry labels intentionally keep the heading simple (`Cost & Tokens`) while the numeric token totals reflect only `input_tokens + output_tokens`. Cache creation/read tokens remain part of the raw telemetry and cost accounting, but are excluded from the displayed token counts so the summary better matches maintainer intuition when prompt caching is active.
 
 The summary-level telemetry is gated by the action input `include-cost-telemetry` (default `true`). When disabled, the cost/token labels and totals line are omitted from the rendered summary while the rest of the observability layout remains unchanged.
 

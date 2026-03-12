@@ -14,8 +14,15 @@ export interface PortBotJsonConventions {
 	naming?: string
 }
 
+export interface PortBotJsonSyncEntry {
+	source: string
+	target: string
+	mode: 'mirror' | 'copy'
+}
+
 export interface PortBotJsonConfig {
 	target?: string
+	sync?: PortBotJsonSyncEntry[]
 	ignore?: string[]
 	validation?: string[]
 	mapping?: Record<string, string>

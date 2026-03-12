@@ -22,6 +22,7 @@ function makePluginConfig(): PluginConfig {
 		},
 		ignorePatterns: [],
 		validationCommands: ['bun run check'],
+		deterministicOperations: [],
 		pathMappings: {
 			'src/': 'src/',
 		},
@@ -110,7 +111,7 @@ describe('ClaudeAgentProvider', () => {
 			pluginConfig: makePluginConfig(),
 		})
 
-		expect(output.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(output.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 		expect(output.outcome.reason).toBe('No matching target module to port.')
 		expect(output.trace.toolCallLog).toEqual([])
 		expect(output.trace.costUsd).toBe(DECISION_COST_USD)

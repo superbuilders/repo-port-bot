@@ -1,5 +1,6 @@
 import type {
 	ChangedFile,
+	DeterministicPhaseResult,
 	ExecutePortAttemptResult,
 	PluginConfig,
 	ValidationCommandResult,
@@ -97,6 +98,46 @@ export function renderDiffFileSection(diffFilePath?: string): string | undefined
 	}
 
 	return `Source diff file:\n- \`${diffFilePath}\``
+}
+
+/**
+ * Render deterministic baseline context for classification/execution prompts.
+ *
+ * @param deterministic - Deterministic phase result.
+ * @returns Section or undefined when no deterministic changes were applied.
+ */
+export function renderDeterministicContext(
+	deterministic?: DeterministicPhaseResult,
+): string | undefined {
+	if (!deterministic?.changed) {
+		return undefined
+	}
+
+	const operationLines = deterministic.operations.map(
+		(operation: DeterministicPhaseResult['operations'][number]) => {
+			switch (operation.kind) {
+				case 'sync': {
+					return `- [${operation.mode}] \`${operation.source}\` -> \`${operation.target}\``
+				}
+				default: {
+					return `- [${operation.kind}]`
+				}
+			}
+		},
+	)
+	const touchedFileLines = deterministic.touchedFiles.map((path: string) => `- \`${path}\``)
+
+	return [
+		'Deterministic baseline:',
+		'- The engine has already applied deterministic operations to the target working tree.',
+		'- Treat those changes as the authoritative baseline. Do not revert or duplicate them unless the source change requires it.',
+		`- Applied operations: ${String(deterministic.operations.length)}`,
+		'',
+		...operationLines,
+		'',
+		'Touched target files:',
+		...touchedFileLines,
+	].join('\n')
 }
 
 /**

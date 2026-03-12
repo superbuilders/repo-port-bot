@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { decide } from './decide.ts'
+import { decide, decidePreDeterministicSkip } from './decide.ts'
 
 import type {
 	AgentProvider,
@@ -29,6 +29,7 @@ const BASE_PLUGIN_CONFIG: PluginConfig = {
 	targetRepo: TARGET_REPO,
 	ignorePatterns: [],
 	validationCommands: ['bun run check'],
+	deterministicOperations: [],
 	pathMappings: {},
 }
 
@@ -86,7 +87,7 @@ function makeContext(input: {
 }
 
 describe('decide', () => {
-	test('returns PORT_NOT_REQUIRED when no changed files remain', async () => {
+	test('returns NO_AGENT_PORT_NEEDED when no changed files remain', async () => {
 		const context = makeContext({
 			files: [],
 			filtering: {
@@ -97,7 +98,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 		expect(result.trace.source).toBe('heuristic')
 		expect(result.trace.heuristicName).toBe('checkNoRemainingFiles')
 		expect(result.outcome.reason).toBe(
@@ -105,42 +106,45 @@ describe('decide', () => {
 		)
 	})
 
-	test('returns PORT_NOT_REQUIRED when pull request metadata is missing', async () => {
+	test('returns NO_AGENT_PORT_NEEDED when pull request metadata is missing (pre-deterministic)', () => {
 		const context = makeContext({
 			pullRequest: null,
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
 		})
 
-		const result = await decide(context)
+		const result = decidePreDeterministicSkip(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
-		expect(result.trace.source).toBe('heuristic')
+		expect(result).toBeDefined()
+		expect(result!.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
+		expect(result!.trace.source).toBe('heuristic')
 	})
 
-	test('returns PORT_NOT_REQUIRED for auto-port label (loop prevention)', async () => {
+	test('returns NO_AGENT_PORT_NEEDED for auto-port label (pre-deterministic)', () => {
 		const context = makeContext({
 			labels: ['auto-port'],
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
 		})
 
-		const result = await decide(context)
+		const result = decidePreDeterministicSkip(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
-		expect(result.trace.heuristicName).toBe('checkLoopPrevention')
+		expect(result).toBeDefined()
+		expect(result!.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
+		expect(result!.trace.heuristicName).toBe('checkLoopPrevention')
 	})
 
-	test('returns PORT_NOT_REQUIRED for no-port label', async () => {
+	test('returns NO_AGENT_PORT_NEEDED for no-port label (pre-deterministic)', () => {
 		const context = makeContext({
 			labels: ['no-port'],
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
 		})
 
-		const result = await decide(context)
+		const result = decidePreDeterministicSkip(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result).toBeDefined()
+		expect(result!.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 	})
 
-	test('returns PORT_NOT_REQUIRED for docs-only changes', async () => {
+	test('returns NO_AGENT_PORT_NEEDED for docs-only changes', async () => {
 		const context = makeContext({
 			labels: [],
 			files: [
@@ -151,7 +155,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 	})
 
 	test('includes filtering context in docs-only skip reason', async () => {
@@ -166,14 +170,14 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 		expect(result.trace.heuristicName).toBe('checkDocsOnly')
 		expect(result.outcome.reason).toBe(
 			'10 of 11 files excluded by ignore patterns. Remaining files are documentation-only.',
 		)
 	})
 
-	test('returns PORT_NOT_REQUIRED for docs under dot-prefixed directories', async () => {
+	test('returns NO_AGENT_PORT_NEEDED for docs under dot-prefixed directories', async () => {
 		const context = makeContext({
 			labels: [],
 			files: [
@@ -194,7 +198,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 		expect(result.trace.heuristicName).toBe('checkDocsOnly')
 	})
 
@@ -214,11 +218,11 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 		expect(result.trace.heuristicName).toBe('checkDocsOnly')
 	})
 
-	test('returns PORT_NOT_REQUIRED for config-only changes', async () => {
+	test('returns NO_AGENT_PORT_NEEDED for config-only changes', async () => {
 		const context = makeContext({
 			labels: [],
 			files: [
@@ -234,7 +238,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 	})
 
 	test('includes filtering context in config-only skip reason', async () => {
@@ -256,7 +260,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 		expect(result.trace.heuristicName).toBe('checkConfigOnly')
 		expect(result.outcome.reason).toBe(
 			'10 of 11 files excluded by ignore patterns. Remaining files are config-only or explicitly ignored.',
@@ -278,7 +282,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 		expect(result.trace.heuristicName).toBe('checkConfigOnly')
 	})
 
@@ -293,7 +297,7 @@ describe('decide', () => {
 
 		const result = await decide(context)
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 	})
 
 	test('falls through to conservative fallback for mixed changes without classifier', async () => {
@@ -323,7 +327,7 @@ describe('decide', () => {
 			async decidePort() {
 				return {
 					outcome: {
-						kind: 'PORT_NOT_REQUIRED',
+						kind: 'NO_AGENT_PORT_NEEDED',
 						reason: 'No equivalent target code exists for these changes.',
 					},
 					trace: {
@@ -343,7 +347,7 @@ describe('decide', () => {
 			targetWorkingDirectory: '/tmp/target',
 		})
 
-		expect(result.outcome.kind).toBe('PORT_NOT_REQUIRED')
+		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 		expect(result.outcome.reason).toContain('No equivalent target code exists')
 		expect(result.trace.source).toBe('classifier')
 	})

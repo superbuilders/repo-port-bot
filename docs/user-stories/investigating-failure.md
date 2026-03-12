@@ -56,7 +56,7 @@ Define what a productive debugging session looks like. The maintainer should be 
 ### Layer 3: Structured logs (minutes)
 
 5. **Maintainer expands the Actions log**
-    - The log is organized into collapsible groups: Context, Config, Decision, Attempt 1/3, Attempt 2/3, Deliver, Notify.
+    - The log is organized into collapsible groups: Context, Config, Deterministic (when configured), Decision, Attempt 1/3, Attempt 2/3, Deliver, Notify.
     - At `info` level, each group contains stage transition lines with key metrics:
         - `[port-bot] run=<id> stage=execute attempt=1/3 touched=3 validation=fail durationMs=4200`
         - `[port-bot] run=<id> stage=execute tool=Read file=src/example.ts`

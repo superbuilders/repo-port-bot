@@ -43,7 +43,7 @@ function skipReason(context: PortContext, baseReason: string, filteredReason: st
  * Skip when no changed files remain after pipeline-level filtering.
  *
  * @param context - Decision context.
- * @returns `PORT_NOT_REQUIRED` when there are no changed files to evaluate.
+ * @returns `NO_AGENT_PORT_NEEDED` when there are no changed files to evaluate.
  */
 function checkNoRemainingFiles(context: PortContext): PortDecision | null {
 	if (context.sourceChange.files.length === 0) {
@@ -54,7 +54,7 @@ function checkNoRemainingFiles(context: PortContext): PortDecision | null {
 				: 'Skipping because no changed files remain after ignore filtering.'
 
 		return {
-			kind: 'PORT_NOT_REQUIRED',
+			kind: 'NO_AGENT_PORT_NEEDED',
 			reason,
 		}
 	}
@@ -70,12 +70,12 @@ function checkNoRemainingFiles(context: PortContext): PortDecision | null {
  * safest default is to skip silently.
  *
  * @param context - Decision context.
- * @returns `PORT_NOT_REQUIRED` when pull request metadata is missing.
+ * @returns `NO_AGENT_PORT_NEEDED` when pull request metadata is missing.
  */
 function checkMissingPullRequest(context: PortContext): PortDecision | null {
 	if (!context.sourceChange.pullRequest) {
 		return {
-			kind: 'PORT_NOT_REQUIRED',
+			kind: 'NO_AGENT_PORT_NEEDED',
 			reason: 'Skipping because the push has no associated pull request (plain push).',
 		}
 	}
@@ -87,7 +87,7 @@ function checkMissingPullRequest(context: PortContext): PortDecision | null {
  * Check loop-prevention signals that indicate this is already a bot-generated port.
  *
  * @param context - Decision context.
- * @returns `PORT_NOT_REQUIRED` when loop-prevention signal is present.
+ * @returns `NO_AGENT_PORT_NEEDED` when loop-prevention signal is present.
  */
 function checkLoopPrevention(context: PortContext): PortDecision | null {
 	const labels = context.sourceChange.pullRequest?.labels ?? []
@@ -96,7 +96,7 @@ function checkLoopPrevention(context: PortContext): PortDecision | null {
 
 	if (hasAutoPortLabel) {
 		return {
-			kind: 'PORT_NOT_REQUIRED',
+			kind: 'NO_AGENT_PORT_NEEDED',
 			reason: 'Skipping because source PR is labeled auto-port (loop prevention).',
 		}
 	}
@@ -108,7 +108,7 @@ function checkLoopPrevention(context: PortContext): PortDecision | null {
  * Check explicit `no-port` label override.
  *
  * @param context - Decision context.
- * @returns `PORT_NOT_REQUIRED` when no-port label is set.
+ * @returns `NO_AGENT_PORT_NEEDED` when no-port label is set.
  */
 function checkNoPortLabel(context: PortContext): PortDecision | null {
 	const labels = context.sourceChange.pullRequest?.labels ?? []
@@ -117,7 +117,7 @@ function checkNoPortLabel(context: PortContext): PortDecision | null {
 
 	if (hasNoPortLabel) {
 		return {
-			kind: 'PORT_NOT_REQUIRED',
+			kind: 'NO_AGENT_PORT_NEEDED',
 			reason: 'Skipping because source PR is labeled no-port.',
 		}
 	}
@@ -139,7 +139,7 @@ function isDocumentationPath(path: string): boolean {
  * Check whether every changed file is docs-only.
  *
  * @param context - Decision context.
- * @returns `PORT_NOT_REQUIRED` when all files are documentation.
+ * @returns `NO_AGENT_PORT_NEEDED` when all files are documentation.
  */
 function checkDocsOnly(context: PortContext): PortDecision | null {
 	const files = context.sourceChange.files
@@ -154,7 +154,7 @@ function checkDocsOnly(context: PortContext): PortDecision | null {
 
 	if (docsOnly) {
 		return {
-			kind: 'PORT_NOT_REQUIRED',
+			kind: 'NO_AGENT_PORT_NEEDED',
 			reason: skipReason(
 				context,
 				'Skipping because all changed files are documentation-only.',
@@ -205,7 +205,7 @@ function isConfigPath(path: string): boolean {
  * Check whether every changed file is config-only or explicitly ignored.
  *
  * @param context - Decision context.
- * @returns `PORT_NOT_REQUIRED` when all files are config/ignorable.
+ * @returns `NO_AGENT_PORT_NEEDED` when all files are config/ignorable.
  */
 function checkConfigOnly(context: PortContext): PortDecision | null {
 	const files = context.sourceChange.files
@@ -221,7 +221,7 @@ function checkConfigOnly(context: PortContext): PortDecision | null {
 
 	if (configOnly) {
 		return {
-			kind: 'PORT_NOT_REQUIRED',
+			kind: 'NO_AGENT_PORT_NEEDED',
 			reason: skipReason(
 				context,
 				'Skipping because all changed files are config-only or explicitly ignored.',
@@ -234,12 +234,25 @@ function checkConfigOnly(context: PortContext): PortDecision | null {
 }
 
 /**
- * Ordered list of fast heuristics for the decision stage.
+ * Ordered list of heuristics that must suppress the run before any deterministic
+ * target mutation happens.
+ *
+ * These are global skip/loop-prevention signals, not residual-work decisions.
  */
-export const DECISION_HEURISTICS: DecisionHeuristic[] = [
+export const PRE_DETERMINISTIC_SKIP_HEURISTICS: DecisionHeuristic[] = [
 	checkMissingPullRequest,
 	checkLoopPrevention,
 	checkNoPortLabel,
+]
+
+/**
+ * Ordered list of fast heuristics for the decision stage.
+ *
+ * Pre-deterministic skip heuristics are intentionally excluded here because
+ * `decidePreDeterministicSkip` already runs them earlier in the pipeline.
+ * Including them would cause redundant evaluation.
+ */
+export const DECISION_HEURISTICS: DecisionHeuristic[] = [
 	checkDocsOnly,
 	checkConfigOnly,
 	checkNoRemainingFiles,
