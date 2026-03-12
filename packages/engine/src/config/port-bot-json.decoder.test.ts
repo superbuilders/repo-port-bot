@@ -8,6 +8,13 @@ describe('portBotJson decoder', () => {
 			target: 'acme/target-repo',
 			ignore: ['docs/**'],
 			validation: ['bun run check'],
+			sync: [
+				{
+					source: 'tests/fixtures/**',
+					target: 'tests/fixtures/',
+					mode: 'mirror',
+				},
+			],
 			mapping: {
 				'src/': 'pkg/',
 			},
@@ -18,6 +25,13 @@ describe('portBotJson decoder', () => {
 		})
 
 		expect(result.target).toBe('acme/target-repo')
+		expect(result.sync).toEqual([
+			{
+				source: 'tests/fixtures/**',
+				target: 'tests/fixtures/',
+				mode: 'mirror',
+			},
+		])
 		expect(result.mapping?.['src/']).toBe('pkg/')
 	})
 
@@ -45,5 +59,19 @@ describe('portBotJson decoder', () => {
 		expect(() => {
 			parseAndDecodePortBotJson('{invalid-json')
 		}).toThrow('Invalid port-bot.json content. Expected valid JSON.')
+	})
+
+	test('throws on invalid sync mode', () => {
+		expect(() => {
+			decodePortBotJson({
+				sync: [
+					{
+						source: 'tests/fixtures/**',
+						target: 'tests/fixtures/',
+						mode: 'rename',
+					},
+				],
+			})
+		}).toThrow()
 	})
 })

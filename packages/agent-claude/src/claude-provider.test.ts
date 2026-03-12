@@ -22,6 +22,7 @@ function makePluginConfig(): PluginConfig {
 		},
 		ignorePatterns: [],
 		validationCommands: ['bun run check'],
+		deterministicOperations: [],
 		pathMappings: {
 			'src/': 'src/',
 		},

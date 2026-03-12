@@ -1,4 +1,4 @@
-import { array, object, optional, record, string } from 'decoders'
+import { array, constant, either, object, optional, record, string } from 'decoders'
 
 import type { PortBotJsonConfig } from './types.ts'
 
@@ -6,8 +6,15 @@ const portBotJsonConventionsDecoder = object({
 	naming: optional(string),
 })
 
+const portBotJsonSyncEntryDecoder = object({
+	source: string,
+	target: string,
+	mode: either(constant('mirror'), constant('copy')),
+})
+
 const portBotJsonConfigDecoder = object({
 	target: optional(string),
+	sync: optional(array(portBotJsonSyncEntryDecoder)),
 	ignore: optional(array(string)),
 	validation: optional(array(string)),
 	mapping: optional(record(string)),

@@ -68,6 +68,7 @@ function makeContext(validationCommands: string[]): PortContext {
 			targetRepo: TARGET_REPO,
 			ignorePatterns: [],
 			validationCommands,
+			deterministicOperations: [],
 			pathMappings: {},
 		},
 	}

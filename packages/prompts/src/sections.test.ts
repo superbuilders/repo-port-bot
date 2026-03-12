@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import {
 	renderAdditionalInstructions,
 	renderChangedFiles,
+	renderDeterministicContext,
 	renderDiffFileSection,
 	renderIgnorePatterns,
 	renderNamingConventions,
@@ -22,6 +23,7 @@ function makeConfig(overrides?: Partial<PluginConfig>): PluginConfig {
 		targetRepo: { owner: 'acme', name: 'target', defaultBranch: 'main' },
 		ignorePatterns: [],
 		validationCommands: [],
+		deterministicOperations: [],
 		pathMappings: {},
 		...overrides,
 	}
@@ -109,6 +111,38 @@ describe('renderDiffFileSection', () => {
 
 	test('renders path', () => {
 		expect(renderDiffFileSection('/tmp/diff.patch')).toContain('/tmp/diff.patch')
+	})
+})
+
+describe('renderDeterministicContext', () => {
+	test('returns undefined when no deterministic changes were applied', () => {
+		expect(
+			renderDeterministicContext({
+				changed: false,
+				operations: [],
+				touchedFiles: [],
+			}),
+		).toBeUndefined()
+	})
+
+	test('renders deterministic operations and touched files', () => {
+		const result = renderDeterministicContext({
+			changed: true,
+			operations: [
+				{
+					kind: 'sync',
+					source: 'tests/fixtures/**',
+					target: 'tests/fixtures/',
+					mode: 'mirror',
+				},
+			],
+			touchedFiles: ['tests/fixtures/example.json'],
+		})
+
+		expect(result).toContain('Deterministic baseline')
+		expect(result).toContain('authoritative baseline')
+		expect(result).toContain('[mirror] `tests/fixtures/**` -> `tests/fixtures/`')
+		expect(result).toContain('`tests/fixtures/example.json`')
 	})
 })
 

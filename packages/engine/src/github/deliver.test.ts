@@ -56,6 +56,7 @@ function makeContext(): PortContext {
 			targetRepo: TARGET_REPO,
 			ignorePatterns: [],
 			validationCommands: ['bun run check'],
+			deterministicOperations: [],
 			pathMappings: {},
 		},
 		deterministic: {
@@ -77,6 +78,7 @@ function makeDeterministic(changed: boolean): DeterministicPhaseResult {
 		changed,
 		operations: [
 			{
+				kind: 'sync',
 				mode: 'mirror',
 				source: 'tests/fixtures/**',
 				target: 'tests/fixtures/',
@@ -341,10 +343,6 @@ describe('deliverResult', () => {
 			runCommand: async ({ command }) => {
 				commandCalls.push(command)
 
-				if (command.join(' ') === 'git diff --quiet') {
-					return { exitCode: 1, stdout: '', stderr: '' }
-				}
-
 				if (command.join(' ') === 'git diff --cached --quiet') {
 					return { exitCode: 1, stdout: '', stderr: '' }
 				}
@@ -358,7 +356,6 @@ describe('deliverResult', () => {
 		expect((createPrCalls[0] as { draft: boolean }).draft).toBe(false)
 		expect((addLabelsCalls[0] as { labels: string[] }).labels).toEqual(['auto-port'])
 		expect(commandCalls.map(call => call.join(' '))).toEqual([
-			'git diff --quiet',
 			'git checkout -b port/source-repo/42-abc1234',
 			'git add -A',
 			'git diff --cached --quiet',
@@ -378,10 +375,6 @@ describe('deliverResult', () => {
 			execution: makeExecution(false),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
-				if (command.join(' ') === 'git diff --quiet') {
-					return { exitCode: 1, stdout: '', stderr: '' }
-				}
-
 				if (command.join(' ') === 'git diff --cached --quiet') {
 					return { exitCode: 1, stdout: '', stderr: '' }
 				}
@@ -412,8 +405,8 @@ describe('deliverResult', () => {
 			validation: makeValidation(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
-				if (command.join(' ') === 'git diff --quiet') {
-					return { exitCode: 1, stdout: '', stderr: '' }
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '?? tests/fixtures/example.json\n', stderr: '' }
 				}
 
 				if (command.join(' ') === 'git diff --cached --quiet') {
@@ -445,8 +438,8 @@ describe('deliverResult', () => {
 			validation: makeValidation(false),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
-				if (command.join(' ') === 'git diff --quiet') {
-					return { exitCode: 1, stdout: '', stderr: '' }
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '?? tests/fixtures/example.json\n', stderr: '' }
 				}
 
 				if (command.join(' ') === 'git diff --cached --quiet') {
@@ -480,8 +473,8 @@ describe('deliverResult', () => {
 			validation: makeValidation(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
-				if (command.join(' ') === 'git diff --quiet') {
-					return { exitCode: 1, stdout: '', stderr: '' }
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '?? tests/fixtures/example.json\n', stderr: '' }
 				}
 
 				if (command.join(' ') === 'git diff --cached --quiet') {
@@ -512,8 +505,8 @@ describe('deliverResult', () => {
 			validation: makeValidation(false),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
-				if (command.join(' ') === 'git diff --quiet') {
-					return { exitCode: 1, stdout: '', stderr: '' }
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '?? tests/fixtures/example.json\n', stderr: '' }
 				}
 
 				if (command.join(' ') === 'git diff --cached --quiet') {
@@ -543,11 +536,7 @@ describe('deliverResult', () => {
 			validation: makeValidation(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
-				if (command.join(' ') === 'git diff --quiet') {
-					return { exitCode: 0, stdout: '', stderr: '' }
-				}
-
-				if (command.join(' ') === 'git diff --cached --quiet') {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
 					return { exitCode: 0, stdout: '', stderr: '' }
 				}
 
@@ -590,10 +579,6 @@ describe('deliverResult', () => {
 			execution: makeExecution(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
-				if (command.join(' ') === 'git diff --quiet') {
-					return { exitCode: 1, stdout: '', stderr: '' }
-				}
-
 				if (command.join(' ') === 'git diff --cached --quiet') {
 					return { exitCode: 1, stdout: '', stderr: '' }
 				}
@@ -611,6 +596,66 @@ describe('deliverResult', () => {
 		expect((updatePrCalls[0] as { pullNumber: number }).pullNumber).toBe(
 			EXISTING_PORT_PR_NUMBER,
 		)
+	})
+
+	test('treats untracked files as target-side diff for deterministic-only delivery', async () => {
+		const { writer, createPrCalls } = createWriterFake()
+		const context = makeContext()
+
+		context.deterministic = makeDeterministic(true)
+
+		const result = await deliverResult({
+			writer,
+			context,
+			deterministic: context.deterministic,
+			decision: makeDecision('PORT_NOT_REQUIRED'),
+			validation: makeValidation(true),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return {
+						exitCode: 0,
+						stdout: '?? tests/fixtures/first-sync.json\n',
+						stderr: '',
+					}
+				}
+
+				if (command.join(' ') === 'git diff --cached --quiet') {
+					return { exitCode: 1, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(result.outcome).toBe('pr_opened')
+		expect(createPrCalls).toHaveLength(1)
+	})
+
+	test('ignores unrelated untracked files outside touched paths', async () => {
+		const { writer, createPrCalls } = createWriterFake()
+		const context = makeContext()
+
+		context.deterministic = makeDeterministic(true)
+
+		const result = await deliverResult({
+			writer,
+			context,
+			deterministic: context.deterministic,
+			decision: makeDecision('PORT_NOT_REQUIRED'),
+			validation: makeValidation(true),
+			targetWorkingDirectory: '/tmp/target-repo',
+			runCommand: async ({ command }) => {
+				if (command.join(' ') === 'git status --short -- tests/fixtures/example.json') {
+					return { exitCode: 0, stdout: '', stderr: '' }
+				}
+
+				return { exitCode: 0, stdout: '', stderr: '' }
+			},
+		})
+
+		expect(result).toEqual({ outcome: 'skipped' })
+		expect(createPrCalls).toEqual([])
 	})
 
 	test('throws when PORT_REQUIRED is delivered without execution result', async () => {

@@ -238,39 +238,45 @@ function renderDiagnosticsBlockFromValidation(validation?: ValidationCommandResu
 }
 
 /**
- * Render deterministic operations grouped by mode.
+ * Render deterministic operations grouped by kind and mode.
  *
  * @param operations - Deterministic operations list.
  * @returns Grouped markdown.
  */
 function renderDeterministicOperations(operations: DeterministicOperation[]): string {
-	const mirrored = operations.filter(operation => operation.mode === 'mirror')
-	const copied = operations.filter(operation => operation.mode === 'copy')
-
-	if (mirrored.length === 0 && copied.length === 0) {
+	if (operations.length === 0) {
 		return '_No deterministic operations were recorded._'
 	}
 
-	const mirroredBlock =
-		mirrored.length > 0
-			? [
-					'Mirrored:',
-					...mirrored.map(
-						operation => `- \`${operation.source}\` -> \`${operation.target}\``,
-					),
-				]
-			: []
-	const copiedBlock =
-		copied.length > 0
-			? [
-					'Copied:',
-					...copied.map(
-						operation => `- \`${operation.source}\` -> \`${operation.target}\``,
-					),
-				]
-			: []
+	const blocks: string[] = []
 
-	return [...mirroredBlock, '', ...copiedBlock].join('\n').trim()
+	const syncOperations = operations.filter(
+		(operation): operation is DeterministicOperation & { kind: 'sync' } =>
+			operation.kind === 'sync',
+	)
+
+	if (syncOperations.length > 0) {
+		const mirrored = syncOperations.filter(operation => operation.mode === 'mirror')
+		const copied = syncOperations.filter(operation => operation.mode === 'copy')
+
+		if (mirrored.length > 0) {
+			blocks.push(
+				'Mirrored:',
+				...mirrored.map(
+					operation => `- \`${operation.source}\` -> \`${operation.target}\``,
+				),
+			)
+		}
+
+		if (copied.length > 0) {
+			blocks.push(
+				'Copied:',
+				...copied.map(operation => `- \`${operation.source}\` -> \`${operation.target}\``),
+			)
+		}
+	}
+
+	return blocks.length > 0 ? blocks.join('\n') : '_No deterministic operations were recorded._'
 }
 
 /**

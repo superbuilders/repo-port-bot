@@ -103,6 +103,7 @@ function makePluginConfig(overrides?: Partial<PluginConfig>): PluginConfig {
 		targetRepo: TARGET_REPO,
 		ignorePatterns: [],
 		validationCommands: ['bun run check'],
+		deterministicOperations: [],
 		pathMappings: {},
 		...overrides,
 	}
@@ -330,11 +331,14 @@ describe('runPort', () => {
 		expect(commentOutcomes).toEqual(['skipped_not_required'])
 	})
 
-	test('routes PORT_NOT_REQUIRED with deterministic changes to PR delivery', async () => {
-		let executeCalled = false
+	test('skips before deterministic operations when source pull request is missing', async () => {
+		let deterministicCalled = false
+		let decideCalled = false
 		let deliverCalled = false
 		const commentOutcomes: string[] = []
-		const deliverDecisions: string[] = []
+		const sourceChange = makeSourceChange()
+
+		sourceChange.pullRequest = undefined
 
 		const result = await runPort({
 			reader: createReaderFake(),
@@ -343,24 +347,216 @@ describe('runPort', () => {
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',
 			targetWorkingDirectory: '/tmp/target-repo',
+			sourceWorkingDirectory: '/tmp/source-repo',
 			stageOverrides: {
-				readSourceContext: async () => makeSourceChange(),
-				resolvePluginConfig: () => makePluginConfig(),
-				decide: async context => {
-					context.deterministic = {
-						changed: true,
-						operations: [
+				readSourceContext: async () => sourceChange,
+				resolvePluginConfig: () =>
+					makePluginConfig({
+						deterministicOperations: [
 							{
+								kind: 'sync',
 								mode: 'mirror',
 								source: 'tests/fixtures/**',
 								target: 'tests/fixtures/',
 							},
 						],
+					}),
+				executeDeterministic: async () => {
+					deterministicCalled = true
+
+					return {
+						changed: true,
+						operations: [],
+						touchedFiles: [],
+					}
+				},
+				decide: async () => {
+					decideCalled = true
+
+					return makeDecisionResult('PORT_REQUIRED', 'Should not run.')
+				},
+				deliverResult: async () => {
+					deliverCalled = true
+
+					return { outcome: 'skipped' }
+				},
+				commentOnSourcePr: async input => {
+					commentOutcomes.push(input.outcome)
+
+					return undefined
+				},
+			},
+		})
+
+		expect(result.outcome).toBe('skipped_not_required')
+		expect(deterministicCalled).toBe(false)
+		expect(decideCalled).toBe(false)
+		expect(deliverCalled).toBe(false)
+		expect(commentOutcomes).toEqual([])
+	})
+
+	test('skips before deterministic operations for auto-port loop prevention', async () => {
+		let deterministicCalled = false
+		let decideCalled = false
+		const commentOutcomes: string[] = []
+		const sourceChange = makeSourceChange()
+
+		sourceChange.pullRequest = {
+			...sourceChange.pullRequest!,
+			labels: ['auto-port'],
+		}
+
+		const result = await runPort({
+			reader: createReaderFake(),
+			writer: createWriterFake(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			sourceWorkingDirectory: '/tmp/source-repo',
+			stageOverrides: {
+				readSourceContext: async () => sourceChange,
+				resolvePluginConfig: () =>
+					makePluginConfig({
+						deterministicOperations: [
+							{
+								kind: 'sync',
+								mode: 'copy',
+								source: 'tests/manifest.json',
+								target: 'tests/manifest.json',
+							},
+						],
+					}),
+				executeDeterministic: async () => {
+					deterministicCalled = true
+
+					return {
+						changed: true,
+						operations: [],
+						touchedFiles: [],
+					}
+				},
+				decide: async () => {
+					decideCalled = true
+
+					return makeDecisionResult('PORT_REQUIRED', 'Should not run.')
+				},
+				commentOnSourcePr: async input => {
+					commentOutcomes.push(input.outcome)
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-auto-port'
+				},
+			},
+		})
+
+		expect(result.outcome).toBe('skipped_not_required')
+		expect(deterministicCalled).toBe(false)
+		expect(decideCalled).toBe(false)
+		expect(commentOutcomes).toEqual(['skipped_not_required'])
+	})
+
+	test('skips before deterministic operations for no-port label', async () => {
+		let deterministicCalled = false
+		let decideCalled = false
+		const commentOutcomes: string[] = []
+		const sourceChange = makeSourceChange()
+
+		sourceChange.pullRequest = {
+			...sourceChange.pullRequest!,
+			labels: ['no-port'],
+		}
+
+		const result = await runPort({
+			reader: createReaderFake(),
+			writer: createWriterFake(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			sourceWorkingDirectory: '/tmp/source-repo',
+			stageOverrides: {
+				readSourceContext: async () => sourceChange,
+				resolvePluginConfig: () =>
+					makePluginConfig({
+						deterministicOperations: [
+							{
+								kind: 'sync',
+								mode: 'copy',
+								source: 'tests/manifest.json',
+								target: 'tests/manifest.json',
+							},
+						],
+					}),
+				executeDeterministic: async () => {
+					deterministicCalled = true
+
+					return {
+						changed: true,
+						operations: [],
+						touchedFiles: [],
+					}
+				},
+				decide: async () => {
+					decideCalled = true
+
+					return makeDecisionResult('PORT_REQUIRED', 'Should not run.')
+				},
+				commentOnSourcePr: async input => {
+					commentOutcomes.push(input.outcome)
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-no-port'
+				},
+			},
+		})
+
+		expect(result.outcome).toBe('skipped_not_required')
+		expect(deterministicCalled).toBe(false)
+		expect(decideCalled).toBe(false)
+		expect(commentOutcomes).toEqual(['skipped_not_required'])
+	})
+
+	test('routes PORT_NOT_REQUIRED with deterministic changes to PR delivery', async () => {
+		let executeCalled = false
+		let deliverCalled = false
+		let deterministicCalled = false
+		const commentOutcomes: string[] = []
+		const deliverDecisions: string[] = []
+		const pluginConfig = makePluginConfig({
+			deterministicOperations: [
+				{
+					kind: 'sync',
+					mode: 'mirror',
+					source: 'tests/fixtures/**',
+					target: 'tests/fixtures/',
+				},
+			],
+		})
+
+		const result = await runPort({
+			reader: createReaderFake(),
+			writer: createWriterFake(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			sourceWorkingDirectory: '/tmp/source-repo',
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => pluginConfig,
+				executeDeterministic: async input => {
+					deterministicCalled = true
+					expect(input.deterministicOperations).toEqual(
+						pluginConfig.deterministicOperations,
+					)
+
+					return {
+						changed: true,
+						operations: pluginConfig.deterministicOperations,
 						touchedFiles: ['tests/fixtures/example.json'],
 					}
-
-					return makeDecisionResult('PORT_NOT_REQUIRED', 'No residual work remains.')
 				},
+				decide: async () =>
+					makeDecisionResult('PORT_NOT_REQUIRED', 'No residual work remains.'),
 				executePort: async () => {
 					executeCalled = true
 
@@ -386,6 +582,7 @@ describe('runPort', () => {
 
 		expect(result.outcome).toBe('pr_opened')
 		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/222')
+		expect(deterministicCalled).toBe(true)
 		expect(executeCalled).toBe(false)
 		expect(deliverCalled).toBe(true)
 		expect(deliverDecisions).toEqual(['PORT_NOT_REQUIRED'])
@@ -514,8 +711,19 @@ describe('runPort', () => {
 
 	test('routes NEEDS_HUMAN with deterministic changes to PR delivery', async () => {
 		let executeCalled = false
+		let deterministicCalled = false
 		const commentOutcomes: string[] = []
 		const deliverDecisions: string[] = []
+		const pluginConfig = makePluginConfig({
+			deterministicOperations: [
+				{
+					kind: 'sync',
+					mode: 'copy',
+					source: 'tests/manifest.json',
+					target: 'tests/manifest.json',
+				},
+			],
+		})
 
 		const result = await runPort({
 			reader: createReaderFake(),
@@ -524,24 +732,24 @@ describe('runPort', () => {
 			sourceRepo: SOURCE_REPO,
 			commitSha: 'abc123',
 			targetWorkingDirectory: '/tmp/target-repo',
+			sourceWorkingDirectory: '/tmp/source-repo',
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
-				resolvePluginConfig: () => makePluginConfig(),
-				decide: async context => {
-					context.deterministic = {
+				resolvePluginConfig: () => pluginConfig,
+				executeDeterministic: async input => {
+					deterministicCalled = true
+					expect(input.deterministicOperations).toEqual(
+						pluginConfig.deterministicOperations,
+					)
+
+					return {
 						changed: true,
-						operations: [
-							{
-								mode: 'copy',
-								source: 'tests/manifest.json',
-								target: 'tests/manifest.json',
-							},
-						],
+						operations: pluginConfig.deterministicOperations,
 						touchedFiles: ['tests/manifest.json'],
 					}
-
-					return makeDecisionResult('NEEDS_HUMAN', 'Residual logic is ambiguous.')
 				},
+				decide: async () =>
+					makeDecisionResult('NEEDS_HUMAN', 'Residual logic is ambiguous.'),
 				executePort: async () => {
 					executeCalled = true
 
@@ -566,6 +774,7 @@ describe('runPort', () => {
 
 		expect(result.outcome).toBe('pr_opened')
 		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/223')
+		expect(deterministicCalled).toBe(true)
 		expect(executeCalled).toBe(false)
 		expect(deliverDecisions).toEqual(['NEEDS_HUMAN'])
 		expect(commentOutcomes).toEqual(['pr_opened'])

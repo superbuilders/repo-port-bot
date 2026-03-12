@@ -96,6 +96,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 		const onMessage = input.onMessage
 		const systemPrompt = buildDecideSystemPrompt({
 			pluginConfig: input.pluginConfig,
+			deterministic: input.deterministic,
 			sourceWorkingDirectory: input.sourceWorkingDirectory,
 			diffFilePath: input.diffFilePath,
 		})
@@ -262,6 +263,7 @@ export class ClaudeAgentProvider implements AgentProvider {
 		const onMessage = input.onMessage
 		const systemPrompt = buildSystemPrompt({
 			pluginConfig: input.pluginConfig,
+			deterministic: input.deterministic,
 			sourceWorkingDirectory: input.sourceWorkingDirectory,
 			diffFilePath: input.diffFilePath,
 		})

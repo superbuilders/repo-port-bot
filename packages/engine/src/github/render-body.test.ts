@@ -50,6 +50,7 @@ function makeContext(): PortContext {
 			targetRepo: TARGET_REPO,
 			ignorePatterns: [],
 			validationCommands: ['bun run check'],
+			deterministicOperations: [],
 			pathMappings: {},
 		},
 	}
@@ -78,11 +79,13 @@ function makeDeterministicPhase() {
 		changed: true,
 		operations: [
 			{
+				kind: 'sync' as const,
 				mode: 'mirror' as const,
 				source: 'tests/fixtures/**',
 				target: 'tests/fixtures/',
 			},
 			{
+				kind: 'sync' as const,
 				mode: 'copy' as const,
 				source: 'tests/manifest.json',
 				target: 'tests/manifest.json',

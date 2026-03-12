@@ -9,6 +9,13 @@ describe('resolvePluginConfig', () => {
 				target: 'acme/target-repo',
 				ignore: ['docs/**', '.github/**'],
 				validation: ['bun run test', 'bun run check'],
+				sync: [
+					{
+						source: 'tests/fixtures/**',
+						target: 'tests/fixtures/',
+						mode: 'mirror',
+					},
+				],
 				mapping: {
 					'src/client/': 'packages/client/src/',
 				},
@@ -28,6 +35,14 @@ describe('resolvePluginConfig', () => {
 			},
 			ignorePatterns: ['docs/**', '.github/**'],
 			validationCommands: ['bun run test', 'bun run check'],
+			deterministicOperations: [
+				{
+					kind: 'sync',
+					source: 'tests/fixtures/**',
+					target: 'tests/fixtures/',
+					mode: 'mirror',
+				},
+			],
 			pathMappings: {
 				'src/client/': 'packages/client/src/',
 			},
@@ -64,6 +79,14 @@ describe('resolvePluginConfig', () => {
 					defaultBranch: 'release',
 				},
 				validationCommands: ['bun run check'],
+				deterministicOperations: [
+					{
+						kind: 'sync',
+						source: 'from-built-in',
+						target: 'to-built-in',
+						mode: 'copy',
+					},
+				],
 				pathMappings: {
 					'src/a': 'dst/a',
 				},
@@ -74,6 +97,13 @@ describe('resolvePluginConfig', () => {
 			portBotJson: {
 				target: 'json/repo',
 				validation: ['just test'],
+				sync: [
+					{
+						source: 'from-json',
+						target: 'to-json',
+						mode: 'mirror',
+					},
+				],
 				mapping: {
 					'src/b': 'dst/b',
 				},
@@ -93,6 +123,14 @@ describe('resolvePluginConfig', () => {
 			},
 			ignorePatterns: ['generated/**'],
 			validationCommands: ['bun run check'],
+			deterministicOperations: [
+				{
+					kind: 'sync',
+					source: 'from-built-in',
+					target: 'to-built-in',
+					mode: 'copy',
+				},
+			],
 			pathMappings: {
 				'src/a': 'dst/a',
 			},
@@ -124,5 +162,90 @@ describe('resolvePluginConfig', () => {
 		}).toThrow(
 			'Plugin config is missing target repository fields (owner, name, defaultBranch).',
 		)
+	})
+
+	test('rejects sync source paths that traverse outside the repo checkout', () => {
+		expect(() => {
+			resolvePluginConfig({
+				portBotJson: {
+					target: 'acme/target-repo',
+					sync: [
+						{
+							source: '../secrets.txt',
+							target: 'tests/manifest.json',
+							mode: 'copy',
+						},
+					],
+				},
+			})
+		}).toThrow('Sync operation source must not traverse outside the repo checkout.')
+	})
+
+	test('rejects sync target paths that traverse outside the repo checkout', () => {
+		expect(() => {
+			resolvePluginConfig({
+				portBotJson: {
+					target: 'acme/target-repo',
+					sync: [
+						{
+							source: 'tests/manifest.json',
+							target: '../../other-repo/file',
+							mode: 'copy',
+						},
+					],
+				},
+			})
+		}).toThrow('Sync operation target must not traverse outside the repo checkout.')
+	})
+
+	test('rejects glob source in copy mode', () => {
+		expect(() => {
+			resolvePluginConfig({
+				portBotJson: {
+					target: 'acme/target-repo',
+					sync: [
+						{
+							source: 'fixtures/*.json',
+							target: 'fixtures/',
+							mode: 'copy',
+						},
+					],
+				},
+			})
+		}).toThrow('Copy source must be a literal file path, not a glob pattern')
+	})
+
+	test('rejects literal directory source in mirror mode', () => {
+		expect(() => {
+			resolvePluginConfig({
+				portBotJson: {
+					target: 'acme/target-repo',
+					sync: [
+						{
+							source: 'fixtures',
+							target: 'fixtures/',
+							mode: 'mirror',
+						},
+					],
+				},
+			})
+		}).toThrow('Mirror source must be a glob pattern')
+	})
+
+	test('rejects absolute sync target paths', () => {
+		expect(() => {
+			resolvePluginConfig({
+				portBotJson: {
+					target: 'acme/target-repo',
+					sync: [
+						{
+							source: 'tests/manifest.json',
+							target: '/tmp/leak.txt',
+							mode: 'copy',
+						},
+					],
+				},
+			})
+		}).toThrow('Sync operation target must be repo-relative, not absolute.')
 	})
 })

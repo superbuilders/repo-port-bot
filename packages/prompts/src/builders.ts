@@ -2,6 +2,7 @@ import { renderPrompt } from './render.ts'
 import {
 	renderAdditionalInstructions,
 	renderChangedFiles,
+	renderDeterministicContext,
 	renderDiffFileSection,
 	renderIgnorePatterns,
 	renderNamingConventions,
@@ -14,6 +15,7 @@ import type { DecidePortInput, ExecutePortAttemptInput, PluginConfig } from '@re
 
 interface SystemPromptInput {
 	pluginConfig: PluginConfig
+	deterministic?: DecidePortInput['deterministic']
 	sourceWorkingDirectory?: string
 	diffFilePath?: string
 }
@@ -32,6 +34,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
 		namingConventions: renderNamingConventions(input.pluginConfig),
 		additionalInstructions: renderAdditionalInstructions(input.pluginConfig),
 		ignorePatterns: renderIgnorePatterns(input.pluginConfig),
+		deterministicContext: renderDeterministicContext(input.deterministic),
 	})
 }
 
@@ -49,6 +52,7 @@ export function buildDecideSystemPrompt(input: SystemPromptInput): string {
 		namingConventions: renderNamingConventions(input.pluginConfig),
 		additionalInstructions: renderAdditionalInstructions(input.pluginConfig),
 		ignorePatterns: renderIgnorePatterns(input.pluginConfig),
+		deterministicContext: renderDeterministicContext(input.deterministic),
 	})
 }
 

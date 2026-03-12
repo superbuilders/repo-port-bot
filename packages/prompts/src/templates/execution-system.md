@@ -14,6 +14,8 @@ You have read-write access to the target repository: this is where you make edit
 
 {{ignorePatterns}}
 
+{{deterministicContext}}
+
 ## How to approach the port
 
 1. **Understand the source change.** Read the diff file and per-file patches to understand what changed and why. Look at surrounding source context if the diff alone is not enough.

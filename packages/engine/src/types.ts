@@ -163,6 +163,11 @@ export interface PluginConfig {
 	validationCommands: string[]
 
 	/**
+	 * Deterministic sync operations applied before classification.
+	 */
+	deterministicOperations: DeterministicOperation[]
+
+	/**
 	 * Source-to-target path mapping hints used by the agent.
 	 */
 	pathMappings: Record<string, string>
@@ -179,11 +184,16 @@ export interface PluginConfig {
 }
 
 /**
- * Deterministic operation applied by the engine before residual classification.
+ * File sync operation: mirror a directory or copy a single file.
  */
-export interface DeterministicOperation {
+export interface SyncOperation {
 	/**
-	 * Operation mode.
+	 * Discriminant tag for the deterministic operation union.
+	 */
+	kind: 'sync'
+
+	/**
+	 * Sync mode.
 	 */
 	mode: 'mirror' | 'copy'
 
@@ -197,6 +207,14 @@ export interface DeterministicOperation {
 	 */
 	target: string
 }
+
+/**
+ * Tagged union of all deterministic operation kinds.
+ *
+ * Each variant has a `kind` discriminant. The executor dispatches on `kind`.
+ * New operation kinds are added as union members here.
+ */
+export type DeterministicOperation = SyncOperation
 
 /**
  * Result of the deterministic pre-classification phase.
@@ -502,6 +520,11 @@ export interface DecidePortInput {
 	pluginConfig: PluginConfig
 
 	/**
+	 * Deterministic baseline already applied to the target working tree.
+	 */
+	deterministic?: DeterministicPhaseResult
+
+	/**
 	 * Optional callback for streaming provider messages during classification.
 	 */
 	onMessage?: (message: AgentMessage) => void
@@ -574,6 +597,11 @@ export interface ExecutePortAttemptInput {
 	 * Resolved plugin config (path mappings, conventions, prompt).
 	 */
 	pluginConfig: PluginConfig
+
+	/**
+	 * Deterministic baseline already applied to the target working tree.
+	 */
+	deterministic?: DeterministicPhaseResult
 
 	/**
 	 * Previous attempt results provided on retries so the agent can learn
@@ -1102,6 +1130,14 @@ export interface ExecutePortResult {
 // ---------------------------------------------------------------------------
 // Delivery
 // ---------------------------------------------------------------------------
+
+/**
+ * Function type for running shell commands with captured output.
+ */
+export type CommandRunner = (input: {
+	command: string[]
+	workingDirectory: string
+}) => Promise<{ exitCode: number; stderr: string; stdout: string }>
 
 /**
  * Terminal outcome from the delivery stage before mapping to `PortRunOutcome`.

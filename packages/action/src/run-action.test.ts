@@ -196,6 +196,7 @@ describe('runAction', () => {
 							},
 							ignorePatterns: [],
 							validationCommands: [],
+							deterministicOperations: [],
 							pathMappings: {},
 						},
 					},

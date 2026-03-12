@@ -1,7 +1,16 @@
-import { spawn } from 'node:child_process'
-
 import { createConsoleLogger } from '@repo-port-bot/logger'
 
+import {
+	buildCommitMessage,
+	buildPortBranchName,
+	checkTargetSideDiff,
+	collectTouchedPaths,
+	expectCommandSuccess,
+	isValidationSuccessful,
+	resolveFramingMode,
+	runCommand,
+	stageAndCommit,
+} from './ops.ts'
 import {
 	renderNeedsHumanIssueBody,
 	renderNeedsHumanIssueTitle,
@@ -13,6 +22,7 @@ import {
 import type { Logger } from '@repo-port-bot/logger'
 
 import type {
+	CommandRunner,
 	CreatedPullRequest,
 	DeterministicPhaseResult,
 	DecisionTrace,
@@ -25,11 +35,6 @@ import type {
 	PortRunOutcome,
 	ValidationCommandResult,
 } from '../types.ts'
-
-type CommandRunner = (input: {
-	command: string[]
-	workingDirectory: string
-}) => Promise<{ exitCode: number; stderr: string; stdout: string }>
 
 interface DeliverResultOptions {
 	writer: GitHubWriter
@@ -65,210 +70,6 @@ interface PreviousFailedCommentContext {
 	id: number
 	url: string
 	runId?: string
-}
-
-const PORT_BOT_FOOTER = 'Ported-By: repo-port-bot'
-const SHORT_SHA_LENGTH = 7
-
-/**
- * Run a command and capture exit code + streams.
- *
- * @param input - Command execution input.
- * @param input.command - Command and arguments to execute.
- * @param input.workingDirectory - Directory where the command should run.
- * @returns Exit code and decoded output.
- */
-async function runCommand(input: {
-	command: string[]
-	workingDirectory: string
-}): Promise<{ exitCode: number; stderr: string; stdout: string }> {
-	const [command, ...args] = input.command
-	const childProcess = spawn(command ?? '', args, {
-		cwd: input.workingDirectory,
-		stdio: ['ignore', 'pipe', 'pipe'],
-	})
-	const stdoutChunks: Buffer[] = []
-	const stderrChunks: Buffer[] = []
-
-	childProcess.stdout?.on('data', chunk => {
-		stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-	})
-	childProcess.stderr?.on('data', chunk => {
-		stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-	})
-
-	const exitCode = await new Promise<number>(resolve => {
-		childProcess.once('close', code => {
-			resolve(code ?? 1)
-		})
-		childProcess.once('error', () => {
-			resolve(1)
-		})
-	})
-
-	return {
-		exitCode,
-		stdout: Buffer.concat(stdoutChunks).toString('utf8'),
-		stderr: Buffer.concat(stderrChunks).toString('utf8'),
-	}
-}
-
-/**
- * Ensure command exits with code 0.
- *
- * @param runner - Command runner.
- * @param command - Command vector.
- * @param workingDirectory - Command cwd.
- */
-async function expectCommandSuccess(
-	runner: CommandRunner,
-	command: string[],
-	workingDirectory: string,
-): Promise<void> {
-	const result = await runner({ command, workingDirectory })
-
-	if (result.exitCode !== 0) {
-		throw new Error(
-			`Command failed (${command.join(' ')}): exit ${String(result.exitCode)}\n${result.stderr}`,
-		)
-	}
-}
-
-/**
- * Build deterministic branch name for port branches.
- *
- * @param context - Port context.
- * @returns Branch name.
- */
-function buildPortBranchName(context: PortContext): string {
-	const shortSha = context.sourceChange.mergedCommitSha.slice(0, SHORT_SHA_LENGTH)
-	const pullRequestNumber = context.sourceChange.pullRequest?.number ?? 0
-
-	return `port/${context.sourceRepo.name}/${String(pullRequestNumber)}-${shortSha}`
-}
-
-/**
- * Build git commit message for the final delivery commit.
- *
- * @param context - Port context.
- * @param model - Optional agent model identifier for trailer.
- * @returns Commit message with git trailers.
- */
-function buildCommitMessage(context: PortContext, model?: string): string {
-	const title = renderPortPullRequestTitle(context)
-	const trailers = [
-		context.sourceChange.pullRequest
-			? `Source-PR: ${context.sourceChange.pullRequest.url}`
-			: undefined,
-		`Source-Commit: ${context.sourceChange.mergedCommitSha}`,
-		model ? `Agent-Model: ${model}` : undefined,
-		PORT_BOT_FOOTER,
-	].filter(Boolean)
-
-	return `${title}\n\n${trailers.join('\n')}`
-}
-
-/**
- * Stage and commit current working tree state if there are staged changes.
- *
- * @param runner - Command runner.
- * @param workingDirectory - Repository root.
- * @param commitMessage - Commit message.
- */
-async function stageAndCommit(
-	runner: CommandRunner,
-	workingDirectory: string,
-	commitMessage: string,
-): Promise<void> {
-	await expectCommandSuccess(runner, ['git', 'add', '-A'], workingDirectory)
-
-	const diffResult = await runner({
-		command: ['git', 'diff', '--cached', '--quiet'],
-		workingDirectory,
-	})
-
-	if (diffResult.exitCode === 0) {
-		return
-	}
-
-	if (diffResult.exitCode !== 1) {
-		throw new Error(`Unable to inspect staged diff: ${diffResult.stderr}`)
-	}
-
-	await expectCommandSuccess(runner, ['git', 'commit', '-m', commitMessage], workingDirectory)
-}
-
-/**
- * Check whether the current target working tree contains any unstaged or staged diff.
- *
- * @param runner - Command runner.
- * @param workingDirectory - Repository root.
- * @returns Whether target-side changes exist.
- */
-async function checkTargetSideDiff(
-	runner: CommandRunner,
-	workingDirectory: string,
-): Promise<boolean> {
-	const result = await runner({
-		command: ['git', 'diff', '--quiet'],
-		workingDirectory,
-	})
-
-	if (result.exitCode === 0) {
-		const stagedResult = await runner({
-			command: ['git', 'diff', '--cached', '--quiet'],
-			workingDirectory,
-		})
-
-		if (stagedResult.exitCode === 0) {
-			return false
-		}
-
-		if (stagedResult.exitCode !== 1) {
-			throw new Error(`Unable to inspect staged target diff: ${stagedResult.stderr}`)
-		}
-
-		return true
-	}
-
-	if (result.exitCode !== 1) {
-		throw new Error(`Unable to inspect target diff: ${result.stderr}`)
-	}
-
-	return true
-}
-
-/**
- * Decide whether validation indicates a draft PR should be opened.
- *
- * @param validation - Validation command results.
- * @returns Whether validation succeeded.
- */
-function isValidationSuccessful(validation?: ValidationCommandResult[]): boolean {
-	if (!validation || validation.length === 0) {
-		return true
-	}
-
-	return validation.every(command => command.ok)
-}
-
-/**
- * Resolve PR framing mode for this delivery.
- *
- * @param options - Delivery options.
- * @param isPortRequired - Whether decision was PORT_REQUIRED.
- * @returns Framing mode for PR body rendering.
- */
-function resolveFramingMode(options: DeliverResultOptions, isPortRequired: boolean): PrFramingMode {
-	if (options.framingMode) {
-		return options.framingMode
-	}
-
-	if (isPortRequired) {
-		return options.execution?.outcome.status === 'SUCCEEDED' ? 'agent_success' : 'agent_stalled'
-	}
-
-	return options.decision.kind === 'NEEDS_HUMAN' ? 'residual_handoff' : 'deterministic_only'
 }
 
 /**
@@ -393,9 +194,6 @@ async function findExistingSourceComment(input: {
 
 /**
  * Create a new PR or update an existing one for the same head branch.
- *
- * On re-runs the port branch already has an open PR. Rather than failing,
- * find the existing PR, update its title/body, and return it.
  *
  * @param params - PR upsert parameters.
  * @param params.writer - GitHub writer adapter.
@@ -592,10 +390,24 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		throw new Error('Execution result is required to deliver PORT_REQUIRED decisions.')
 	}
 
-	const hasTargetDiff = await checkTargetSideDiff(runner, options.targetWorkingDirectory)
+	const touchedPaths = isPortRequired
+		? []
+		: collectTouchedPaths(
+				options.deterministic,
+				options.context.deterministic,
+				options.execution,
+			)
 
-	if (!hasTargetDiff) {
-		return { outcome: 'skipped' }
+	if (!isPortRequired) {
+		const hasTargetDiff = await checkTargetSideDiff(
+			runner,
+			options.targetWorkingDirectory,
+			touchedPaths,
+		)
+
+		if (!hasTargetDiff) {
+			return { outcome: 'skipped' }
+		}
 	}
 
 	const branchName = buildPortBranchName(options.context)
@@ -609,6 +421,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		runner,
 		options.targetWorkingDirectory,
 		buildCommitMessage(options.context, options.execution?.trace.model),
+		touchedPaths,
 	)
 	await expectCommandSuccess(
 		runner,
@@ -622,7 +435,12 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		decisionTrace: options.decisionTrace,
 		execution: options.execution,
 		validation: options.validation,
-		framingMode: resolveFramingMode(options, isPortRequired),
+		framingMode: resolveFramingMode(
+			options.framingMode,
+			isPortRequired,
+			options.execution?.outcome.status,
+			options.decision.kind,
+		),
 		includeCostTelemetry: options.includeCostTelemetry ?? true,
 	})
 	const isSuccessful = isPortRequired

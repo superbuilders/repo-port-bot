@@ -60,11 +60,21 @@ It should be:
 - independently safe to merge on its own
 - boring on purpose
 
-Candidate operations:
+The deterministic phase is designed to support multiple operation kinds over time. Each kind is:
 
-- copy one file to one file
-- mirror a directory tree to a target directory
+- a tagged variant in a `DeterministicOperation` union
+- dispatched by the engine executor
+- declared in its own config section of `port-bot.json`
+
+Current operation kinds:
+
+- **sync** — file-level mirror and copy (`sync` config key)
+
+Future candidates:
+
 - simple source-to-target path remaps
+- content-level find-and-replace
+- structured transforms (e.g., rename exports)
 
 Phase 1 is **not** a place for arbitrary shell commands or custom repo scripting.
 
@@ -81,11 +91,11 @@ The guardrail from `docs/user-stories/anchor.md` still holds:
 - No execution of arbitrary code from repo configuration.
 - Plugin/config only influences behavior through validated declarative inputs.
 
-### Proposed `port-bot.json` config shape
+### Config shape
 
-Today the config schema has no way to express deterministic operations. All current fields (`target`, `ignore`, `validation`, `mapping`, `conventions`, `prompt`) are agent-oriented or filtering-oriented.
+Each deterministic operation kind gets its own top-level key in `port-bot.json`. The engine collects entries from all keys into a single ordered `deterministicOperations` list in `PluginConfig`.
 
-The proposed extension adds a `sync` key:
+Currently the only implemented key is `sync`:
 
 ```json
 {

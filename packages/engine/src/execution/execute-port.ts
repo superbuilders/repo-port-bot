@@ -75,6 +75,7 @@ export async function executePort(options: ExecutePortOptions): Promise<ExecuteP
 					sourceWorkingDirectory: options.sourceWorkingDirectory,
 					diffFilePath: options.diffFilePath,
 					pluginConfig: options.context.pluginConfig,
+					deterministic: options.context.deterministic,
 					previousAttempts: attempts,
 					onMessage: message => {
 						logAgentMessage({

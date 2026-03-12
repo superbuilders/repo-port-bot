@@ -4,7 +4,12 @@ import { createConsoleLogger } from '@repo-port-bot/logger'
 
 import { fetchPortBotJson } from '../config/fetch-port-bot-json.ts'
 import { resolvePluginConfig } from '../config/resolve-plugin-config.ts'
-import { buildEngineFailureDecision, decide } from '../decision/decide.ts'
+import {
+	buildEngineFailureDecision,
+	decide,
+	decidePreDeterministicSkip,
+} from '../decision/decide.ts'
+import { executeDeterministic } from '../execution/execute-deterministic.ts'
 import { executePort } from '../execution/execute-port.ts'
 import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
@@ -39,6 +44,7 @@ interface RunPortStageOverrides {
 	readSourceContext: typeof readSourceContext
 	fetchPortBotJson: typeof fetchPortBotJson
 	resolvePluginConfig: typeof resolvePluginConfig
+	executeDeterministic: typeof executeDeterministic
 	decide: typeof decide
 	executePort: typeof executePort
 	deliverResult: typeof deliverResult
@@ -88,6 +94,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		readSourceContext: options.stageOverrides?.readSourceContext ?? readSourceContext,
 		fetchPortBotJson: options.stageOverrides?.fetchPortBotJson ?? fetchPortBotJson,
 		resolvePluginConfig: options.stageOverrides?.resolvePluginConfig ?? resolvePluginConfig,
+		executeDeterministic: options.stageOverrides?.executeDeterministic ?? executeDeterministic,
 		decide: options.stageOverrides?.decide ?? decide,
 		executePort: options.stageOverrides?.executePort ?? executePort,
 		deliverResult: options.stageOverrides?.deliverResult ?? deliverResult,
@@ -193,10 +200,63 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			},
 		}
 
+		const preDeterministicSkipDecision = decidePreDeterministicSkip(context)
+
+		if (preDeterministicSkipDecision) {
+			decision = preDeterministicSkipDecision
+			logStage(logger, runId, 'decision', {
+				kind: decision.outcome.kind,
+				reason: decision.outcome.reason,
+				decisionMs: (stageTimings.decisionMs = getDurationMs(startedAtMs)),
+			})
+
+			return withTelemetry(
+				await routeDecisionOutcome({
+					writer: options.writer,
+					agentProvider: options.agentProvider,
+					context,
+					portDecision: decision,
+					targetWorkingDirectory: options.targetWorkingDirectory,
+					sourceWorkingDirectory: options.sourceWorkingDirectory,
+					diffFilePath: options.diffFilePath,
+					maxAttempts: options.maxAttempts,
+					executeStage: stages.executePort,
+					deliverStage: stages.deliverResult,
+					commentStage: stages.commentOnSourcePr,
+					logger,
+					runId,
+					sourceTitle,
+					startedAtMs,
+					stageTimings,
+					includeCostTelemetry: options.includeCostTelemetry ?? true,
+				}),
+			)
+		}
+
+		const deterministicStartedAtMs = Date.now()
+		const deterministicResult =
+			pluginConfig.deterministicOperations.length > 0 && options.sourceWorkingDirectory
+				? await stages.executeDeterministic({
+						deterministicOperations: pluginConfig.deterministicOperations,
+						sourceWorkingDirectory: options.sourceWorkingDirectory,
+						targetWorkingDirectory: options.targetWorkingDirectory,
+					})
+				: {
+						changed: false,
+						operations: [],
+						touchedFiles: [],
+					}
+
+		context = {
+			...context,
+			deterministic: deterministicResult,
+		}
+
 		logStage(logger, runId, 'deterministic', {
-			operations: 0,
-			changed: 'false',
-			deterministicMs: (stageTimings.deterministicMs = getDurationMs(startedAtMs)),
+			operations: deterministicResult.operations.length,
+			changed: String(deterministicResult.changed),
+			deterministicMs: (stageTimings.deterministicMs =
+				getDurationMs(deterministicStartedAtMs)),
 		})
 
 		logger.group('Decision: classify source change')

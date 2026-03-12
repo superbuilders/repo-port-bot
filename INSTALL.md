@@ -320,11 +320,23 @@ Example:
 ```json
 {
 	"target": "your-org/target-repo",
+	"sync": [
+		{
+			"source": "tests/fixtures/**",
+			"target": "tests/fixtures/",
+			"mode": "mirror"
+		},
+		{
+			"source": "tests/manifest.json",
+			"target": "tests/manifest.json",
+			"mode": "copy"
+		}
+	],
 	"validation": ["bun run check", "bun run test"],
 	"mapping": {
 		"src/": "packages/client/src/"
 	},
-	"ignore": ["scripts/**", "*.config.*"],
+	"ignore": ["scripts/**", "*.config.*", "tests/fixtures/**", "tests/manifest.json"],
 	"conventions": {
 		"naming": "camelCase -> snake_case"
 	},
@@ -346,8 +358,23 @@ If none of these files exists, nothing breaks.
 **How action inputs and the config file interact:**
 
 - Action inputs take precedence when both specify the same field.
-- `ignore` patterns are only configurable via the config file, not as an action input.
+- `ignore` patterns and `sync` operations are only configurable via the config file, not as action inputs.
 - Set `skip-port-bot-json: true` in the workflow to disable config-file fetching entirely.
+
+**Deterministic operations:**
+
+Before the LLM classifier runs, the engine can apply deterministic, engine-owned operations to the target working tree. These are opt-in via the config file.
+
+Currently the only supported deterministic operation is **file syncing** via the `sync` field:
+
+| Mode     | Behavior                                                                                           |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| `mirror` | Recursive copy with delete (like `rsync --delete`). Files removed in source are removed in target. |
+| `copy`   | Overwrite a single target file from a single source file.                                          |
+
+Sync entries use source-repo paths and target-repo paths. They are processed in declared order. Paths listed in `sync` should typically also appear in `ignore` so the agent does not re-port them independently.
+
+When deterministic operations produce target-side changes, a PR is opened regardless of the classifier's decision about the remaining work. This ensures deterministic progress is never lost, even when the agent skips or escalates the residual port.
 
 ## Step 5: Verify the first run
 
@@ -357,12 +384,14 @@ If none of these files exists, nothing breaks.
 
 **Expected outcomes:**
 
-| Source change                                   | Expected outcome                                  |
-| ----------------------------------------------- | ------------------------------------------------- |
-| Docs-only (`README.md`, `docs/`)                | Skipped — source PR gets a comment explaining why |
-| CI/config-only (`.github/`, `Makefile`)         | Skipped — source PR gets a comment explaining why |
-| Code that exists in both repos                  | PR opened in target repo                          |
-| Complex change the classifier can't safely port | Issue opened in target repo tagged `needs-human`  |
+| Source change                                   | Expected outcome                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Docs-only (`README.md`, `docs/`)                | Skipped — source PR gets a comment explaining why                                     |
+| CI/config-only (`.github/`, `Makefile`)         | Skipped — source PR gets a comment explaining why                                     |
+| Code that exists in both repos                  | PR opened in target repo                                                              |
+| Only deterministic paths changed                | Deterministic-only PR opened in target repo (no agent execution)                      |
+| Complex change the classifier can't safely port | Issue opened in target repo tagged `needs-human`                                      |
+| Complex change + deterministic paths changed    | PR opened with deterministic changes + residual handoff note (no `needs-human` issue) |
 
 If validation commands are configured and they fail after retries, the bot opens a **draft PR** instead of a ready-for-review PR.
 

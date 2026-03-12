@@ -234,12 +234,22 @@ function checkConfigOnly(context: PortContext): PortDecision | null {
 }
 
 /**
- * Ordered list of fast heuristics for the decision stage.
+ * Ordered list of heuristics that must suppress the run before any deterministic
+ * target mutation happens.
+ *
+ * These are global skip/loop-prevention signals, not residual-work decisions.
  */
-export const DECISION_HEURISTICS: DecisionHeuristic[] = [
+export const PRE_DETERMINISTIC_SKIP_HEURISTICS: DecisionHeuristic[] = [
 	checkMissingPullRequest,
 	checkLoopPrevention,
 	checkNoPortLabel,
+]
+
+/**
+ * Ordered list of fast heuristics for the decision stage.
+ */
+export const DECISION_HEURISTICS: DecisionHeuristic[] = [
+	...PRE_DETERMINISTIC_SKIP_HEURISTICS,
 	checkDocsOnly,
 	checkConfigOnly,
 	checkNoRemainingFiles,

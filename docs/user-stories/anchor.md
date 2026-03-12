@@ -41,9 +41,9 @@ Define what "working" means from a maintainer perspective when a change in one r
     - Plugin configuration is resolved for this repo pair.
 
 4. **Engine applies deterministic operations**
-    - If `sync` rules are configured in `port-bot.json`, the engine applies them to the target working tree before any classification or agent execution.
-    - Deterministic operations (mirror, copy) are engine-owned and declarative. They do not involve the agent.
-    - This step may or may not produce target-side changes depending on whether the source change touched synced paths.
+    - If deterministic operations are configured in `port-bot.json` (currently: file syncing via the `sync` key), the engine applies them to the target working tree before any classification or agent execution.
+    - Deterministic operations are engine-owned and declarative. They do not involve the agent. The operation kind determines the behavior (e.g., mirror, copy).
+    - This step may or may not produce target-side changes depending on whether the source change touched paths covered by configured operations.
 
 5. **Engine classifies the residual work**
     - Classification evaluates the work that remains after deterministic operations, not the full source change.
