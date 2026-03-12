@@ -59,7 +59,7 @@ export async function routeDecisionOutcome(
 	const portDecisionKind = input.portDecision.outcome.kind
 	const deterministicResult = getDeterministicResult(input.context)
 
-	if (portDecisionKind === 'PORT_NOT_REQUIRED' && !deterministicResult.changed) {
+	if (portDecisionKind === 'NO_AGENT_PORT_NEEDED' && !deterministicResult.changed) {
 		return runSkippedNotRequiredFlow(input)
 	}
 
@@ -104,14 +104,14 @@ function getDeterministicResult(context: PortContext): DeterministicPhaseResult 
  * Determine whether a decision kind uses non-execution routing.
  *
  * @param kind - Decision kind.
- * @returns True for PORT_NOT_REQUIRED and NEEDS_HUMAN.
+ * @returns True for NO_AGENT_PORT_NEEDED and NEEDS_HUMAN.
  */
 function isNonExecutionDecision(kind: PortDecisionKind): boolean {
-	return kind === 'PORT_NOT_REQUIRED' || kind === 'NEEDS_HUMAN'
+	return kind === 'NO_AGENT_PORT_NEEDED' || kind === 'NEEDS_HUMAN'
 }
 
 /**
- * Handle PORT_NOT_REQUIRED runs where no deterministic target changes exist.
+ * Handle NO_AGENT_PORT_NEEDED runs where no deterministic target changes exist.
  *
  * @param input - Shared routing input.
  * @returns Skipped run result.
@@ -195,8 +195,31 @@ async function runDeterministicPrFlow(input: RunDeterministicPrFlowInput): Promi
 		if (input.portDecision.outcome.kind === 'NEEDS_HUMAN') {
 			return runNeedsHumanFlow({
 				...input,
+				context: {
+					...input.context,
+					deterministic: { changed: false, operations: [], touchedFiles: [] },
+				},
 				decision: input.portDecision,
 				targetWorkingDirectory: input.targetWorkingDirectory,
+			})
+		}
+
+		const notifyMs = await postSourcePrCommentBestEffort({
+			commentStage: input.commentStage,
+			context: input.context,
+			decision: input.portDecision.outcome,
+			decisionTrace: input.portDecision.trace,
+			writer: input.writer,
+			outcome: 'skipped_not_required',
+			includeCostTelemetry: input.includeCostTelemetry,
+			runId: input.runId,
+			logger: input.logger,
+		})
+
+		if (notifyMs !== undefined) {
+			logStage(input.logger, input.runId, 'notify', {
+				outcome: 'skipped_not_required',
+				notifyMs: (input.stageTimings.notifyMs = notifyMs),
 			})
 		}
 

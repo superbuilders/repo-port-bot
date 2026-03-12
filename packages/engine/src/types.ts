@@ -10,10 +10,10 @@
  * Supported outcome from the decision stage.
  *
  * - `PORT_REQUIRED`: proceed to execution
- * - `PORT_NOT_REQUIRED`: skip with explanation
+ * - `NO_AGENT_PORT_NEEDED`: skip with explanation
  * - `NEEDS_HUMAN`: agent cannot safely decide; request maintainer input
  */
-export type PortDecisionKind = 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED' | 'NEEDS_HUMAN'
+export type PortDecisionKind = 'PORT_REQUIRED' | 'NO_AGENT_PORT_NEEDED' | 'NEEDS_HUMAN'
 
 /**
  * Allowed git-style file change statuses used in diff metadata.
@@ -1145,7 +1145,7 @@ export type CommandRunner = (input: {
  * - `pr_opened`: target PR created and ready for review
  * - `draft_pr_opened`: target draft PR created (validation failed after retries)
  * - `needs_human`: follow-up issue created in target repo
- * - `skipped`: no delivery performed (PORT_NOT_REQUIRED)
+ * - `skipped`: no delivery performed (NO_AGENT_PORT_NEEDED)
  */
 export type DeliveryOutcome = 'pr_opened' | 'draft_pr_opened' | 'needs_human' | 'skipped'
 

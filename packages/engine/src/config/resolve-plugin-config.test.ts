@@ -232,6 +232,38 @@ describe('resolvePluginConfig', () => {
 		}).toThrow('Mirror source must be a glob pattern')
 	})
 
+	test('rejects directory-like target in copy mode', () => {
+		expect(() => {
+			resolvePluginConfig({
+				portBotJson: {
+					target: 'acme/target-repo',
+					sync: [
+						{
+							source: 'tests/manifest.json',
+							target: 'tests/',
+							mode: 'copy',
+						},
+					],
+				},
+			})
+		}).toThrow('Copy target must be a file path, not a directory')
+
+		expect(() => {
+			resolvePluginConfig({
+				portBotJson: {
+					target: 'acme/target-repo',
+					sync: [
+						{
+							source: 'tests/manifest.json',
+							target: '.',
+							mode: 'copy',
+						},
+					],
+				},
+			})
+		}).toThrow('Copy target must be a file path, not a directory')
+	})
+
 	test('rejects absolute sync target paths', () => {
 		expect(() => {
 			resolvePluginConfig({

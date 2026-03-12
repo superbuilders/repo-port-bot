@@ -233,14 +233,14 @@ function createWriterFake(): {
 }
 
 describe('deliverResult', () => {
-	test('returns skipped for PORT_NOT_REQUIRED without side effects', async () => {
+	test('returns skipped for NO_AGENT_PORT_NEEDED without side effects', async () => {
 		const { writer, createPrCalls, createIssueCalls, addLabelsCalls } = createWriterFake()
 		const commandCalls: string[][] = []
 
 		const result = await deliverResult({
 			writer,
 			context: makeContext(),
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			targetWorkingDirectory: '/tmp/unused',
 			runCommand: async ({ command }) => {
 				commandCalls.push(command)
@@ -391,7 +391,7 @@ describe('deliverResult', () => {
 		])
 	})
 
-	test('opens deterministic-only ready PR for PORT_NOT_REQUIRED when deterministic changed and validation passes', async () => {
+	test('opens deterministic-only ready PR for NO_AGENT_PORT_NEEDED when deterministic changed and validation passes', async () => {
 		const { writer, createPrCalls, addLabelsCalls, createIssueCalls } = createWriterFake()
 		const context = makeContext()
 
@@ -401,7 +401,7 @@ describe('deliverResult', () => {
 			writer,
 			context,
 			deterministic: context.deterministic,
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			validation: makeValidation(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -424,7 +424,7 @@ describe('deliverResult', () => {
 		expect((addLabelsCalls[0] as { labels: string[] }).labels).toEqual(['auto-port'])
 	})
 
-	test('opens deterministic-only draft PR for PORT_NOT_REQUIRED when deterministic changed and validation fails', async () => {
+	test('opens deterministic-only draft PR for NO_AGENT_PORT_NEEDED when deterministic changed and validation fails', async () => {
 		const { writer, createPrCalls, addLabelsCalls, createIssueCalls } = createWriterFake()
 		const context = makeContext()
 
@@ -434,7 +434,7 @@ describe('deliverResult', () => {
 			writer,
 			context,
 			deterministic: context.deterministic,
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			validation: makeValidation(false),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -532,7 +532,7 @@ describe('deliverResult', () => {
 			writer,
 			context,
 			deterministic: context.deterministic,
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			validation: makeValidation(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -608,7 +608,7 @@ describe('deliverResult', () => {
 			writer,
 			context,
 			deterministic: context.deterministic,
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			validation: makeValidation(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {
@@ -642,7 +642,7 @@ describe('deliverResult', () => {
 			writer,
 			context,
 			deterministic: context.deterministic,
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			validation: makeValidation(true),
 			targetWorkingDirectory: '/tmp/target-repo',
 			runCommand: async ({ command }) => {

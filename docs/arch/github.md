@@ -34,7 +34,7 @@ Files matching `ignorePatterns` from `port-bot.json` are filtered from the chang
 and stripped from the diff file before the decision and execution stages see them. The agent's
 system prompt also lists the ignore patterns so it won't treat missing ignored files as gaps
 to fill during exploration. When all files are filtered, the `checkNoRemainingFiles` heuristic
-returns `PORT_NOT_REQUIRED`.
+returns `NO_AGENT_PORT_NEEDED`.
 
 Source: GitHub REST API for file list + stats; `git diff` from source clone for diff content.
 
@@ -63,7 +63,7 @@ These happen after deterministic operations and (optionally) agent execution hav
 
 Before creating a branch or PR, the engine checks whether the target working tree actually has deliverable changes. The scope of this check depends on the delivery path:
 
-- **Deterministic-only** (`PORT_NOT_REQUIRED` or `NEEDS_HUMAN` with deterministic changes): the diff check and staging are scoped to the specific paths reported as touched by deterministic operations. This prevents unrelated files (validation artifacts, coverage output) from leaking into the PR.
+- **Deterministic-only** (`NO_AGENT_PORT_NEEDED` or `NEEDS_HUMAN` with deterministic changes): the diff check and staging are scoped to the specific paths reported as touched by deterministic operations. This prevents unrelated files (validation artifacts, coverage output) from leaking into the PR.
 - **Agent execution** (`PORT_REQUIRED`): the diff check is skipped entirely. The engine always attempts delivery because the agent may have created files via `Bash` that are not tracked in `execution.outcome.touchedFiles`. Staging uses `git add -A` to capture all working-tree changes. The internal `git diff --cached --quiet` check after staging still prevents empty commits.
 
 ### Branch creation and push
@@ -361,7 +361,7 @@ The action supports manual replay through `workflow_dispatch` using the existing
 
 ## Plain pushes (no PR)
 
-Currently the engine skips (`PORT_NOT_REQUIRED`) when a push event cannot be associated with a merged pull request. Without PR metadata the pipeline lacks a changed-file list, labels, and title/body context needed by heuristics, agent prompts, and delivery rendering.
+Currently the engine skips (`NO_AGENT_PORT_NEEDED`) when a push event cannot be associated with a merged pull request. Without PR metadata the pipeline lacks a changed-file list, labels, and title/body context needed by heuristics, agent prompts, and delivery rendering.
 
 Future work to support plain pushes:
 

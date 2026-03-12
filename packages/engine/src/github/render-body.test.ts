@@ -249,6 +249,30 @@ describe('render-body', () => {
 		expect(title).toBe('Port: Add execution orchestration')
 	})
 
+	test('appends [sync only] tag for deterministic_only framing', () => {
+		const title = renderPortPullRequestTitle(makeContext(), 'deterministic_only')
+
+		expect(title).toBe('Port: Add execution orchestration [sync only]')
+	})
+
+	test('appends [needs review] tag for residual_handoff framing', () => {
+		const title = renderPortPullRequestTitle(makeContext(), 'residual_handoff')
+
+		expect(title).toBe('Port: Add execution orchestration [needs review]')
+	})
+
+	test('appends [stalled] tag for agent_stalled framing', () => {
+		const title = renderPortPullRequestTitle(makeContext(), 'agent_stalled')
+
+		expect(title).toBe('Port: Add execution orchestration [stalled]')
+	})
+
+	test('omits tag for agent_success framing', () => {
+		const title = renderPortPullRequestTitle(makeContext(), 'agent_success')
+
+		expect(title).toBe('Port: Add execution orchestration')
+	})
+
 	test('renders compact PR body with quoted rationale and expanded provenance sentence', () => {
 		const body = renderPortPullRequestBody({
 			context: makeContext(),
@@ -302,7 +326,7 @@ describe('render-body', () => {
 
 		const body = renderPortPullRequestBody({
 			context,
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			framingMode: 'deterministic_only',
 		})
 
@@ -616,7 +640,7 @@ describe('render-body', () => {
 	test('renders source comment for skipped outcome with note admonition', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			outcome: 'skipped_not_required',
 			runId: 'run-0',
 		})
@@ -647,7 +671,7 @@ describe('render-body', () => {
 	test('renders source comment telemetry for decision-only outcomes', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
-			decision: makeDecision('PORT_NOT_REQUIRED'),
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
 			decisionTrace: makeDecisionTrace(),
 			outcome: 'skipped_not_required',
 			includeCostTelemetry: true,

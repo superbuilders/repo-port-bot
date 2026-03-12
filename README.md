@@ -9,7 +9,7 @@ Automatically port changes between paired repositories. When a PR merges in one 
 3. The engine clones the source repo at the merge commit and computes a full diff
 4. Pre-deterministic skip signals are checked (missing PR, `auto-port` label, `no-port` label). If any match, the run exits immediately with no target-side changes
 5. If deterministic operations are configured (currently: file syncing via `sync`), they are applied to the target working tree — no agent involvement
-6. Heuristics run on the residual work (docs-only, config-only). If inconclusive, an LLM classifier inspects both repos and decides: `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
+6. Heuristics run on the residual work (docs-only, config-only). If inconclusive, an LLM classifier inspects both repos and decides: `PORT_REQUIRED`, `NO_AGENT_PORT_NEEDED`, or `NEEDS_HUMAN`
 7. If required, an agent reads the source diff, applies equivalent changes in the target repo (on top of any deterministic baseline), and produces a structured summary
 8. Validation commands run. If they fail, the agent iterates with feedback (up to a configured max)
 9. A PR opens in the target repo linking back to the source, with a reviewer-facing summary and collapsible work log
@@ -268,7 +268,7 @@ If deterministic operations are configured (currently: file syncing via `sync`),
 The classifier inspects both repos with read-only tools and returns one of three outcomes:
 
 - `PORT_REQUIRED` — proceed to agent execution (on top of any deterministic baseline)
-- `PORT_NOT_REQUIRED` — skip residual work (deterministic changes may still produce a PR)
+- `NO_AGENT_PORT_NEEDED` — skip residual work (deterministic changes may still produce a PR)
 - `NEEDS_HUMAN` — escalate residual work (deterministic changes may still produce a PR with a handoff note)
 
 ## Labels

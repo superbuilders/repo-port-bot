@@ -318,8 +318,8 @@ describe('resolveFramingMode', () => {
 		)
 	})
 
-	test('returns deterministic_only for PORT_NOT_REQUIRED', () => {
-		expect(resolveFramingMode(undefined, false, undefined, 'PORT_NOT_REQUIRED')).toBe(
+	test('returns deterministic_only for NO_AGENT_PORT_NEEDED', () => {
+		expect(resolveFramingMode(undefined, false, undefined, 'NO_AGENT_PORT_NEEDED')).toBe(
 			'deterministic_only',
 		)
 	})

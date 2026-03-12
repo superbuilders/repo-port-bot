@@ -735,7 +735,7 @@ function normalizeToolInputForEvent(
  * @returns Validated decide port output.
  */
 function readStructuredDecideOutput(message: SDKResultMessage): {
-	kind: 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED' | 'NEEDS_HUMAN'
+	kind: 'PORT_REQUIRED' | 'NO_AGENT_PORT_NEEDED' | 'NEEDS_HUMAN'
 	reason: string
 } {
 	if (message.subtype !== 'success') {
@@ -759,9 +759,9 @@ function readStructuredDecideOutput(message: SDKResultMessage): {
 		throw new Error('Claude decidePort structured_output has invalid shape.')
 	}
 
-	const DECISION_MAP: Record<string, 'PORT_REQUIRED' | 'PORT_NOT_REQUIRED' | 'NEEDS_HUMAN'> = {
+	const DECISION_MAP: Record<string, 'PORT_REQUIRED' | 'NO_AGENT_PORT_NEEDED' | 'NEEDS_HUMAN'> = {
 		required: 'PORT_REQUIRED',
-		not_required: 'PORT_NOT_REQUIRED',
+		not_required: 'NO_AGENT_PORT_NEEDED',
 		needs_human: 'NEEDS_HUMAN',
 	}
 

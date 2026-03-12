@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * SKIPPED scenario — docs-only change triggers PORT_NOT_REQUIRED heuristic.
+ * SKIPPED scenario — docs-only change triggers NO_AGENT_PORT_NEEDED heuristic.
  *
  * Usage:
  *   bun examples/skipped/run.ts
@@ -108,7 +108,7 @@ const result = await runPort({
 			throw new Error('Should not be called — heuristic matches first.')
 		},
 		async executePort() {
-			throw new Error('Should not be called in PORT_NOT_REQUIRED path.')
+			throw new Error('Should not be called in NO_AGENT_PORT_NEEDED path.')
 		},
 	},
 	sourceRepo: { owner: 'example', name: 'source-repo', defaultBranch: 'main' },

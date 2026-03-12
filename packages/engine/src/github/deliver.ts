@@ -362,7 +362,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	const shouldCreateTargetPr = isPortRequired || deterministicChanged
 
 	if (!shouldCreateTargetPr) {
-		if (options.decision.kind === 'PORT_NOT_REQUIRED') {
+		if (options.decision.kind === 'NO_AGENT_PORT_NEEDED') {
 			return { outcome: 'skipped' }
 		}
 
@@ -429,18 +429,19 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		options.targetWorkingDirectory,
 	)
 
+	const framingMode = resolveFramingMode(
+		options.framingMode,
+		isPortRequired,
+		options.execution?.outcome.status,
+		options.decision.kind,
+	)
 	const prBody = renderPortPullRequestBody({
 		context: options.context,
 		decision: options.decision,
 		decisionTrace: options.decisionTrace,
 		execution: options.execution,
 		validation: options.validation,
-		framingMode: resolveFramingMode(
-			options.framingMode,
-			isPortRequired,
-			options.execution?.outcome.status,
-			options.decision.kind,
-		),
+		framingMode,
 		includeCostTelemetry: options.includeCostTelemetry ?? true,
 	})
 	const isSuccessful = isPortRequired
@@ -450,7 +451,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		writer: options.writer,
 		owner: targetRepo.owner,
 		repo: targetRepo.name,
-		title: renderPortPullRequestTitle(options.context),
+		title: renderPortPullRequestTitle(options.context, framingMode),
 		body: prBody,
 		head: branchName,
 		base: targetRepo.defaultBranch,

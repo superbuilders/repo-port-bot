@@ -21,11 +21,11 @@ This doc defines:
 
 These are the only facts the state machine cares about:
 
-- `phase1_changed`
+- `deterministic_changed`
     - `yes` when deterministic operations produced a target-side diff
     - `no` when they produced no target-side diff
 - `port_decision`
-    - `PORT_NOT_REQUIRED`
+    - `NO_AGENT_PORT_NEEDED`
     - `NEEDS_HUMAN`
     - `PORT_REQUIRED`
 - `agent_ran`
@@ -42,7 +42,7 @@ These are the only facts the state machine cares about:
 
 The spec-style names in this document map to code as follows:
 
-- `phase1_changed` → `DeterministicPhaseResult.changed` / `context.deterministic.changed`
+- `deterministic_changed` → `DeterministicPhaseResult.changed` / `context.deterministic.changed`
 - `port_decision` → `PortDecision.kind` / `portDecision.outcome.kind`
 - `agent_ran` → whether `ExecutePortResult` exists
 - `validation` → `ValidationCommandResult[]` pass/fail
@@ -52,9 +52,9 @@ The spec-style names in this document map to code as follows:
 
 Some heuristics suppress the entire run **before** deterministic operations touch the target checkout:
 
-- missing source pull request → `PORT_NOT_REQUIRED` (no PR metadata to work with)
-- `auto-port` label → `PORT_NOT_REQUIRED` (loop prevention)
-- `no-port` label → `PORT_NOT_REQUIRED` (explicit opt-out)
+- missing source pull request → `NO_AGENT_PORT_NEEDED` (no PR metadata to work with)
+- `auto-port` label → `NO_AGENT_PORT_NEEDED` (loop prevention)
+- `no-port` label → `NO_AGENT_PORT_NEEDED` (explicit opt-out)
 
 These signals take priority over deterministic operations. If any of them match, the run exits immediately with no target-side mutation. All other heuristics (docs-only, config-only, no remaining files) run after deterministic operations, during residual classification.
 
@@ -63,26 +63,29 @@ These signals take priority over deterministic operations. If any of them match,
 - Deterministic operations always run first (unless a pre-deterministic skip applies).
 - Residual classification only evaluates the work that remains after deterministic operations.
 - The classifier does **not** decide whether any PR exists at all. It only decides what should happen to the residual work.
-- If deterministic operations produce necessary target-side changes, a PR may still be opened even when the residual work is `PORT_NOT_REQUIRED` or `NEEDS_HUMAN`.
+- If deterministic operations produce necessary target-side changes, a PR may still be opened even when the residual work is `NO_AGENT_PORT_NEEDED` or `NEEDS_HUMAN`.
 - If `target_side_diff = no` at delivery time, do not create a branch or PR.
 - When a PR exists, validation determines whether it is `ready` or `draft`.
-- This version of the state machine does **not** split successful agent runs into separate artifact states based on `agent_complete`; that is a reviewer-framing concern, not an artifact-selection concern here.
+- The agent may report itself as incomplete even when validations pass. This does **not** change artifact selection or PR state — it is a reviewer-framing concern only (see [PR framing flow](#pr-framing-flow)).
 
 ## Canonical state table
 
 Only reachable states are listed below.
 
-| `phase1_changed` | `port_decision`     | `agent_ran` | `validation` | `target_side_diff` | Artifact | PR state | Meaning                                                                        |
-| ---------------- | ------------------- | ----------- | ------------ | ------------------ | -------- | -------- | ------------------------------------------------------------------------------ |
-| no               | `PORT_NOT_REQUIRED` | no          | n/a          | no                 | none     | n/a      | Skip                                                                           |
-| yes              | `PORT_NOT_REQUIRED` | no          | pass         | yes                | PR       | ready    | Deterministic-only PR                                                          |
-| yes              | `PORT_NOT_REQUIRED` | no          | fail         | yes                | PR       | draft    | Deterministic-only PR with validation failure                                  |
-| no               | `NEEDS_HUMAN`       | no          | n/a          | no                 | issue    | n/a      | No target-side changes exist, so hand off with a `needs-human` issue           |
-| yes              | `NEEDS_HUMAN`       | no          | pass         | yes                | PR       | ready    | Deterministic PR plus residual handoff note                                    |
-| yes              | `NEEDS_HUMAN`       | no          | fail         | yes                | PR       | draft    | Deterministic PR plus residual handoff note, but validations failed            |
-| no or yes        | `PORT_REQUIRED`     | yes         | pass         | yes                | PR       | ready    | Agent-authored residual work succeeded                                         |
-| no or yes        | `PORT_REQUIRED`     | yes         | fail         | yes                | PR       | draft    | Agent-authored residual work did not validate; preserve progress in a draft PR |
-| no or yes        | any                 | any         | any          | no                 | none     | n/a      | No branch push and no PR upsert because nothing remains to deliver             |
+| `deterministic_changed` | `port_decision`        | `agent_ran` | `validation` | `target_side_diff` | Artifact | PR state | Meaning                                                                        |
+| ----------------------- | ---------------------- | ----------- | ------------ | ------------------ | -------- | -------- | ------------------------------------------------------------------------------ |
+| no                      | `NO_AGENT_PORT_NEEDED` | no          | n/a          | no                 | none     | n/a      | Skip                                                                           |
+| yes                     | `NO_AGENT_PORT_NEEDED` | no          | pass         | yes                | PR       | ready    | Deterministic-only PR                                                          |
+| yes                     | `NO_AGENT_PORT_NEEDED` | no          | fail         | yes                | PR       | draft    | Deterministic-only PR with validation failure                                  |
+| no                      | `NEEDS_HUMAN`          | no          | n/a          | no                 | issue    | n/a      | No target-side changes exist, so hand off with a `needs-human` issue           |
+| yes                     | `NEEDS_HUMAN`          | no          | pass         | yes                | PR       | ready    | Deterministic PR plus residual handoff note                                    |
+| yes                     | `NEEDS_HUMAN`          | no          | fail         | yes                | PR       | draft    | Deterministic PR plus residual handoff note, but validations failed            |
+| no or yes               | `PORT_REQUIRED`        | yes         | pass         | yes                | PR       | ready    | Agent-authored residual work succeeded                                         |
+| no or yes               | `PORT_REQUIRED`        | yes         | fail         | yes                | PR       | draft    | Agent-authored residual work did not validate; preserve progress in a draft PR |
+
+Any state not listed above has `target_side_diff = no` and produces no artifact, per interpretation rule 5. The only `target_side_diff = no` state that produces an artifact is `NEEDS_HUMAN` with no deterministic changes (row 4), which creates an issue.
+
+**Why can deterministic-only changes fail validation?** Deterministic operations (file sync) are safe as file operations, but validation commands evaluate the entire working tree. For example, syncing updated test fixtures without the corresponding code changes can cause test failures. The draft PR preserves the correct deterministic changes and signals that the residual code port is still needed.
 
 ## Artifact meanings
 
@@ -103,11 +106,11 @@ Only reachable states are listed below.
 flowchart TD
     A[Apply deterministic operations] --> B[Classify residual work]
 
-    B -->|PORT_NOT_REQUIRED| C{Did phase 1 change anything?}
+    B -->|NO_AGENT_PORT_NEEDED| C{Deterministic changes?}
     C -->|No| D[Skip]
     C -->|Yes| E[PR candidate]
 
-    B -->|NEEDS_HUMAN| F{Did phase 1 change anything?}
+    B -->|NEEDS_HUMAN| F{Deterministic changes?}
     F -->|No| G[Open or update needs-human issue]
     F -->|Yes| H[PR candidate]
 
@@ -136,7 +139,7 @@ Artifact selection and PR framing are related but distinct.
 flowchart TD
     A[PR exists] --> B{Did agent run?}
     B -->|No| C{Port decision}
-    C -->|PORT_NOT_REQUIRED| D[Deterministic-only framing]
+    C -->|NO_AGENT_PORT_NEEDED| D[Deterministic-only framing]
     C -->|NEEDS_HUMAN| E[Residual handoff framing]
 
     B -->|Yes| F{Validations pass?}
@@ -146,7 +149,7 @@ flowchart TD
     H -->|Yes| J[Validated but incomplete framing]
 ```
 
-The final branch (`agent marked incomplete?`) is a reviewer-framing concern, not an artifact-selection concern in this document. It exists to make the open product question visible.
+The final branch (`agent marked incomplete?`) is a reviewer-framing concern, not an artifact-selection concern. Currently the engine treats this identically to normal success framing — it does not change the artifact or PR state. The branch exists to make the open product question visible: a future version may add a visual signal to the PR body when the agent reports low confidence.
 
 ## Summary
 

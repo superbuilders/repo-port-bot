@@ -301,7 +301,7 @@ describe('runPort', () => {
 				resolvePluginConfig: () => makePluginConfig(),
 				decide: async () =>
 					makeDecisionResult(
-						'PORT_NOT_REQUIRED',
+						'NO_AGENT_PORT_NEEDED',
 						'Skipping because no-port is set.',
 						'heuristic',
 					),
@@ -515,7 +515,7 @@ describe('runPort', () => {
 		expect(commentOutcomes).toEqual(['skipped_not_required'])
 	})
 
-	test('routes PORT_NOT_REQUIRED with deterministic changes to PR delivery', async () => {
+	test('routes NO_AGENT_PORT_NEEDED with deterministic changes to PR delivery', async () => {
 		let executeCalled = false
 		let deliverCalled = false
 		let deterministicCalled = false
@@ -556,7 +556,7 @@ describe('runPort', () => {
 					}
 				},
 				decide: async () =>
-					makeDecisionResult('PORT_NOT_REQUIRED', 'No residual work remains.'),
+					makeDecisionResult('NO_AGENT_PORT_NEEDED', 'No residual work remains.'),
 				executePort: async () => {
 					executeCalled = true
 
@@ -585,7 +585,7 @@ describe('runPort', () => {
 		expect(deterministicCalled).toBe(true)
 		expect(executeCalled).toBe(false)
 		expect(deliverCalled).toBe(true)
-		expect(deliverDecisions).toEqual(['PORT_NOT_REQUIRED'])
+		expect(deliverDecisions).toEqual(['NO_AGENT_PORT_NEEDED'])
 		expect(commentOutcomes).toEqual(['pr_opened'])
 	})
 
@@ -651,7 +651,7 @@ describe('runPort', () => {
 					decidedFiltering = context.filtering
 
 					return makeDecisionResult(
-						'PORT_NOT_REQUIRED',
+						'NO_AGENT_PORT_NEEDED',
 						'Skipping because no changed files require porting.',
 						'heuristic',
 					)
@@ -832,6 +832,8 @@ describe('runPort', () => {
 						return { outcome: 'skipped' }
 					}
 
+					expect(input.context.deterministic?.changed).toBe(false)
+
 					return {
 						outcome: 'needs_human',
 						followUpIssueUrl: 'https://github.com/acme/target-repo/issues/99',
@@ -961,7 +963,7 @@ describe('runPort', () => {
 				},
 				decide: async () =>
 					makeDecisionResult(
-						'PORT_NOT_REQUIRED',
+						'NO_AGENT_PORT_NEEDED',
 						'Skipping because no-port is set.',
 						'heuristic',
 					),
@@ -998,7 +1000,7 @@ describe('runPort', () => {
 				},
 				decide: async () =>
 					makeDecisionResult(
-						'PORT_NOT_REQUIRED',
+						'NO_AGENT_PORT_NEEDED',
 						'Skipping because no-port is set.',
 						'heuristic',
 					),
@@ -1033,7 +1035,7 @@ describe('runPort', () => {
 				resolvePluginConfig: () => makePluginConfig(),
 				decide: async () =>
 					makeDecisionResult(
-						'PORT_NOT_REQUIRED',
+						'NO_AGENT_PORT_NEEDED',
 						'Skipping because no-port is set.',
 						'heuristic',
 					),
@@ -1094,7 +1096,7 @@ describe('runPort', () => {
 					})
 
 					return makeDecisionResult(
-						'PORT_NOT_REQUIRED',
+						'NO_AGENT_PORT_NEEDED',
 						'Skipping because no-port is set.',
 						'classifier',
 					)

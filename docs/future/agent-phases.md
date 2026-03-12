@@ -140,7 +140,7 @@ That workflow exists because:
 
 - fixture files are language-neutral JSON and should be byte-identical across repos
 - the port bot's `port-bot.json` already lists those paths in `ignore` so the agent does not try to port them
-- but the agent's `NEEDS_HUMAN` or `PORT_NOT_REQUIRED` decisions should not block fixture delivery
+- but the agent's `NEEDS_HUMAN` or `NO_AGENT_PORT_NEEDED` decisions should not block fixture delivery
 
 With the proposed `sync` config, the separate workflow can be retired. The engine handles fixture mirroring as a deterministic operation, and the resulting changes flow through the normal state machine.
 
@@ -167,7 +167,7 @@ Deterministic operations should run before classification because that keeps the
 
 - classification only reasons about residual work
 - deterministic work can still produce a valid PR on its own
-- `PORT_NOT_REQUIRED` and `NEEDS_HUMAN` stop meaning "no target artifact" by default
+- `NO_AGENT_PORT_NEEDED` and `NEEDS_HUMAN` stop meaning "no target artifact" by default
 - the system no longer needs special exceptions to explain why a PR still opened
 
 If deterministic operations were delayed until after classification, the product would immediately reintroduce confusing edge cases around artifact selection.
@@ -221,7 +221,7 @@ These templates show how each framing mode should read to a reviewer.
 
 ### Template A: deterministic only
 
-Corresponds to: `phase1_changed=yes`, residual `PORT_NOT_REQUIRED`, no agent execution.
+Corresponds to: `deterministic_changed=yes`, residual `NO_AGENT_PORT_NEEDED`, no agent execution.
 
 ```md
 ## Port rationale
@@ -259,7 +259,7 @@ Ported by: [Repo Port Bot](<bot repo url>)
 
 ### Template B: deterministic + agent success
 
-Corresponds to: `phase1_changed=yes`, residual `PORT_REQUIRED`, agent succeeds, validations pass.
+Corresponds to: `deterministic_changed=yes`, residual `PORT_REQUIRED`, agent succeeds, validations pass.
 
 ```md
 ## Port rationale
@@ -317,7 +317,7 @@ Ported by: [Repo Port Bot](<bot repo url>)
 
 ### Template C: deterministic + residual needs human
 
-Corresponds to: `phase1_changed=yes`, residual `NEEDS_HUMAN`, no agent execution.
+Corresponds to: `deterministic_changed=yes`, residual `NEEDS_HUMAN`, no agent execution.
 
 ```md
 ## Port rationale
@@ -365,7 +365,7 @@ Ported by: [Repo Port Bot](<bot repo url>)
 
 ### Template D: deterministic + agent handoff
 
-Corresponds to: `phase1_changed=yes`, residual `PORT_REQUIRED`, agent starts editing but validations fail after retries.
+Corresponds to: `deterministic_changed=yes`, residual `PORT_REQUIRED`, agent starts editing but validations fail after retries.
 
 ```md
 ## Port rationale

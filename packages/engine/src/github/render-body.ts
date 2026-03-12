@@ -112,16 +112,41 @@ function truncateForTitle(value: string, maxLength: number): string {
  * Render the standard target pull request title.
  *
  * @param context - Port context with source PR metadata.
+ * @param framingMode - Optional framing mode to append a tag suffix.
  * @returns Title in the canonical format.
  */
-export function renderPortPullRequestTitle(context: PortContext): string {
+export function renderPortPullRequestTitle(
+	context: PortContext,
+	framingMode?: PrFramingMode,
+): string {
 	const sourcePullRequest = context.sourceChange.pullRequest
+	const base = sourcePullRequest
+		? `Port: ${sourcePullRequest.title}`
+		: `Port: source change (${context.sourceChange.mergedCommitSha.slice(0, SHORT_SHA_LENGTH)})`
+	const tag = framingModeTag(framingMode)
 
-	if (!sourcePullRequest) {
-		return `Port: source change (${context.sourceChange.mergedCommitSha.slice(0, SHORT_SHA_LENGTH)})`
+	return tag ? `${base} ${tag}` : base
+}
+
+/**
+ * @param mode - PR framing mode.
+ * @returns Short tag suffix for the PR title, or undefined for no tag.
+ */
+function framingModeTag(mode?: PrFramingMode): string | undefined {
+	switch (mode) {
+		case 'deterministic_only': {
+			return '[sync only]'
+		}
+		case 'residual_handoff': {
+			return '[needs review]'
+		}
+		case 'agent_stalled': {
+			return '[stalled]'
+		}
+		default: {
+			return undefined
+		}
 	}
-
-	return `Port: ${sourcePullRequest.title}`
 }
 
 /**

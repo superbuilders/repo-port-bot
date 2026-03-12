@@ -1,6 +1,6 @@
 # Three-Way LLM Classification
 
-How the decision stage classifies residual work into `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`.
+How the decision stage classifies residual work into `PORT_REQUIRED`, `NO_AGENT_PORT_NEEDED`, or `NEEDS_HUMAN`.
 
 ## Purpose
 
@@ -18,7 +18,7 @@ Classification evaluates the **residual** work only. Deterministic operations ha
 The decision stage can end in three outcomes:
 
 - `PORT_REQUIRED`
-- `PORT_NOT_REQUIRED`
+- `NO_AGENT_PORT_NEEDED`
 - `NEEDS_HUMAN`
 
 The classifier exposes those same semantics directly rather than collapsing everything into a binary required/not-required result.
@@ -37,13 +37,13 @@ The LLM classifier returns:
 The engine maps those values to `PortDecisionKind`:
 
 - `required` -> `PORT_REQUIRED`
-- `not_required` -> `PORT_NOT_REQUIRED`
+- `not_required` -> `NO_AGENT_PORT_NEEDED`
 - `needs_human` -> `NEEDS_HUMAN`
 
 ### Meaning of each outcome
 
 - `PORT_REQUIRED` — the residual work applies to the target repo and the bot should attempt an automated port on top of the deterministic baseline.
-- `PORT_NOT_REQUIRED` — the residual work does not meaningfully apply to the target repo.
+- `NO_AGENT_PORT_NEEDED` — the residual work does not meaningfully apply to the target repo.
 - `NEEDS_HUMAN` — the residual work likely does apply to the target repo, but the bot should stop before execution because confidence is too low or the change appears too risky, ambiguous, or complex to automate safely.
 
 These outcomes govern only the **residual** work. They do not determine whether any PR exists. When deterministic operations have already produced target-side changes, a PR may still be opened regardless of the port decision.
@@ -58,7 +58,7 @@ Three-way classification does **not** mean every decision goes through the LLM. 
 
 ### Heuristics
 
-Heuristics return only `PORT_REQUIRED` or `PORT_NOT_REQUIRED`. Some run before deterministic operations as pre-deterministic skip signals (missing PR context, `auto-port` loop prevention, `no-port` label) and suppress the entire run before any target mutation. The remaining heuristics run during the decision stage after deterministic operations: docs-only changes, config-only changes, and no remaining files after ignore filtering.
+Heuristics return only `PORT_REQUIRED` or `NO_AGENT_PORT_NEEDED`. Some run before deterministic operations as pre-deterministic skip signals (missing PR context, `auto-port` loop prevention, `no-port` label) and suppress the entire run before any target mutation. The remaining heuristics run during the decision stage after deterministic operations: docs-only changes, config-only changes, and no remaining files after ignore filtering.
 
 ### Classifier
 
@@ -95,8 +95,8 @@ The job summary, logs, and artifacts can all distinguish heuristic skip, classif
 The classifier outcome combines with the deterministic phase to determine the final artifact. The full logic is in [`docs/arch/state-machine.md`](state-machine.md). In summary:
 
 - `PORT_REQUIRED` -> agent execution begins on top of the deterministic baseline, then delivery opens or updates a target PR
-- `PORT_NOT_REQUIRED` + no deterministic changes -> source PR gets a skip comment, no target-side artifact
-- `PORT_NOT_REQUIRED` + deterministic changes exist -> delivery opens or updates a ready PR containing the deterministic changes only
+- `NO_AGENT_PORT_NEEDED` + no deterministic changes -> source PR gets a skip comment, no target-side artifact
+- `NO_AGENT_PORT_NEEDED` + deterministic changes exist -> delivery opens or updates a ready PR containing the deterministic changes only
 - `NEEDS_HUMAN` + no deterministic changes -> execution is skipped and delivery opens a `needs-human` issue
 - `NEEDS_HUMAN` + deterministic changes exist -> execution is skipped and delivery opens a ready PR containing the deterministic changes, with a residual handoff note
 

@@ -55,10 +55,10 @@ Define what "working" means from a maintainer perspective when a change in one r
 6. **Engine classifies the residual work**
     - Classification evaluates the work that remains after deterministic operations, not the full source change.
     - Fast heuristics run first and can short-circuit the decision:
-        - docs-only, config-only → `PORT_NOT_REQUIRED`
-        - all files match ignore patterns → `PORT_NOT_REQUIRED`
+        - docs-only, config-only → `NO_AGENT_PORT_NEEDED`
+        - all files match ignore patterns → `NO_AGENT_PORT_NEEDED`
     - If no heuristic matches, the LLM classifier makes the call:
-        - `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
+        - `PORT_REQUIRED`, `NO_AGENT_PORT_NEEDED`, or `NEEDS_HUMAN`
     - In the happy path, the result is `PORT_REQUIRED`.
 
 7. **Agent executes the residual port** (see [agent loop spec](../arch/agent-loop.md))
@@ -142,7 +142,7 @@ The maintainer experiences porting as "automatic and reviewable":
 - Workflow permissions are least-privilege.
 - Secrets are sourced from GitHub Actions secrets only.
 - A port run always ends in one terminal outcome:
-    - `skipped_not_required` — pre-deterministic skip (missing PR, `auto-port`, or `no-port`), or no deterministic changes and residual classification returned `PORT_NOT_REQUIRED`
+    - `skipped_not_required` — pre-deterministic skip (missing PR, `auto-port`, or `no-port`), or no deterministic changes and residual classification returned `NO_AGENT_PORT_NEEDED`
     - `needs_human` — no deterministic changes and residual classification returned `NEEDS_HUMAN`; issue opened
     - `pr_opened` — target-side changes exist (deterministic and/or agent-authored), validations pass, PR ready for review
     - `draft_pr_opened` — target-side changes exist but validations failed after retries; draft PR with notes
@@ -170,7 +170,7 @@ Use this section to record intentional changes to the anchor story.
 ### 2026-03-11 — Deterministic operations phase
 
 - **Date**: 2026-03-11
-- **What changed**: Added a deterministic operations phase that runs before classification. Classification now evaluates residual work only. Deterministic changes can produce a PR even when the port decision is `PORT_NOT_REQUIRED` or `NEEDS_HUMAN`.
+- **What changed**: Added a deterministic operations phase that runs before classification. Classification now evaluates residual work only. Deterministic changes can produce a PR even when the port decision is `NO_AGENT_PORT_NEEDED` or `NEEDS_HUMAN`.
 - **Why**: Source changes that contain both mechanical work (fixture sync, file mirroring) and target-specific work should not lose the mechanical portion when the agent cannot handle the rest. Deterministic operations are independently safe to merge and should always land.
 - **Impact on success definition**: `NEEDS_HUMAN` no longer always means "issue only." When deterministic changes exist, `NEEDS_HUMAN` produces a ready PR with a residual handoff note instead. The terminal outcome list and acceptance criteria are updated to reflect this.
 - **Follow-up implementation tasks**: Add `sync` config to `port-bot.json` schema, add deterministic phase to engine pipeline, update delivery to handle deterministic-only and mixed PRs, update PR rendering for new framing modes.

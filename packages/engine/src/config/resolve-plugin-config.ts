@@ -130,6 +130,17 @@ function validatePluginConfig(config: PluginConfig): void {
 					)
 				}
 
+				if (
+					operation.mode === 'copy' &&
+					(operation.target.endsWith('/') ||
+						operation.target === '.' ||
+						operation.target === '..')
+				) {
+					throw new Error(
+						`Copy target must be a file path, not a directory: "${operation.target}"`,
+					)
+				}
+
 				break
 			}
 			default: {

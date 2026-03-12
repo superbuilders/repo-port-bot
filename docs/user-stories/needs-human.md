@@ -45,9 +45,9 @@ The LLM classifier returns a three-way output: `{ decision: 'required' | 'not_re
 
 The classifier uses `needs_human` when the residual work likely applies to the target repo but looks too risky, ambiguous, or complex for automation to handle safely.
 
-This is distinct from `PORT_NOT_REQUIRED`, which means the residual work genuinely does not apply to the target repo. The difference matters because:
+This is distinct from `NO_AGENT_PORT_NEEDED`, which means the residual work genuinely does not apply to the target repo. The difference matters because:
 
-- `PORT_NOT_REQUIRED` ends the residual work with a skip. If deterministic changes exist, a PR is still opened; otherwise, a skip comment is posted.
+- `NO_AGENT_PORT_NEEDED` ends the residual work with a skip. If deterministic changes exist, a PR is still opened; otherwise, a skip comment is posted.
 - `NEEDS_HUMAN` escalates the residual work to a human. If deterministic changes exist, a PR is opened with a residual handoff note; otherwise, an issue is opened.
 
 ### Engine failure fallback
@@ -62,7 +62,7 @@ However, deterministic operations may have already been applied before classific
 
 ## Narrative A: no deterministic changes
 
-This is the issue-only path. It applies when `phase1_changed = no`.
+This is the issue-only path. It applies when `deterministic_changed = no`.
 
 1. **Maintainer merges source PR**
     - A normal feature/fix PR is merged in source repo.
@@ -105,7 +105,7 @@ This is the issue-only path. It applies when `phase1_changed = no`.
 
 ## Narrative B: deterministic changes exist
 
-This is the PR path. It applies when `phase1_changed = yes`.
+This is the PR path. It applies when `deterministic_changed = yes`.
 
 1. **Maintainer merges source PR**
     - A normal feature/fix PR is merged in source repo.
