@@ -230,18 +230,18 @@ When source and target repos are in different orgs:
 ```yaml
 name: Port Bot
 on:
-  push:
-    branches: [main]
+    push:
+        branches: [main]
 
 jobs:
-  port:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Generate source repo token
-        id: source-token
+    port:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pull-requests: read
+        steps:
+            - name: Generate source repo token
+              id: source-token
               uses: actions/create-github-app-token@v1
               with:
                   app-id: ${{ secrets.PORT_BOT_APP_ID }}
@@ -256,14 +256,14 @@ jobs:
                   app-id: ${{ secrets.PORT_BOT_APP_ID }}
                   private-key: ${{ secrets.PORT_BOT_APP_PRIVATE_KEY }}
                   owner: target-org
-          repositories: target-repo
+                  repositories: target-repo
 
-      - uses: superbuilders/repo-port-bot@v1
-        with:
-          llm-api-key: ${{ secrets.PORT_BOT_LLM_API_KEY }}
-          source-github-token: ${{ steps.source-token.outputs.token }}
-          target-github-token: ${{ steps.target-token.outputs.token }}
-          target-repo: target-org/target-repo
+            - uses: superbuilders/repo-port-bot@v1
+              with:
+                  llm-api-key: ${{ secrets.PORT_BOT_LLM_API_KEY }}
+                  source-github-token: ${{ steps.source-token.outputs.token }}
+                  target-github-token: ${{ steps.target-token.outputs.token }}
+                  target-repo: target-org/target-repo
 ```
 
 ## Step 4: Configure behavior
@@ -374,7 +374,15 @@ Currently the only supported deterministic operation is **file syncing** via the
 
 Sync entries use source-repo paths and target-repo paths. They are processed in declared order. Paths listed in `sync` should typically also appear in `ignore` so the agent does not re-port them independently.
 
+**Constraints:**
+
+- `mirror` source must be a glob pattern (e.g., `tests/fixtures/**`). Literal directory paths are rejected.
+- `copy` source must be a literal file path. Glob patterns are rejected.
+- All paths must be repo-relative. Absolute paths and `..` traversal are rejected.
+
 When deterministic operations produce target-side changes, a PR is opened regardless of the classifier's decision about the remaining work. This ensures deterministic progress is never lost, even when the agent skips or escalates the residual port.
+
+Mirror mode uses `rsync --delete` when rsync is available on the host (included on GitHub-hosted Ubuntu runners). When rsync is not available, a built-in TypeScript implementation provides the same behavior.
 
 ## Step 5: Verify the first run
 

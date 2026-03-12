@@ -59,6 +59,13 @@ The engine looks for a supported config filename at the merged commit SHA in thi
 
 These happen after deterministic operations and (optionally) agent execution have been applied to the target working tree. The full artifact-selection logic is in [`state-machine.md`](state-machine.md).
 
+### Delivery diff scoping
+
+Before creating a branch or PR, the engine checks whether the target working tree actually has deliverable changes. The scope of this check depends on the delivery path:
+
+- **Deterministic-only** (`PORT_NOT_REQUIRED` or `NEEDS_HUMAN` with deterministic changes): the diff check and staging are scoped to the specific paths reported as touched by deterministic operations. This prevents unrelated files (validation artifacts, coverage output) from leaking into the PR.
+- **Agent execution** (`PORT_REQUIRED`): the diff check is skipped entirely. The engine always attempts delivery because the agent may have created files via `Bash` that are not tracked in `execution.outcome.touchedFiles`. Staging uses `git add -A` to capture all working-tree changes. The internal `git diff --cached --quiet` check after staging still prevents empty commits.
+
 ### Branch creation and push
 
 - Branch naming: `port/<sourceRepo>/<sourcePrNumber>-<shortSha>`
@@ -101,7 +108,7 @@ Port: <source PR title>
 
 Ported from [<source PR title>](url) (originally authored by @author) in [`<owner>/<repo>`](<repo url>). This port updated 2 files over 18.6s and was completed by [claude-sonnet-4-6](https://models.dev/?search=claude-sonnet-4-6) in a single attempt, using 5 tool calls.
 
-<details><summary>Cost & token usage</summary>
+<details><summary>Cost & Tokens</summary>
 
 - Decision: $0.12, 2.5k tokens
 - Execution: $1.34, 18.9k tokens across 2 attempts
@@ -156,7 +163,7 @@ Key design choices:
 - **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing without extra metadata interrupting the section
 - **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks, rendered in full (no truncation). The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — present but not taking up space on happy paths. For stalled/draft ports, the block uses `<details open>` so failure info is immediately visible
-- **Cost/token telemetry lives in a collapsed details block in the target PR** — reviewer-facing PRs still stay focused on rationale, changes, and validation by default, while maintainers can expand a compact `Cost & token usage` block when they want execution telemetry
+- **Cost/token telemetry lives in a collapsed details block in the target PR** — reviewer-facing PRs still stay focused on rationale, changes, and validation by default, while maintainers can expand a compact `Cost & Tokens` block when they want execution telemetry
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
 
 Detailed event logs and per-stage token/cost totals are surfaced in the **job summary** as nested collapsible "Log" sections inside the Decision and Execution blocks — see [observability.md](observability.md) for the layout. The target PR carries the same telemetry in a compact collapsed block so reviewers can inspect spend/usage without leaving GitHub.
@@ -250,7 +257,7 @@ Source changes affect shared API surface that exists in both repos.
 
 </details>
 
-<details><summary>Cost & token usage</summary>
+<details><summary>Cost & Tokens</summary>
 
 - Decision: $0.12, 2.5k tokens
 - Execution: $1.34, 18.9k tokens across 2 attempts

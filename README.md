@@ -210,6 +210,8 @@ Currently the only supported deterministic operation is **file syncing** via the
 
 Paths listed in `sync` should typically also appear in `ignore` so the agent does not re-port them independently. When deterministic operations produce target-side changes, a PR is opened regardless of the classifier's decision about the remaining work.
 
+Constraints: `mirror` source must be a glob (e.g., `tests/fixtures/**`); `copy` source must be a literal file path. All paths must be repo-relative (no absolute paths or `..` traversal). Mirror uses `rsync --delete` when available, with a built-in TypeScript fallback.
+
 ## Action inputs reference
 
 | Input                   | Required | Default             | Description                                                                    |

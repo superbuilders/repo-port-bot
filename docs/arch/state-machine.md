@@ -38,9 +38,29 @@ These are the only facts the state machine cares about:
     - `yes` when there is a diff to deliver at the end of the run
     - `no` when there is nothing to commit or open a PR for
 
+## Code mapping
+
+The spec-style names in this document map to code as follows:
+
+- `phase1_changed` → `DeterministicPhaseResult.changed` / `context.deterministic.changed`
+- `port_decision` → `PortDecision.kind` / `portDecision.outcome.kind`
+- `agent_ran` → whether `ExecutePortResult` exists
+- `validation` → `ValidationCommandResult[]` pass/fail
+- `target_side_diff` → `checkTargetSideDiff()` result
+
+## Pre-deterministic skip
+
+Some heuristics suppress the entire run **before** deterministic operations touch the target checkout:
+
+- missing source pull request → `PORT_NOT_REQUIRED` (no PR metadata to work with)
+- `auto-port` label → `PORT_NOT_REQUIRED` (loop prevention)
+- `no-port` label → `PORT_NOT_REQUIRED` (explicit opt-out)
+
+These signals take priority over deterministic operations. If any of them match, the run exits immediately with no target-side mutation. All other heuristics (docs-only, config-only, no remaining files) run after deterministic operations, during residual classification.
+
 ## Interpretation rules
 
-- Deterministic operations always run first.
+- Deterministic operations always run first (unless a pre-deterministic skip applies).
 - Residual classification only evaluates the work that remains after deterministic operations.
 - The classifier does **not** decide whether any PR exists at all. It only decides what should happen to the residual work.
 - If deterministic operations produce necessary target-side changes, a PR may still be opened even when the residual work is `PORT_NOT_REQUIRED` or `NEEDS_HUMAN`.

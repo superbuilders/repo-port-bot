@@ -40,29 +40,34 @@ Define what "working" means from a maintainer perspective when a change in one r
     - Changed files and diff summary are fetched.
     - Plugin configuration is resolved for this repo pair.
 
-4. **Engine applies deterministic operations**
-    - If deterministic operations are configured in `port-bot.json` (currently: file syncing via the `sync` key), the engine applies them to the target working tree before any classification or agent execution.
+4. **Engine checks for pre-deterministic skip signals**
+    - Before touching the target working tree, the engine checks for signals that suppress the entire run:
+        - missing source pull request → skip (no PR metadata)
+        - `auto-port` label → skip (loop prevention)
+        - `no-port` label → skip (explicit opt-out)
+    - If any of these match, the run exits immediately with `skipped_not_required`. No deterministic operations run, no target-side mutation occurs.
+
+5. **Engine applies deterministic operations**
+    - If deterministic operations are configured in `port-bot.json` (currently: file syncing via the `sync` key), the engine applies them to the target working tree before any residual classification or agent execution.
     - Deterministic operations are engine-owned and declarative. They do not involve the agent. The operation kind determines the behavior (e.g., mirror, copy).
     - This step may or may not produce target-side changes depending on whether the source change touched paths covered by configured operations.
 
-5. **Engine classifies the residual work**
+6. **Engine classifies the residual work**
     - Classification evaluates the work that remains after deterministic operations, not the full source change.
     - Fast heuristics run first and can short-circuit the decision:
         - docs-only, config-only → `PORT_NOT_REQUIRED`
-        - `no-port` label → `PORT_NOT_REQUIRED`
-        - `auto-port` label → `PORT_NOT_REQUIRED` (loop prevention)
         - all files match ignore patterns → `PORT_NOT_REQUIRED`
     - If no heuristic matches, the LLM classifier makes the call:
         - `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
     - In the happy path, the result is `PORT_REQUIRED`.
 
-6. **Agent executes the residual port** (see [agent loop spec](../arch/agent-loop.md))
+7. **Agent executes the residual port** (see [agent loop spec](../arch/agent-loop.md))
     - The agent works on top of the deterministic baseline already applied in the target working tree.
     - Agent applies equivalent changes for the residual work using source context + plugin config.
     - Validation commands run against the combined working tree (deterministic + agent edits); on failure the agent iterates (read error → fix → rerun).
     - In the happy path, validations pass within the retry budget.
 
-7. **PR is opened (or updated) in target repo**
+8. **PR is opened (or updated) in target repo**
     - On first run, a new PR is created. On re-runs where the port branch already has an open PR, the existing PR is updated with fresh output rather than failing.
     - The maintainer should experience one stable target PR for a given source change, not a stream of duplicate PRs on each rerun.
     - PR title follows predictable format:
@@ -76,7 +81,7 @@ Define what "working" means from a maintainer perspective when a change in one r
         - collapsible `Validation & diagnostics` section with pass/fail results
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention signal remains the git trailer `Ported-By: repo-port-bot`)
 
-8. **Maintainer reviews a small, traceable PR**
+9. **Maintainer reviews a small, traceable PR**
     - Maintainer sees a focused change set.
     - PR links cleanly back to original source PR.
     - Review effort is mostly verification, not re-implementation.
