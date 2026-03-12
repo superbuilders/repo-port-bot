@@ -16,9 +16,8 @@ import {
 } from '../lib/telemetry.ts'
 import { getDurationMs, logAgentMessage, toErrorMessage } from '../utils.ts'
 import { filterDiffContent, filterIgnoredFiles } from './filter-ignored.ts'
-import { logFailedOutcome, logOutcome, logStage } from './logging.ts'
-import { runNeedsHumanFlow } from './needs-human.ts'
-import { runPortRequiredFlow } from './port-required.ts'
+import { logFailedOutcome, logStage } from './logging.ts'
+import { routeDecisionOutcome } from './route-decision-outcome.ts'
 
 import type { Logger } from '@repo-port-bot/logger'
 
@@ -187,7 +186,18 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			sourceChange: filteredSourceChange,
 			pluginConfig,
 			filtering,
+			deterministic: {
+				changed: false,
+				operations: [],
+				touchedFiles: [],
+			},
 		}
+
+		logStage(logger, runId, 'deterministic', {
+			operations: 0,
+			changed: 'false',
+			deterministicMs: (stageTimings.deterministicMs = getDurationMs(startedAtMs)),
+		})
 
 		logger.group('Decision: classify source change')
 
@@ -219,69 +229,12 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			logger.groupEnd()
 		}
 
-		if (decision.outcome.kind === 'PORT_NOT_REQUIRED') {
-			const sourcePrNumber = context.sourceChange.pullRequest?.number
-
-			if (sourcePrNumber) {
-				try {
-					await stages.commentOnSourcePr({
-						writer: options.writer,
-						pullRequestNumber: sourcePrNumber,
-						context,
-						decision: decision.outcome,
-						decisionTrace: decision.trace,
-						outcome: 'skipped_not_required',
-						includeCostTelemetry: options.includeCostTelemetry ?? true,
-						runId,
-						logger,
-					})
-				} catch (commentError) {
-					logger.warn(
-						'[port-bot] Unable to post source PR comment for skipped run.',
-						commentError,
-					)
-				}
-			}
-
-			logOutcome(logger, runId, 'skipped_not_required', getDurationMs(startedAtMs))
-
-			return {
-				runId,
-				sourceTitle,
-				outcome: 'skipped_not_required',
-				decision,
-				telemetry: buildRunTelemetry(decision),
-				summary: renderRunSummary({ outcome: 'skipped_not_required', decision }),
-				durationMs: getDurationMs(startedAtMs),
-				stageTimings,
-			}
-		}
-
-		if (decision.outcome.kind === 'NEEDS_HUMAN') {
-			return withTelemetry(
-				await runNeedsHumanFlow({
-					writer: options.writer,
-					context,
-					decision,
-					targetWorkingDirectory: options.targetWorkingDirectory,
-					deliverStage: stages.deliverResult,
-					commentStage: stages.commentOnSourcePr,
-					logger,
-					runId,
-					sourceTitle,
-					startedAtMs,
-					stageTimings,
-					includeCostTelemetry: options.includeCostTelemetry ?? true,
-				}),
-			)
-		}
-
 		return withTelemetry(
-			await runPortRequiredFlow({
+			await routeDecisionOutcome({
 				writer: options.writer,
 				agentProvider: options.agentProvider,
 				context,
-				decision,
+				portDecision: decision,
 				targetWorkingDirectory: options.targetWorkingDirectory,
 				sourceWorkingDirectory: options.sourceWorkingDirectory,
 				diffFilePath: options.diffFilePath,

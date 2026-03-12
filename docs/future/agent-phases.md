@@ -139,7 +139,7 @@ With the proposed `sync` config, the separate workflow can be retired. The engin
 After deterministic operations are applied, the system should:
 
 1. classify the residual work
-2. only run the agent if the residual decision is `PORT_REQUIRED`
+2. only run the agent if the port decision is `PORT_REQUIRED`
 
 This means the classifier is no longer answering:
 

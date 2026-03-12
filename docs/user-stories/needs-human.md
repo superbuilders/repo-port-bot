@@ -179,6 +179,6 @@ The maintainer experiences the escalation as "the bot told me it couldn't do thi
 
 ## Non-goals
 
-- Providing agent-authored partial edits when the residual decision is `NEEDS_HUMAN`. If the bot can't confidently execute the residual work, it should not attempt it. Deterministic changes are safe by definition; agent guesses are not.
+- Providing agent-authored partial edits when the port decision is `NEEDS_HUMAN`. If the bot can't confidently execute the residual work, it should not attempt it. Deterministic changes are safe by definition; agent guesses are not.
 - Automatically re-running when the issue is closed or the PR is merged. The maintainer decides whether to port the residual work and how.
 - Distinguishing between "classifier said needs-human" and "engine failed" in the issue/PR body. Both produce the same format; the reason field explains which case it is.

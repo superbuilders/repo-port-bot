@@ -14,13 +14,16 @@ import type { Logger } from '@repo-port-bot/logger'
 
 import type {
 	CreatedPullRequest,
+	DeterministicPhaseResult,
 	DecisionTrace,
 	DeliveryResult,
 	ExecutePortResult,
 	GitHubWriter,
 	PortContext,
 	PortDecision,
+	PrFramingMode,
 	PortRunOutcome,
+	ValidationCommandResult,
 } from '../types.ts'
 
 type CommandRunner = (input: {
@@ -31,9 +34,12 @@ type CommandRunner = (input: {
 interface DeliverResultOptions {
 	writer: GitHubWriter
 	context: PortContext
+	deterministic?: DeterministicPhaseResult
 	decision: PortDecision
 	decisionTrace?: DecisionTrace
 	execution?: ExecutePortResult
+	validation?: ValidationCommandResult[]
+	framingMode?: PrFramingMode
 	targetWorkingDirectory: string
 	includeCostTelemetry?: boolean
 	runCommand?: CommandRunner
@@ -190,6 +196,79 @@ async function stageAndCommit(
 	}
 
 	await expectCommandSuccess(runner, ['git', 'commit', '-m', commitMessage], workingDirectory)
+}
+
+/**
+ * Check whether the current target working tree contains any unstaged or staged diff.
+ *
+ * @param runner - Command runner.
+ * @param workingDirectory - Repository root.
+ * @returns Whether target-side changes exist.
+ */
+async function checkTargetSideDiff(
+	runner: CommandRunner,
+	workingDirectory: string,
+): Promise<boolean> {
+	const result = await runner({
+		command: ['git', 'diff', '--quiet'],
+		workingDirectory,
+	})
+
+	if (result.exitCode === 0) {
+		const stagedResult = await runner({
+			command: ['git', 'diff', '--cached', '--quiet'],
+			workingDirectory,
+		})
+
+		if (stagedResult.exitCode === 0) {
+			return false
+		}
+
+		if (stagedResult.exitCode !== 1) {
+			throw new Error(`Unable to inspect staged target diff: ${stagedResult.stderr}`)
+		}
+
+		return true
+	}
+
+	if (result.exitCode !== 1) {
+		throw new Error(`Unable to inspect target diff: ${result.stderr}`)
+	}
+
+	return true
+}
+
+/**
+ * Decide whether validation indicates a draft PR should be opened.
+ *
+ * @param validation - Validation command results.
+ * @returns Whether validation succeeded.
+ */
+function isValidationSuccessful(validation?: ValidationCommandResult[]): boolean {
+	if (!validation || validation.length === 0) {
+		return true
+	}
+
+	return validation.every(command => command.ok)
+}
+
+/**
+ * Resolve PR framing mode for this delivery.
+ *
+ * @param options - Delivery options.
+ * @param isPortRequired - Whether decision was PORT_REQUIRED.
+ * @returns Framing mode for PR body rendering.
+ */
+function resolveFramingMode(options: DeliverResultOptions, isPortRequired: boolean): PrFramingMode {
+	if (options.framingMode) {
+		return options.framingMode
+	}
+
+	if (isPortRequired) {
+		return options.execution?.outcome.status === 'SUCCEEDED' ? 'agent_success' : 'agent_stalled'
+	}
+
+	return options.decision.kind === 'NEEDS_HUMAN' ? 'residual_handoff' : 'deterministic_only'
 }
 
 /**
@@ -479,12 +558,16 @@ function isExistingPullRequestError(error: unknown): boolean {
 export async function deliverResult(options: DeliverResultOptions): Promise<DeliveryResult> {
 	const runner = options.runCommand ?? runCommand
 	const targetRepo = options.context.pluginConfig.targetRepo
+	const deterministic = options.deterministic ?? options.context.deterministic
+	const deterministicChanged = deterministic?.changed === true
+	const isPortRequired = options.decision.kind === 'PORT_REQUIRED'
+	const shouldCreateTargetPr = isPortRequired || deterministicChanged
 
-	if (options.decision.kind === 'PORT_NOT_REQUIRED') {
-		return { outcome: 'skipped' }
-	}
+	if (!shouldCreateTargetPr) {
+		if (options.decision.kind === 'PORT_NOT_REQUIRED') {
+			return { outcome: 'skipped' }
+		}
 
-	if (options.decision.kind === 'NEEDS_HUMAN') {
 		const issue = await upsertNeedsHumanIssue({
 			writer: options.writer,
 			owner: targetRepo.owner,
@@ -505,8 +588,14 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		}
 	}
 
-	if (!options.execution) {
+	if (isPortRequired && !options.execution) {
 		throw new Error('Execution result is required to deliver PORT_REQUIRED decisions.')
+	}
+
+	const hasTargetDiff = await checkTargetSideDiff(runner, options.targetWorkingDirectory)
+
+	if (!hasTargetDiff) {
+		return { outcome: 'skipped' }
 	}
 
 	const branchName = buildPortBranchName(options.context)
@@ -519,7 +608,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	await stageAndCommit(
 		runner,
 		options.targetWorkingDirectory,
-		buildCommitMessage(options.context, options.execution.trace.model),
+		buildCommitMessage(options.context, options.execution?.trace.model),
 	)
 	await expectCommandSuccess(
 		runner,
@@ -532,8 +621,13 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		decision: options.decision,
 		decisionTrace: options.decisionTrace,
 		execution: options.execution,
+		validation: options.validation,
+		framingMode: resolveFramingMode(options, isPortRequired),
 		includeCostTelemetry: options.includeCostTelemetry ?? true,
 	})
+	const isSuccessful = isPortRequired
+		? options.execution?.outcome.status === 'SUCCEEDED'
+		: isValidationSuccessful(options.validation)
 	const pullRequest = await upsertPullRequest({
 		writer: options.writer,
 		owner: targetRepo.owner,
@@ -542,13 +636,10 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		body: prBody,
 		head: branchName,
 		base: targetRepo.defaultBranch,
-		draft: options.execution.outcome.status !== 'SUCCEEDED',
+		draft: !isSuccessful,
 	})
 
-	const labels =
-		options.execution.outcome.status === 'SUCCEEDED'
-			? ['auto-port']
-			: ['auto-port', 'port-stalled']
+	const labels = isSuccessful ? ['auto-port'] : ['auto-port', 'port-stalled']
 
 	await options.writer.addLabels({
 		owner: targetRepo.owner,
@@ -557,7 +648,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		labels,
 	})
 
-	if (options.execution.outcome.status === 'SUCCEEDED' && options.writer.removeLabel) {
+	if (isSuccessful && options.writer.removeLabel) {
 		try {
 			await options.writer.removeLabel({
 				owner: targetRepo.owner,
@@ -571,7 +662,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 	}
 
 	return {
-		outcome: options.execution.outcome.status === 'SUCCEEDED' ? 'pr_opened' : 'draft_pr_opened',
+		outcome: isSuccessful ? 'pr_opened' : 'draft_pr_opened',
 		targetPullRequestUrl: pullRequest.url,
 	}
 }

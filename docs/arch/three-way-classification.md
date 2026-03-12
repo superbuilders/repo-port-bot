@@ -46,7 +46,7 @@ The engine maps those values to `PortDecisionKind`:
 - `PORT_NOT_REQUIRED` — the residual work does not meaningfully apply to the target repo.
 - `NEEDS_HUMAN` — the residual work likely does apply to the target repo, but the bot should stop before execution because confidence is too low or the change appears too risky, ambiguous, or complex to automate safely.
 
-These outcomes govern only the **residual** work. They do not determine whether any PR exists. When deterministic operations have already produced target-side changes, a PR may still be opened regardless of the residual decision.
+These outcomes govern only the **residual** work. They do not determine whether any PR exists. When deterministic operations have already produced target-side changes, a PR may still be opened regardless of the port decision.
 
 ## Relationship to heuristics and fallbacks
 

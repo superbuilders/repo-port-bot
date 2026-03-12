@@ -179,6 +179,46 @@ export interface PluginConfig {
 }
 
 /**
+ * Deterministic operation applied by the engine before residual classification.
+ */
+export interface DeterministicOperation {
+	/**
+	 * Operation mode.
+	 */
+	mode: 'mirror' | 'copy'
+
+	/**
+	 * Source-repo path or glob configured for this operation.
+	 */
+	source: string
+
+	/**
+	 * Target-repo path receiving the deterministic change.
+	 */
+	target: string
+}
+
+/**
+ * Result of the deterministic pre-classification phase.
+ */
+export interface DeterministicPhaseResult {
+	/**
+	 * Whether deterministic operations changed the target working tree.
+	 */
+	changed: boolean
+
+	/**
+	 * Operations evaluated/applied during this phase.
+	 */
+	operations: DeterministicOperation[]
+
+	/**
+	 * Target files touched by deterministic operations.
+	 */
+	touchedFiles: string[]
+}
+
+/**
  * Metadata describing source file filtering performed before decision/execution.
  */
 export interface FilteringMetadata {
@@ -226,6 +266,11 @@ export interface PortContext {
 	 * Optional metadata describing files removed by ignore filtering.
 	 */
 	filtering?: FilteringMetadata
+
+	/**
+	 * Result of deterministic operations that ran before classification.
+	 */
+	deterministic?: DeterministicPhaseResult
 }
 
 /**
@@ -1088,6 +1133,15 @@ export interface DeliveryResult {
 	followUpIssueUrl?: string
 }
 
+/**
+ * Reviewer-facing framing mode used to render target PR content.
+ */
+export type PrFramingMode =
+	| 'deterministic_only'
+	| 'residual_handoff'
+	| 'agent_success'
+	| 'agent_stalled'
+
 // ---------------------------------------------------------------------------
 // Pipeline result
 // ---------------------------------------------------------------------------
@@ -1158,6 +1212,7 @@ export interface PortRunResult {
 	stageTimings?: {
 		contextMs?: number
 		configMs?: number
+		deterministicMs?: number
 		decisionMs?: number
 		executeMs?: number
 		deliverMs?: number

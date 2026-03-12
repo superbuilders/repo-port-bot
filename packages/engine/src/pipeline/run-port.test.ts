@@ -330,6 +330,68 @@ describe('runPort', () => {
 		expect(commentOutcomes).toEqual(['skipped_not_required'])
 	})
 
+	test('routes PORT_NOT_REQUIRED with deterministic changes to PR delivery', async () => {
+		let executeCalled = false
+		let deliverCalled = false
+		const commentOutcomes: string[] = []
+		const deliverDecisions: string[] = []
+
+		const result = await runPort({
+			reader: createReaderFake(),
+			writer: createWriterFake(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => makePluginConfig(),
+				decide: async context => {
+					context.deterministic = {
+						changed: true,
+						operations: [
+							{
+								mode: 'mirror',
+								source: 'tests/fixtures/**',
+								target: 'tests/fixtures/',
+							},
+						],
+						touchedFiles: ['tests/fixtures/example.json'],
+					}
+
+					return makeDecisionResult('PORT_NOT_REQUIRED', 'No residual work remains.')
+				},
+				executePort: async () => {
+					executeCalled = true
+
+					return makeExecution(true)
+				},
+				deliverResult: async input => {
+					deliverCalled = true
+					deliverDecisions.push(input.decision.kind)
+					expect(input.framingMode).toBe('deterministic_only')
+
+					return {
+						outcome: 'pr_opened',
+						targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/222',
+					}
+				},
+				commentOnSourcePr: async input => {
+					commentOutcomes.push(input.outcome)
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-det-1'
+				},
+			},
+		})
+
+		expect(result.outcome).toBe('pr_opened')
+		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/222')
+		expect(executeCalled).toBe(false)
+		expect(deliverCalled).toBe(true)
+		expect(deliverDecisions).toEqual(['PORT_NOT_REQUIRED'])
+		expect(commentOutcomes).toEqual(['pr_opened'])
+	})
+
 	test('filters ignored files before decision and strips ignored diff sections', async () => {
 		const tempDirectory = await mkdtemp(join(tmpdir(), 'repo-port-bot-'))
 		const diffFilePath = join(tempDirectory, 'port-diff.patch')
@@ -448,6 +510,65 @@ describe('runPort', () => {
 		expect(result.summary).toContain('Needs human review')
 		expect(executeCalled).toBe(false)
 		expect(commentOutcomes).toEqual(['needs_human'])
+	})
+
+	test('routes NEEDS_HUMAN with deterministic changes to PR delivery', async () => {
+		let executeCalled = false
+		const commentOutcomes: string[] = []
+		const deliverDecisions: string[] = []
+
+		const result = await runPort({
+			reader: createReaderFake(),
+			writer: createWriterFake(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => makePluginConfig(),
+				decide: async context => {
+					context.deterministic = {
+						changed: true,
+						operations: [
+							{
+								mode: 'copy',
+								source: 'tests/manifest.json',
+								target: 'tests/manifest.json',
+							},
+						],
+						touchedFiles: ['tests/manifest.json'],
+					}
+
+					return makeDecisionResult('NEEDS_HUMAN', 'Residual logic is ambiguous.')
+				},
+				executePort: async () => {
+					executeCalled = true
+
+					return makeExecution(true)
+				},
+				deliverResult: async input => {
+					deliverDecisions.push(input.decision.kind)
+					expect(input.framingMode).toBe('residual_handoff')
+
+					return {
+						outcome: 'pr_opened',
+						targetPullRequestUrl: 'https://github.com/acme/target-repo/pull/223',
+					}
+				},
+				commentOnSourcePr: async input => {
+					commentOutcomes.push(input.outcome)
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-det-2'
+				},
+			},
+		})
+
+		expect(result.outcome).toBe('pr_opened')
+		expect(result.targetPullRequestUrl).toBe('https://github.com/acme/target-repo/pull/223')
+		expect(executeCalled).toBe(false)
+		expect(deliverDecisions).toEqual(['NEEDS_HUMAN'])
+		expect(commentOutcomes).toEqual(['pr_opened'])
 	})
 
 	test('returns draft_pr_opened when execution fails and delivery opens draft', async () => {
@@ -639,6 +760,7 @@ describe('runPort', () => {
 
 		expect(infoMessages.some(message => message.includes('stage=context'))).toBe(true)
 		expect(infoMessages.some(message => message.includes('stage=config'))).toBe(true)
+		expect(infoMessages.some(message => message.includes('stage=deterministic'))).toBe(true)
 		expect(infoMessages.some(message => message.includes('stage=decision'))).toBe(true)
 		expect(infoMessages.some(message => message.includes('outcome=skipped_not_required'))).toBe(
 			true,

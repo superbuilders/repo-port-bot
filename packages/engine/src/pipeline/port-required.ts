@@ -70,6 +70,9 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 				decision: input.decision.outcome,
 				decisionTrace: input.decision.trace,
 				execution,
+				deterministic: input.context.deterministic,
+				framingMode:
+					execution.outcome.status === 'SUCCEEDED' ? 'agent_success' : 'agent_stalled',
 				targetWorkingDirectory: input.targetWorkingDirectory,
 				includeCostTelemetry: input.includeCostTelemetry,
 				logger: input.logger,

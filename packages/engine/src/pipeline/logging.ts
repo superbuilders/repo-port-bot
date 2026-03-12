@@ -19,7 +19,7 @@ import type { PortRunResult } from '../types.ts'
 export function logStage(
 	logger: Logger,
 	runId: string,
-	stage: 'context' | 'config' | 'decision' | 'execute' | 'deliver' | 'notify',
+	stage: 'context' | 'config' | 'deterministic' | 'decision' | 'execute' | 'deliver' | 'notify',
 	fields: Record<string, number | string | undefined>,
 ): void {
 	logger.info(formatPortBotStageLine({ runId, stage, fields }))

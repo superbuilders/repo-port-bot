@@ -6,6 +6,7 @@ export type LogFields = Record<string, LogFieldValue | undefined>
 export type PortBotStage =
 	| 'context'
 	| 'config'
+	| 'deterministic'
 	| 'decision'
 	| 'execute'
 	| 'deliver'

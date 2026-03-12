@@ -24,7 +24,7 @@ These are the only facts the state machine cares about:
 - `phase1_changed`
     - `yes` when deterministic operations produced a target-side diff
     - `no` when they produced no target-side diff
-- `residual_decision`
+- `port_decision`
     - `PORT_NOT_REQUIRED`
     - `NEEDS_HUMAN`
     - `PORT_REQUIRED`
@@ -52,7 +52,7 @@ These are the only facts the state machine cares about:
 
 Only reachable states are listed below.
 
-| `phase1_changed` | `residual_decision` | `agent_ran` | `validation` | `target_side_diff` | Artifact | PR state | Meaning                                                                        |
+| `phase1_changed` | `port_decision`     | `agent_ran` | `validation` | `target_side_diff` | Artifact | PR state | Meaning                                                                        |
 | ---------------- | ------------------- | ----------- | ------------ | ------------------ | -------- | -------- | ------------------------------------------------------------------------------ |
 | no               | `PORT_NOT_REQUIRED` | no          | n/a          | no                 | none     | n/a      | Skip                                                                           |
 | yes              | `PORT_NOT_REQUIRED` | no          | pass         | yes                | PR       | ready    | Deterministic-only PR                                                          |
@@ -115,7 +115,7 @@ Artifact selection and PR framing are related but distinct.
 ```mermaid
 flowchart TD
     A[PR exists] --> B{Did agent run?}
-    B -->|No| C{Residual decision}
+    B -->|No| C{Port decision}
     C -->|PORT_NOT_REQUIRED| D[Deterministic-only framing]
     C -->|NEEDS_HUMAN| E[Residual handoff framing]
 
