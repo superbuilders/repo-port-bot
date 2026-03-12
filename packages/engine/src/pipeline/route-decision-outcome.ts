@@ -249,6 +249,7 @@ async function runDeterministicPrFlow(input: RunDeterministicPrFlowInput): Promi
 		framingMode,
 		targetWorkingDirectory: input.targetWorkingDirectory,
 		includeCostTelemetry: input.includeCostTelemetry,
+		runCommand: input.runCommand,
 		logger: input.logger,
 	})
 
