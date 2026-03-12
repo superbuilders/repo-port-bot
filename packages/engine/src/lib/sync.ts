@@ -253,17 +253,19 @@ async function applyMirrorWithTypeScript(input: ApplySyncOperationInput): Promis
 	}
 
 	const existingTargetDirs = await listDirectoriesWithinDirectory(targetBasePath)
+	const staleDirs = existingTargetDirs
+		.filter(dir => !sourceDirs.includes(dir))
+		.sort((a, b) => b.split('/').length - a.split('/').length)
 
-	for (const existingDir of existingTargetDirs) {
+	for (const existingDir of staleDirs) {
 		const targetDirRelative = joinRelativePath(targetBase, existingDir)
+		const targetDirAbsolute = resolveContainedPath(
+			input.targetWorkingDirectory,
+			targetDirRelative,
+			'Sync target directory',
+		)
 
-		if (!sourceDirs.includes(existingDir)) {
-			const targetDirAbsolute = resolveContainedPath(
-				input.targetWorkingDirectory,
-				targetDirRelative,
-				'Sync target directory',
-			)
-
+		if (await pathExists(targetDirAbsolute)) {
 			await rm(targetDirAbsolute, { recursive: true, force: true })
 			input.touchedFiles.add(targetDirRelative)
 		}

@@ -9,6 +9,7 @@ import type { executePort } from '../execution/execute-port.ts'
 import type { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import type {
 	AgentProvider,
+	CommandRunner,
 	DecidePortResult,
 	GitHubWriter,
 	PortContext,
@@ -27,6 +28,7 @@ interface PortRequiredFlowInput {
 	executeStage: typeof executePort
 	deliverStage: typeof deliverResult
 	commentStage: typeof commentOnSourcePr
+	runCommand?: CommandRunner
 	logger: Logger
 	runId: string
 	sourceTitle?: string
@@ -75,6 +77,7 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 					execution.outcome.status === 'SUCCEEDED' ? 'agent_success' : 'agent_stalled',
 				targetWorkingDirectory: input.targetWorkingDirectory,
 				includeCostTelemetry: input.includeCostTelemetry,
+				runCommand: input.runCommand,
 				logger: input.logger,
 			})
 

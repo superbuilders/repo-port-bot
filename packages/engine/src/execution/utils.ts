@@ -103,15 +103,13 @@ export async function listDirectoriesWithinDirectory(directoryPath: string): Pro
 
 	for (const entry of directoryEntries) {
 		if (entry.isDirectory()) {
+			directories.push(entry.name)
+
 			const entryPath = join(directoryPath, entry.name)
 			const nestedDirs = await listDirectoriesWithinDirectory(entryPath)
 
-			if (nestedDirs.length === 0) {
-				directories.push(entry.name)
-			} else {
-				for (const nestedDir of nestedDirs) {
-					directories.push(joinRelativePath(entry.name, nestedDir))
-				}
+			for (const nestedDir of nestedDirs) {
+				directories.push(joinRelativePath(entry.name, nestedDir))
 			}
 		}
 	}
