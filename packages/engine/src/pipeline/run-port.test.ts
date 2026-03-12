@@ -780,6 +780,79 @@ describe('runPort', () => {
 		expect(commentOutcomes).toEqual(['pr_opened'])
 	})
 
+	test('falls through to needs-human issue when NEEDS_HUMAN deterministic delivery is skipped', async () => {
+		let executeCalled = false
+		let deterministicCalled = false
+		let deliverCallCount = 0
+		const commentOutcomes: string[] = []
+		const pluginConfig = makePluginConfig({
+			deterministicOperations: [
+				{
+					kind: 'sync',
+					mode: 'mirror',
+					source: 'fixtures/**',
+					target: 'fixtures/',
+				},
+			],
+		})
+
+		const result = await runPort({
+			reader: createReaderFake(),
+			writer: createWriterFake(),
+			agentProvider: createAgentProvider(),
+			sourceRepo: SOURCE_REPO,
+			commitSha: 'abc123',
+			targetWorkingDirectory: '/tmp/target-repo',
+			sourceWorkingDirectory: '/tmp/source-repo',
+			stageOverrides: {
+				readSourceContext: async () => makeSourceChange(),
+				resolvePluginConfig: () => pluginConfig,
+				executeDeterministic: async () => {
+					deterministicCalled = true
+
+					return {
+						changed: true,
+						operations: pluginConfig.deterministicOperations,
+						touchedFiles: [],
+					}
+				},
+				decide: async () =>
+					makeDecisionResult('NEEDS_HUMAN', 'Residual logic is ambiguous.'),
+				executePort: async () => {
+					executeCalled = true
+
+					return makeExecution(true)
+				},
+				deliverResult: async input => {
+					deliverCallCount++
+
+					if (deliverCallCount === 1) {
+						expect(input.framingMode).toBe('residual_handoff')
+
+						return { outcome: 'skipped' }
+					}
+
+					return {
+						outcome: 'needs_human',
+						followUpIssueUrl: 'https://github.com/acme/target-repo/issues/99',
+					}
+				},
+				commentOnSourcePr: async input => {
+					commentOutcomes.push(input.outcome)
+
+					return 'https://github.com/acme/source-repo/pull/42#issuecomment-nh'
+				},
+			},
+		})
+
+		expect(result.outcome).toBe('needs_human')
+		expect(result.followUpIssueUrl).toBe('https://github.com/acme/target-repo/issues/99')
+		expect(deterministicCalled).toBe(true)
+		expect(executeCalled).toBe(false)
+		expect(deliverCallCount).toBe(2)
+		expect(commentOutcomes).toEqual(['needs_human'])
+	})
+
 	test('returns draft_pr_opened when execution fails and delivery opens draft', async () => {
 		const commentOutcomes: string[] = []
 

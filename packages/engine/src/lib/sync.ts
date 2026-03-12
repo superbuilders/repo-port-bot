@@ -138,6 +138,8 @@ async function applyMirrorWithRsync(
 	const sourceTrailing = sourcePath.endsWith('/') ? sourcePath : `${sourcePath}/`
 	const targetTrailing = targetPath.endsWith('/') ? targetPath : `${targetPath}/`
 
+	await mkdir(targetPath, { recursive: true })
+
 	const dryRunOutput = await runShellCommand([
 		'rsync',
 		'-a',
@@ -148,13 +150,15 @@ async function applyMirrorWithRsync(
 		targetTrailing,
 	])
 
-	const changedPaths = parseRsyncItemizedOutput(dryRunOutput, targetBase, joinRelativePath)
+	const hasChanges = dryRunOutput.trim().length > 0
 
-	if (changedPaths.length === 0) {
+	if (!hasChanges) {
 		return
 	}
 
 	await runShellCommand(['rsync', '-a', '--delete', sourceTrailing, targetTrailing])
+
+	const changedPaths = parseRsyncItemizedOutput(dryRunOutput, targetBase, joinRelativePath)
 
 	for (const path of changedPaths) {
 		touchedFiles.add(path)

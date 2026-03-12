@@ -154,6 +154,29 @@ describe('applySyncOperation', () => {
 			await expect(stat(join(target, 'fixtures/stale-empty'))).rejects.toThrow()
 		})
 
+		test('mirrors into a brand-new nested target directory', async () => {
+			const source = await createTempDirectory()
+			const target = await createTempDirectory()
+			const touched = new Set<string>()
+
+			await mkdir(join(source, 'nested/fixtures'), { recursive: true })
+			await writeFile(join(source, 'nested/fixtures/a.json'), '1')
+
+			await applySyncOperation({
+				operation: {
+					kind: 'sync',
+					mode: 'mirror',
+					source: 'nested/fixtures/**',
+					target: 'nested/fixtures/',
+				},
+				sourceWorkingDirectory: source,
+				targetWorkingDirectory: target,
+				touchedFiles: touched,
+			})
+
+			expect(await readFile(join(target, 'nested/fixtures/a.json'), 'utf8')).toBe('1')
+		})
+
 		test('no-ops when already in sync', async () => {
 			const source = await createTempDirectory()
 			const target = await createTempDirectory()

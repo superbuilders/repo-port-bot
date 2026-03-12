@@ -192,6 +192,14 @@ async function runDeterministicPrFlow(input: RunDeterministicPrFlowInput): Promi
 	})
 
 	if (delivery.outcome === 'skipped') {
+		if (input.portDecision.outcome.kind === 'NEEDS_HUMAN') {
+			return runNeedsHumanFlow({
+				...input,
+				decision: input.portDecision,
+				targetWorkingDirectory: input.targetWorkingDirectory,
+			})
+		}
+
 		logOutcome(
 			input.logger,
 			input.runId,
