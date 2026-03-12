@@ -57,7 +57,7 @@ The engine looks for a supported config filename at the merged commit SHA in thi
 
 ## Writes (target repo)
 
-These happen after the agent has produced edits and validation has passed (or retries are exhausted).
+These happen after deterministic operations and (optionally) agent execution have been applied to the target working tree. The full artifact-selection logic is in [`state-machine.md`](state-machine.md).
 
 ### Branch creation and push
 
@@ -172,16 +172,19 @@ For **multi-attempt runs** (stalled ports), the `Work Log` section uses per-atte
 
 **PR state:**
 
-| Outcome                        | PR state         | Labels                      |
-| ------------------------------ | ---------------- | --------------------------- |
-| Validations pass               | Ready for review | `auto-port`                 |
-| Validations fail after retries | Draft            | `auto-port`, `port-stalled` |
+| Outcome                                        | PR state         | Labels                      |
+| ---------------------------------------------- | ---------------- | --------------------------- |
+| Validations pass (agent or deterministic-only) | Ready for review | `auto-port`                 |
+| Validations fail after retries                 | Draft            | `auto-port`, `port-stalled` |
+| Deterministic changes + residual `NEEDS_HUMAN` | Ready for review | `auto-port`                 |
+
+See [`state-machine.md`](state-machine.md) for the full artifact-selection logic.
 
 Source: GitHub REST API (`POST /repos/{owner}/{repo}/pulls`).
 
-### Issue creation (NEEDS_HUMAN)
+### Issue creation (NEEDS_HUMAN, no deterministic changes)
 
-When the decision stage returns `NEEDS_HUMAN`, the engine opens or updates an issue in the target repo instead of attempting a port.
+When the residual classification returns `NEEDS_HUMAN` and no deterministic operations produced target-side changes, the engine opens or updates an issue in the target repo instead of attempting a port. When deterministic changes exist, the engine opens a PR instead (see PR creation above and [`state-machine.md`](state-machine.md)).
 
 - Tagged `needs-human`
 - Compact title: `Needs review: <source PR title (truncated to 60 chars)>`

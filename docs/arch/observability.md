@@ -66,6 +66,7 @@ At `info` level, `runPort` emits one log line per stage transition so the Action
 ```
 [port-bot] run=<runId> stage=context source=acme/source-repo pr=42 files=5 contextMs=12
 [port-bot] run=<runId> stage=config target=acme/target-repo configMs=3
+[port-bot] run=<runId> stage=deterministic ops=2 changed=yes deterministicMs=150
 [port-bot] run=<runId> stage=decision kind=PORT_REQUIRED decisionMs=4500
 [port-bot] run=<runId> stage=execute tool=Read file=src/example.ts
 [port-bot] run=<runId> stage=execute tool=Edit file=src/ported.ts
@@ -75,6 +76,8 @@ At `info` level, `runPort` emits one log line per stage transition so the Action
 [port-bot] run=<runId> stage=notify outcome=pr_opened notifyMs=850
 [port-bot] run=<runId> stage=outcome outcome=pr_opened durationMs=7800
 ```
+
+The `stage=deterministic` line appears between config and decision. When no deterministic operations are configured, the line is omitted. When configured but no changes are produced, `changed=no`.
 
 At `debug` level, each stage additionally logs structured detail: full file lists, resolved config, classifier reasoning, validation stdout/stderr per command, delivery git operations, agent thinking blocks, and per-tool-call durations.
 
@@ -102,12 +105,15 @@ Typical collapsed view:
 ```
 > Context: acme/source-repo PR #42 (5 files)
 > Config: target=acme/target-repo
+> Deterministic: ops=2 changed=yes
 > Decision: PORT_REQUIRED
 > Attempt 1/3
 > Deliver: pr_opened
 > Notify: source PR comment
 [port-bot] run=<runId> stage=outcome outcome=pr_opened durationMs=7800
 ```
+
+The `Deterministic` group appears between Config and Decision when deterministic operations are configured. When no deterministic operations are configured, this group is omitted.
 
 Notes:
 

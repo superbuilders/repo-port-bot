@@ -1,15 +1,17 @@
 # Three-Way LLM Classification
 
-How the decision stage classifies source changes into `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`.
+How the decision stage classifies residual work into `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`.
 
 ## Purpose
 
 The decision stage has two jobs:
 
-1. determine whether a source change applies to the target repo
+1. determine whether the residual work (after deterministic operations) applies to the target repo
 2. determine whether automation should proceed or hand off to a maintainer
 
 Three-way classification gives the LLM path a first-class way to express all three high-level decision outcomes the engine understands.
+
+Classification evaluates the **residual** work only. Deterministic operations have already been applied to the target working tree before classification runs. See [`docs/arch/state-machine.md`](state-machine.md) for how classification outcomes combine with deterministic changes to produce artifacts.
 
 ## Decision model
 
@@ -40,9 +42,11 @@ The engine maps those values to `PortDecisionKind`:
 
 ### Meaning of each outcome
 
-- `PORT_REQUIRED` — the source change applies to the target repo and the bot should attempt an automated port.
-- `PORT_NOT_REQUIRED` — the source change does not meaningfully apply to the target repo and the run should end with a skip.
-- `NEEDS_HUMAN` — the source change likely does apply to the target repo, but the bot should stop before execution because confidence is too low or the change appears too risky, ambiguous, or complex to automate safely.
+- `PORT_REQUIRED` — the residual work applies to the target repo and the bot should attempt an automated port on top of the deterministic baseline.
+- `PORT_NOT_REQUIRED` — the residual work does not meaningfully apply to the target repo.
+- `NEEDS_HUMAN` — the residual work likely does apply to the target repo, but the bot should stop before execution because confidence is too low or the change appears too risky, ambiguous, or complex to automate safely.
+
+These outcomes govern only the **residual** work. They do not determine whether any PR exists. When deterministic operations have already produced target-side changes, a PR may still be opened regardless of the residual decision.
 
 ## Relationship to heuristics and fallbacks
 
@@ -88,21 +92,14 @@ The job summary, logs, and artifacts can all distinguish heuristic skip, classif
 
 ## Product effect
 
-- `PORT_REQUIRED` -> execution begins, then delivery opens or updates a target PR
-- `PORT_NOT_REQUIRED` -> source PR gets a skip comment, no target-side artifact
-- `NEEDS_HUMAN` -> execution is skipped and delivery opens a `needs-human` issue
+The classifier outcome combines with the deterministic phase to determine the final artifact. The full logic is in [`docs/arch/state-machine.md`](state-machine.md). In summary:
 
-## Likely follow-up
-
-A natural follow-up is to enrich the `needs-human` issue with a better manual handoff payload, for example:
-
-- candidate target-file mapping
-- what the classifier inspected
-- why confidence was low
-- suggested next step for the maintainer
+- `PORT_REQUIRED` -> agent execution begins on top of the deterministic baseline, then delivery opens or updates a target PR
+- `PORT_NOT_REQUIRED` + no deterministic changes -> source PR gets a skip comment, no target-side artifact
+- `PORT_NOT_REQUIRED` + deterministic changes exist -> delivery opens or updates a ready PR containing the deterministic changes only
+- `NEEDS_HUMAN` + no deterministic changes -> execution is skipped and delivery opens a `needs-human` issue
+- `NEEDS_HUMAN` + deterministic changes exist -> execution is skipped and delivery opens a ready PR containing the deterministic changes, with a residual handoff note
 
 ## Open questions
 
-- Should `needs_human` mean only "the bot is not confident this change applies to the target repo," or also "the change probably does apply, but the port looks too large or risky to automate safely"?
-- If the bot attempts a port and keeps failing validation, it opens a draft/stalled PR. Should `needs_human` be used earlier for changes that already look too risky or ambiguous, or should the bot keep using the current "try first, then stall into a draft PR" behavior?
 - How should the bot tell the difference between "this really does not need to be ported" and "I am too unsure to confidently skip this"?

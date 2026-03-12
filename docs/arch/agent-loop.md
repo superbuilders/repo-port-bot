@@ -1,6 +1,6 @@
 # Agent Loop
 
-How the engine executes a port once the decision stage returns `PORT_REQUIRED`.
+How the engine executes a port once the residual classification returns `PORT_REQUIRED`. The agent works on top of a target working tree that may already contain deterministic changes from phase 1.
 
 This is the least-determined part of the system. Use this doc to capture decisions as they're made and flag open questions.
 
@@ -37,11 +37,16 @@ The agent receives:
     - naming conventions
     - validation commands
     - custom prompt/instructions
+- Deterministic phase context (when deterministic operations were configured):
+    - summary of deterministic operations that ran
+    - files touched by phase 1
+    - resulting patch or diff from phase 1
+    - explicit instruction that phase 1 output is authoritative baseline work, not noise to casually revert
 
 ### Workspace
 
 - **Source repo**: shallow-cloned at the merge commit SHA. Read-only reference for the agent. Contains `port-diff.patch` (full `git diff HEAD~1` output).
-- **Target repo**: shallow-cloned at the default branch. Agent's `cwd` — all edits happen here.
+- **Target repo**: shallow-cloned at the default branch. Agent's `cwd` — all edits happen here. When deterministic operations are configured, the target working tree already contains those changes before the agent starts.
 - Port branch is created at delivery time: `port/<sourceRepo>/<sourcePrNumber>-<shortSha>`
 
 The agent uses absolute paths to read source files and the diff, and relative paths (from `cwd`) to edit target files.
@@ -118,7 +123,7 @@ interface AgentProvider {
 
 ### `decidePort` — classification
 
-Called by the decision stage when no fast heuristic matches. Determines whether the source change requires a port.
+Called by the decision stage when no fast heuristic matches. Determines whether the residual work (after deterministic operations) requires a port. See [`state-machine.md`](state-machine.md) for how classification outcomes and deterministic changes determine artifacts.
 
 **`DecidePortInput`** — classification context:
 
@@ -133,7 +138,7 @@ Called by the decision stage when no fast heuristic matches. Determines whether 
 - `trace.source` — `heuristic`, `classifier`, or `fallback`
 - `trace.toolCallLog` / `trace.events` / `trace.model` — observability when classification uses the LLM path
 
-The decision stage runs fast heuristics first (missing PR, loop prevention via `auto-port` label, `no-port` label, docs-only, config-only, no remaining files after ignore filtering). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
+The decision stage runs fast heuristics first on the residual work (missing PR, loop prevention via `auto-port` label, `no-port` label, docs-only, config-only, no remaining files after ignore filtering). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
 
 ### `executePort` — editing
 

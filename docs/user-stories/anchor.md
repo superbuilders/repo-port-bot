@@ -40,7 +40,13 @@ Define what "working" means from a maintainer perspective when a change in one r
     - Changed files and diff summary are fetched.
     - Plugin configuration is resolved for this repo pair.
 
-4. **Engine decides whether porting is required**
+4. **Engine applies deterministic operations**
+    - If `sync` rules are configured in `port-bot.json`, the engine applies them to the target working tree before any classification or agent execution.
+    - Deterministic operations (mirror, copy) are engine-owned and declarative. They do not involve the agent.
+    - This step may or may not produce target-side changes depending on whether the source change touched synced paths.
+
+5. **Engine classifies the residual work**
+    - Classification evaluates the work that remains after deterministic operations, not the full source change.
     - Fast heuristics run first and can short-circuit the decision:
         - docs-only, config-only → `PORT_NOT_REQUIRED`
         - `no-port` label → `PORT_NOT_REQUIRED`
@@ -50,13 +56,13 @@ Define what "working" means from a maintainer perspective when a change in one r
         - `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
     - In the happy path, the result is `PORT_REQUIRED`.
 
-5. **Agent executes port** (see [agent loop spec](../arch/agent-loop.md))
-    - Target repo is checked out; port branch is created.
-    - Agent applies equivalent changes using source context + plugin config.
-    - Validation commands run; on failure the agent iterates (read error → fix → rerun).
+6. **Agent executes the residual port** (see [agent loop spec](../arch/agent-loop.md))
+    - The agent works on top of the deterministic baseline already applied in the target working tree.
+    - Agent applies equivalent changes for the residual work using source context + plugin config.
+    - Validation commands run against the combined working tree (deterministic + agent edits); on failure the agent iterates (read error → fix → rerun).
     - In the happy path, validations pass within the retry budget.
 
-6. **PR is opened (or updated) in target repo**
+7. **PR is opened (or updated) in target repo**
     - On first run, a new PR is created. On re-runs where the port branch already has an open PR, the existing PR is updated with fresh output rather than failing.
     - The maintainer should experience one stable target PR for a given source change, not a stream of duplicate PRs on each rerun.
     - PR title follows predictable format:
@@ -70,7 +76,7 @@ Define what "working" means from a maintainer perspective when a change in one r
         - collapsible `Validation & diagnostics` section with pass/fail results
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention signal remains the git trailer `Ported-By: repo-port-bot`)
 
-7. **Maintainer reviews a small, traceable PR**
+8. **Maintainer reviews a small, traceable PR**
     - Maintainer sees a focused change set.
     - PR links cleanly back to original source PR.
     - Review effort is mostly verification, not re-implementation.
@@ -110,9 +116,13 @@ The maintainer experiences porting as "automatic and reviewable":
 6. **Loop safety**
     - Bot-created port PR merges do not re-trigger an opposite-direction echo port.
 
-7. **Fallback quality**
+7. **Deterministic progress preserved**
+    - When deterministic operations (sync rules) produce target-side changes, those changes are preserved in a PR regardless of the residual classification outcome.
+
+8. **Fallback quality**
     - If retries are exhausted, bot opens a draft PR with `port-stalled` label and clear "where it got stuck" notes.
-    - If the decision stage returns `NEEDS_HUMAN`, bot opens or updates one issue tagged `needs-human` linking to the source PR rather than creating duplicate issues on rerun.
+    - If the residual decision is `NEEDS_HUMAN` and no deterministic changes exist, bot opens or updates one issue tagged `needs-human` linking to the source PR.
+    - If the residual decision is `NEEDS_HUMAN` but deterministic changes exist, bot opens a ready PR containing the deterministic changes with an explicit residual handoff note.
 
 ## Non-goals for this story (v1)
 
@@ -127,11 +137,12 @@ The maintainer experiences porting as "automatic and reviewable":
 - Workflow permissions are least-privilege.
 - Secrets are sourced from GitHub Actions secrets only.
 - A port run always ends in one terminal outcome:
-    - `skipped_not_required` — heuristics or LLM determined no port needed
-    - `needs_human` — decision stage deferred to a human; issue opened
-    - `pr_opened` — port succeeded, validations pass, PR ready for review
-    - `draft_pr_opened` — port attempted but validations failed after retries; draft PR with notes
+    - `skipped_not_required` — no deterministic changes and residual classification returned `PORT_NOT_REQUIRED`
+    - `needs_human` — no deterministic changes and residual classification returned `NEEDS_HUMAN`; issue opened
+    - `pr_opened` — target-side changes exist (deterministic and/or agent-authored), validations pass, PR ready for review
+    - `draft_pr_opened` — target-side changes exist but validations failed after retries; draft PR with notes
     - `failed` — engine-level error (crash, timeout, API failure) prevented completion; best-effort cleanup
+- The full artifact-selection logic is documented in [`docs/arch/state-machine.md`](../arch/state-machine.md).
 
 ## Operational SLO targets (initial)
 
@@ -150,6 +161,14 @@ The maintainer experiences porting as "automatic and reviewable":
 ## Pivot log (keep current)
 
 Use this section to record intentional changes to the anchor story.
+
+### 2026-03-11 — Deterministic operations phase
+
+- **Date**: 2026-03-11
+- **What changed**: Added a deterministic operations phase that runs before classification. Classification now evaluates residual work only. Deterministic changes can produce a PR even when the residual decision is `PORT_NOT_REQUIRED` or `NEEDS_HUMAN`.
+- **Why**: Source changes that contain both mechanical work (fixture sync, file mirroring) and target-specific work should not lose the mechanical portion when the agent cannot handle the rest. Deterministic operations are independently safe to merge and should always land.
+- **Impact on success definition**: `NEEDS_HUMAN` no longer always means "issue only." When deterministic changes exist, `NEEDS_HUMAN` produces a ready PR with a residual handoff note instead. The terminal outcome list and acceptance criteria are updated to reflect this.
+- **Follow-up implementation tasks**: Add `sync` config to `port-bot.json` schema, add deterministic phase to engine pipeline, update delivery to handle deterministic-only and mixed PRs, update PR rendering for new framing modes.
 
 ### Pivot template
 

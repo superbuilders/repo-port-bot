@@ -8,6 +8,8 @@ If implementation details and this story diverge, this story is the product inte
 
 Define what "good failure" looks like when an automated port is attempted but can't fully validate. The maintainer should be able to pick up where the bot left off without starting from scratch.
 
+See [`docs/arch/state-machine.md`](../arch/state-machine.md) for the canonical artifact-selection logic.
+
 ## Primary actor
 
 - SDK maintainer responsible for a paired repo setup.
@@ -15,8 +17,9 @@ Define what "good failure" looks like when an automated port is attempted but ca
 ## Trigger
 
 - A pull request is merged into the source repository default branch.
-- The engine decides `PORT_REQUIRED` and begins execution.
-- The agent applies changes, but validation commands fail on every attempt through the retry budget.
+- Deterministic operations are applied (if configured). They may or may not produce target-side changes.
+- The residual classification returns `PORT_REQUIRED` and agent execution begins.
+- The agent applies changes on top of the deterministic baseline, but validation commands fail on every attempt through the retry budget.
 
 ## Preconditions
 
@@ -33,11 +36,12 @@ Define what "good failure" looks like when an automated port is attempted but ca
     - A normal feature/fix PR is merged in source repo.
     - Maintainer does not take any manual action.
 
-2. **Engine runs through context, config, decision**
-    - Workflow fires on push. Engine gathers source PR metadata, changed files, and diff. Plugin config is resolved. Decision stage returns `PORT_REQUIRED`.
+2. **Engine runs through context, config, deterministic operations, classification**
+    - Workflow fires on push. Engine gathers source PR metadata, changed files, and diff. Plugin config is resolved. Deterministic operations are applied to the target working tree. Residual classification returns `PORT_REQUIRED`.
 
-3. **Agent attempts the port**
-    - On each attempt, the agent reads the source diff, applies edits in the target repo, and the orchestrator runs validation commands.
+3. **Agent attempts the residual port**
+    - The agent works on top of the deterministic baseline already applied in the target working tree.
+    - On each attempt, the agent reads the source diff, applies edits in the target repo, and the orchestrator runs validation commands against the combined working tree (deterministic + agent edits).
     - Validation fails. The agent receives the failure output and attempts a fix.
     - This repeats until `maxAttempts` is exhausted.
     - The working directory is incremental — each attempt builds on the previous one, so partial progress is preserved.
@@ -100,8 +104,8 @@ The maintainer experiences the stall as "the bot got close and told me exactly w
 4. **Diagnostic body**
     - PR body includes validation results (pass/fail per command with exit codes), failure reason, files touched, per-attempt notes, and collapsed cost/token telemetry. The displayed token totals are input/output-only for readability. A reviewer should not need to open the Actions log to understand what went wrong at a high level.
 
-5. **Incremental progress preserved**
-    - The committed state reflects the agent's best effort across all attempts, not just the first or last. Partial fixes from earlier attempts are preserved.
+5. **All progress preserved**
+    - The committed state includes both deterministic changes (if any) and the agent's best effort across all attempts. Deterministic progress is never lost even when agent-authored edits fail validation.
 
 6. **Source notification**
     - Source PR receives a comment linking to the draft PR. The maintainer who merged the source PR gets notified through GitHub's existing subscription model.
