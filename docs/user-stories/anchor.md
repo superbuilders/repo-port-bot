@@ -142,7 +142,7 @@ The maintainer experiences porting as "automatic and reviewable":
 - Workflow permissions are least-privilege.
 - Secrets are sourced from GitHub Actions secrets only.
 - A port run always ends in one terminal outcome:
-    - `skipped_not_required` — no deterministic changes and residual classification returned `PORT_NOT_REQUIRED`
+    - `skipped_not_required` — pre-deterministic skip (missing PR, `auto-port`, or `no-port`), or no deterministic changes and residual classification returned `PORT_NOT_REQUIRED`
     - `needs_human` — no deterministic changes and residual classification returned `NEEDS_HUMAN`; issue opened
     - `pr_opened` — target-side changes exist (deterministic and/or agent-authored), validations pass, PR ready for review
     - `draft_pr_opened` — target-side changes exist but validations failed after retries; draft PR with notes

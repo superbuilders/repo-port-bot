@@ -58,7 +58,7 @@ Three-way classification does **not** mean every decision goes through the LLM. 
 
 ### Heuristics
 
-Heuristics return only `PORT_REQUIRED` or `PORT_NOT_REQUIRED`. They handle obvious cases quickly: missing PR context, loop prevention, labels, docs-only changes, config-only changes, and no remaining files after ignore filtering.
+Heuristics return only `PORT_REQUIRED` or `PORT_NOT_REQUIRED`. Some run before deterministic operations as pre-deterministic skip signals (missing PR context, `auto-port` loop prevention, `no-port` label) and suppress the entire run before any target mutation. The remaining heuristics run during the decision stage after deterministic operations: docs-only changes, config-only changes, and no remaining files after ignore filtering.
 
 ### Classifier
 

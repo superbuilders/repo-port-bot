@@ -29,6 +29,7 @@ import type { Logger } from '@repo-port-bot/logger'
 import type { PortBotJsonConfig } from '../config/types.ts'
 import type {
 	AgentProvider,
+	DeterministicPhaseResult,
 	FilteringMetadata,
 	GitHubReader,
 	GitHubWriter,
@@ -234,18 +235,13 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		}
 
 		const deterministicStartedAtMs = Date.now()
-		const deterministicResult =
-			pluginConfig.deterministicOperations.length > 0 && options.sourceWorkingDirectory
-				? await stages.executeDeterministic({
-						deterministicOperations: pluginConfig.deterministicOperations,
-						sourceWorkingDirectory: options.sourceWorkingDirectory,
-						targetWorkingDirectory: options.targetWorkingDirectory,
-					})
-				: {
-						changed: false,
-						operations: [],
-						touchedFiles: [],
-					}
+
+		const deterministicResult = await buildDeterministicResult(
+			pluginConfig,
+			options,
+			stages,
+			logger,
+		)
 
 		context = {
 			...context,
@@ -354,6 +350,40 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			stageTimings,
 		}
 	}
+}
+
+/**
+ * Build deterministic phase result, warning when sync is configured but source checkout is missing.
+ *
+ * @param pluginConfig - Resolved plugin config.
+ * @param options - Pipeline options.
+ * @param stages - Stage overrides.
+ * @param logger - Logger.
+ * @returns Deterministic phase result.
+ */
+async function buildDeterministicResult(
+	pluginConfig: PluginConfig,
+	options: RunPortOptions,
+	stages: RunPortStageOverrides,
+	logger: Logger,
+): Promise<DeterministicPhaseResult> {
+	if (pluginConfig.deterministicOperations.length === 0) {
+		return { changed: false, operations: [], touchedFiles: [] }
+	}
+
+	if (!options.sourceWorkingDirectory) {
+		logger.warn(
+			'[port-bot] Deterministic operations are configured but sourceWorkingDirectory is not available. Sync operations will be skipped.',
+		)
+
+		return { changed: false, operations: [], touchedFiles: [] }
+	}
+
+	return stages.executeDeterministic({
+		deterministicOperations: pluginConfig.deterministicOperations,
+		sourceWorkingDirectory: options.sourceWorkingDirectory,
+		targetWorkingDirectory: options.targetWorkingDirectory,
+	})
 }
 
 /**

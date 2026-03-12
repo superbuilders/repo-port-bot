@@ -138,7 +138,7 @@ Called by the decision stage when no fast heuristic matches. Determines whether 
 - `trace.source` — `heuristic`, `classifier`, or `fallback`
 - `trace.toolCallLog` / `trace.events` / `trace.model` — observability when classification uses the LLM path
 
-The decision stage runs fast heuristics first on the residual work (missing PR, loop prevention via `auto-port` label, `no-port` label, docs-only, config-only, no remaining files after ignore filtering). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
+Pre-deterministic skip signals (missing PR, `auto-port` label, `no-port` label) are checked before the decision stage and suppress the entire run before any target mutation. The decision stage then runs fast heuristics on the residual work (docs-only, config-only, no remaining files after ignore filtering). Only when no heuristic matches does it call `decidePort`. If no provider is configured (e.g., in tests), the fallback is to assume `PORT_REQUIRED`.
 
 ### `executePort` — editing
 

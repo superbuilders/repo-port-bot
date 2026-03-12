@@ -1,4 +1,4 @@
-import { rm, stat } from 'node:fs/promises'
+import { mkdir, rm, stat } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
 import micromatch from 'micromatch'
@@ -6,6 +6,7 @@ import micromatch from 'micromatch'
 import {
 	clearNonDirectoryPath,
 	joinRelativePath,
+	listDirectoriesWithinDirectory,
 	listFilesWithinDirectory,
 	normalizeRelativePath,
 	pathExists,
@@ -228,6 +229,40 @@ async function applyMirrorWithTypeScript(input: ApplySyncOperationInput): Promis
 			input.targetWorkingDirectory,
 			input.touchedFiles,
 		)
+	}
+
+	const sourceBasePath = resolveContainedPath(
+		input.sourceWorkingDirectory,
+		sourceBase.length === 0 ? '.' : sourceBase,
+		'Sync source base path',
+	)
+	const sourceDirs = await listDirectoriesWithinDirectory(sourceBasePath)
+
+	for (const sourceDir of sourceDirs) {
+		const targetDirRelative = joinRelativePath(targetBase, sourceDir)
+		const targetDirAbsolute = join(input.targetWorkingDirectory, targetDirRelative)
+
+		if (!(await pathExists(targetDirAbsolute))) {
+			await mkdir(targetDirAbsolute, { recursive: true })
+			input.touchedFiles.add(targetDirRelative)
+		}
+	}
+
+	const existingTargetDirs = await listDirectoriesWithinDirectory(targetBasePath)
+
+	for (const existingDir of existingTargetDirs) {
+		const targetDirRelative = joinRelativePath(targetBase, existingDir)
+
+		if (!sourceDirs.includes(existingDir)) {
+			const targetDirAbsolute = resolveContainedPath(
+				input.targetWorkingDirectory,
+				targetDirRelative,
+				'Sync target directory',
+			)
+
+			await rm(targetDirAbsolute, { recursive: true, force: true })
+			input.touchedFiles.add(targetDirRelative)
+		}
 	}
 }
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -126,6 +126,32 @@ describe('applySyncOperation', () => {
 			expect(await readFile(join(target, 'fixtures/a.json'), 'utf8')).toBe('1')
 			await expect(readFile(join(target, 'fixtures/stale.json'), 'utf8')).rejects.toThrow()
 			expect(touched.has('fixtures/a.json')).toBe(true)
+		})
+
+		test('creates empty source directories in target and removes stale empty target directories', async () => {
+			const source = await createTempDirectory()
+			const target = await createTempDirectory()
+			const touched = new Set<string>()
+
+			await mkdir(join(source, 'fixtures/empty-dir'), { recursive: true })
+			await mkdir(join(target, 'fixtures/stale-empty'), { recursive: true })
+
+			await applySyncOperation({
+				operation: {
+					kind: 'sync',
+					mode: 'mirror',
+					source: 'fixtures/**',
+					target: 'fixtures/',
+				},
+				sourceWorkingDirectory: source,
+				targetWorkingDirectory: target,
+				touchedFiles: touched,
+			})
+
+			const emptyDirStats = await stat(join(target, 'fixtures/empty-dir'))
+
+			expect(emptyDirStats.isDirectory()).toBe(true)
+			await expect(stat(join(target, 'fixtures/stale-empty'))).rejects.toThrow()
 		})
 
 		test('no-ops when already in sync', async () => {

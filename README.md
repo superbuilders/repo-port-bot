@@ -7,11 +7,12 @@ Automatically port changes between paired repositories. When a PR merges in one 
 1. A PR merges in your source repo
 2. A GitHub Action triggers the port bot engine
 3. The engine clones the source repo at the merge commit and computes a full diff
-4. If deterministic operations are configured (currently: file syncing via `sync`), they are applied to the target working tree first — no agent involvement
-5. Heuristics run first (docs-only, config-only, label checks). If inconclusive, an LLM classifier inspects both repos and decides: `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
-6. If required, an agent reads the source diff, applies equivalent changes in the target repo (on top of any deterministic baseline), and produces a structured summary
-7. Validation commands run. If they fail, the agent iterates with feedback (up to a configured max)
-8. A PR opens in the target repo linking back to the source, with a reviewer-facing summary and collapsible work log
+4. Pre-deterministic skip signals are checked (missing PR, `auto-port` label, `no-port` label). If any match, the run exits immediately with no target-side changes
+5. If deterministic operations are configured (currently: file syncing via `sync`), they are applied to the target working tree — no agent involvement
+6. Heuristics run on the residual work (docs-only, config-only). If inconclusive, an LLM classifier inspects both repos and decides: `PORT_REQUIRED`, `PORT_NOT_REQUIRED`, or `NEEDS_HUMAN`
+7. If required, an agent reads the source diff, applies equivalent changes in the target repo (on top of any deterministic baseline), and produces a structured summary
+8. Validation commands run. If they fail, the agent iterates with feedback (up to a configured max)
+9. A PR opens in the target repo linking back to the source, with a reviewer-facing summary and collapsible work log
 
 Possible outcomes:
 

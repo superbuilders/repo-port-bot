@@ -669,6 +669,8 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 			'',
 			renderDeterministicWorkLog(deterministic),
 			'',
+			renderDiagnosticsBlockFromValidation(input.validation),
+			'',
 			'---',
 			`Ported by: [Repo Port Bot](${PORT_BOT_REPO_URL})`,
 		]

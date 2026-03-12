@@ -86,6 +86,40 @@ export async function listFilesWithinDirectory(directoryPath: string): Promise<s
 }
 
 /**
+ * Recursively list directories within a directory as paths relative to that directory.
+ *
+ * Returns leaf directories (directories with no subdirectories) and empty directories.
+ *
+ * @param directoryPath - Absolute directory path.
+ * @returns Relative directory paths using `/` separators.
+ */
+export async function listDirectoriesWithinDirectory(directoryPath: string): Promise<string[]> {
+	if (!(await pathExists(directoryPath))) {
+		return []
+	}
+
+	const directoryEntries = await readdir(directoryPath, { withFileTypes: true })
+	const directories: string[] = []
+
+	for (const entry of directoryEntries) {
+		if (entry.isDirectory()) {
+			const entryPath = join(directoryPath, entry.name)
+			const nestedDirs = await listDirectoriesWithinDirectory(entryPath)
+
+			if (nestedDirs.length === 0) {
+				directories.push(entry.name)
+			} else {
+				for (const nestedDir of nestedDirs) {
+					directories.push(joinRelativePath(entry.name, nestedDir))
+				}
+			}
+		}
+	}
+
+	return directories
+}
+
+/**
  * Copy a file only when contents differ.
  *
  * Handles file/directory type transitions: if the target path is currently a
