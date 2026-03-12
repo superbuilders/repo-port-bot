@@ -417,12 +417,18 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		['git', 'checkout', '-b', branchName],
 		options.targetWorkingDirectory,
 	)
-	await stageAndCommit(
+
+	const committed = await stageAndCommit(
 		runner,
 		options.targetWorkingDirectory,
 		buildCommitMessage(options.context, options.execution?.trace.model),
 		touchedPaths,
 	)
+
+	if (!committed) {
+		return { outcome: 'skipped' }
+	}
+
 	await expectCommandSuccess(
 		runner,
 		['git', 'push', '--force', '-u', 'origin', branchName],

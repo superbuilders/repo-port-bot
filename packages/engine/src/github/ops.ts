@@ -119,13 +119,14 @@ export function buildCommitMessage(context: PortContext, model?: string): string
  * @param workingDirectory - Repository root.
  * @param commitMessage - Commit message.
  * @param touchedPaths - Target-repo paths reported as touched by this run.
+ * @returns Whether a commit was created.
  */
 export async function stageAndCommit(
 	runner: CommandRunner,
 	workingDirectory: string,
 	commitMessage: string,
 	touchedPaths: string[],
-): Promise<void> {
+): Promise<boolean> {
 	const addCommand =
 		touchedPaths.length > 0 ? ['git', 'add', '-A', '--', ...touchedPaths] : ['git', 'add', '-A']
 
@@ -137,7 +138,7 @@ export async function stageAndCommit(
 	})
 
 	if (diffResult.exitCode === 0) {
-		return
+		return false
 	}
 
 	if (diffResult.exitCode !== 1) {
@@ -145,6 +146,8 @@ export async function stageAndCommit(
 	}
 
 	await expectCommandSuccess(runner, ['git', 'commit', '-m', commitMessage], workingDirectory)
+
+	return true
 }
 
 /**

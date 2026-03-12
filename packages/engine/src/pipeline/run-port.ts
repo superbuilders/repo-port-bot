@@ -29,6 +29,7 @@ import type { Logger } from '@repo-port-bot/logger'
 import type { PortBotJsonConfig } from '../config/types.ts'
 import type {
 	AgentProvider,
+	CommandRunner,
 	DeterministicPhaseResult,
 	FilteringMetadata,
 	GitHubReader,
@@ -50,6 +51,7 @@ interface RunPortStageOverrides {
 	executePort: typeof executePort
 	deliverResult: typeof deliverResult
 	commentOnSourcePr: typeof commentOnSourcePr
+	runCommand?: CommandRunner
 }
 
 interface RunPortOptions {
@@ -100,6 +102,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 		executePort: options.stageOverrides?.executePort ?? executePort,
 		deliverResult: options.stageOverrides?.deliverResult ?? deliverResult,
 		commentOnSourcePr: options.stageOverrides?.commentOnSourcePr ?? commentOnSourcePr,
+		runCommand: options.stageOverrides?.runCommand,
 	}
 
 	let sourceTitle: string | undefined = undefined
@@ -224,6 +227,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 					executeStage: stages.executePort,
 					deliverStage: stages.deliverResult,
 					commentStage: stages.commentOnSourcePr,
+					runCommand: stages.runCommand,
 					logger,
 					runId,
 					sourceTitle,
@@ -298,6 +302,7 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 				executeStage: stages.executePort,
 				deliverStage: stages.deliverResult,
 				commentStage: stages.commentOnSourcePr,
+				runCommand: stages.runCommand,
 				logger,
 				runId,
 				sourceTitle,

@@ -1,4 +1,6 @@
 import { runValidationCommands } from '../execution/run-validation.ts'
+import { checkTargetSideDiff, collectTouchedPaths } from '../github/ops.ts'
+import { runCommand as defaultRunCommand } from '../github/ops.ts'
 import { renderRunSummary } from '../github/render-body.ts'
 import { getDurationMs } from '../utils.ts'
 import { logOutcome, logStage } from './logging.ts'
@@ -12,6 +14,7 @@ import type { executePort } from '../execution/execute-port.ts'
 import type { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import type {
 	AgentProvider,
+	CommandRunner,
 	DecidePortResult,
 	DeterministicPhaseResult,
 	GitHubWriter,
@@ -41,10 +44,12 @@ interface RouteDecisionOutcomeInput extends SharedRouteInput {
 	diffFilePath?: string
 	maxAttempts?: number
 	executeStage: typeof executePort
+	runCommand?: CommandRunner
 }
 
 interface RunDeterministicPrFlowInput extends SharedRouteInput {
 	targetWorkingDirectory: string
+	runCommand?: CommandRunner
 }
 
 /**
@@ -163,35 +168,15 @@ async function runSkippedNotRequiredFlow(input: SharedRouteInput): Promise<PortR
  * @returns PR-opened or draft-pr-opened run result.
  */
 async function runDeterministicPrFlow(input: RunDeterministicPrFlowInput): Promise<PortRunResult> {
-	const validation = await runValidationCommands({
-		commands: input.context.pluginConfig.validationCommands,
-		workingDirectory: input.targetWorkingDirectory,
-	})
-	const framingMode =
-		input.portDecision.outcome.kind === 'NEEDS_HUMAN'
-			? 'residual_handoff'
-			: 'deterministic_only'
-	const deliverStartedAtMs = Date.now()
+	const touchedPaths = collectTouchedPaths(
+		input.context.deterministic,
+		input.context.deterministic,
+		undefined,
+	)
+	const runner = input.runCommand ?? defaultRunCommand
+	const hasDiff = await checkTargetSideDiff(runner, input.targetWorkingDirectory, touchedPaths)
 
-	const delivery = await input.deliverStage({
-		writer: input.writer,
-		context: input.context,
-		deterministic: input.context.deterministic,
-		decision: input.portDecision.outcome,
-		decisionTrace: input.portDecision.trace,
-		validation,
-		framingMode,
-		targetWorkingDirectory: input.targetWorkingDirectory,
-		includeCostTelemetry: input.includeCostTelemetry,
-		logger: input.logger,
-	})
-
-	logStage(input.logger, input.runId, 'deliver', {
-		outcome: delivery.outcome,
-		deliverMs: (input.stageTimings.deliverMs = getDurationMs(deliverStartedAtMs)),
-	})
-
-	if (delivery.outcome === 'skipped') {
+	if (!hasDiff) {
 		if (input.portDecision.outcome.kind === 'NEEDS_HUMAN') {
 			return runNeedsHumanFlow({
 				...input,
@@ -243,6 +228,34 @@ async function runDeterministicPrFlow(input: RunDeterministicPrFlowInput): Promi
 			stageTimings: input.stageTimings,
 		}
 	}
+
+	const validation = await runValidationCommands({
+		commands: input.context.pluginConfig.validationCommands,
+		workingDirectory: input.targetWorkingDirectory,
+	})
+	const framingMode =
+		input.portDecision.outcome.kind === 'NEEDS_HUMAN'
+			? 'residual_handoff'
+			: 'deterministic_only'
+	const deliverStartedAtMs = Date.now()
+
+	const delivery = await input.deliverStage({
+		writer: input.writer,
+		context: input.context,
+		deterministic: input.context.deterministic,
+		decision: input.portDecision.outcome,
+		decisionTrace: input.portDecision.trace,
+		validation,
+		framingMode,
+		targetWorkingDirectory: input.targetWorkingDirectory,
+		includeCostTelemetry: input.includeCostTelemetry,
+		logger: input.logger,
+	})
+
+	logStage(input.logger, input.runId, 'deliver', {
+		outcome: delivery.outcome,
+		deliverMs: (input.stageTimings.deliverMs = getDurationMs(deliverStartedAtMs)),
+	})
 
 	const outcome = delivery.outcome === 'draft_pr_opened' ? 'draft_pr_opened' : 'pr_opened'
 	const notifyMs = await postSourcePrCommentBestEffort({

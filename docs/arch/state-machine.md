@@ -45,8 +45,8 @@ The spec-style names in this document map to code as follows:
 - `deterministic_changed` → `DeterministicPhaseResult.changed` / `context.deterministic.changed`
 - `port_decision` → `PortDecision.kind` / `portDecision.outcome.kind`
 - `agent_ran` → whether `ExecutePortResult` exists
-- `validation` → `ValidationCommandResult[]` pass/fail
-- `target_side_diff` → `checkTargetSideDiff()` result
+- `validation` → `ValidationCommandResult[]` pass/fail (deterministic PRs); `ExecutePortResult.outcome.status` (agent PRs)
+- `target_side_diff` → `stageAndCommit()` return value / `checkTargetSideDiff()` result
 
 ## Pre-deterministic skip
 
@@ -65,7 +65,7 @@ These signals take priority over deterministic operations. If any of them match,
 - The classifier does **not** decide whether any PR exists at all. It only decides what should happen to the residual work.
 - If deterministic operations produce necessary target-side changes, a PR may still be opened even when the residual work is `NO_AGENT_PORT_NEEDED` or `NEEDS_HUMAN`.
 - If `target_side_diff = no` at delivery time, do not create a branch or PR.
-- When a PR exists, validation determines whether it is `ready` or `draft`.
+- When a non-agent PR exists, validation determines whether it is `ready` or `draft`. For agent PRs, the execution outcome determines this: `SUCCEEDED` → ready, anything else (validation failure or provider error) → draft.
 - The agent may report itself as incomplete even when validations pass. This does **not** change artifact selection or PR state — it is a reviewer-framing concern only (see [PR framing flow](#pr-framing-flow)).
 
 ## Canonical state table
@@ -82,6 +82,7 @@ Only reachable states are listed below.
 | yes                     | `NEEDS_HUMAN`          | no          | fail         | yes                | PR       | draft    | Deterministic PR plus residual handoff note, but validations failed            |
 | no or yes               | `PORT_REQUIRED`        | yes         | pass         | yes                | PR       | ready    | Agent-authored residual work succeeded                                         |
 | no or yes               | `PORT_REQUIRED`        | yes         | fail         | yes                | PR       | draft    | Agent-authored residual work did not validate; preserve progress in a draft PR |
+| no or yes               | `PORT_REQUIRED`        | yes         | n/a          | yes                | PR       | draft    | Agent provider error; preserve partial progress in a draft PR                  |
 
 Any state not listed above has `target_side_diff = no` and produces no artifact, per interpretation rule 5. The only `target_side_diff = no` state that produces an artifact is `NEEDS_HUMAN` with no deterministic changes (row 4), which creates an issue.
 

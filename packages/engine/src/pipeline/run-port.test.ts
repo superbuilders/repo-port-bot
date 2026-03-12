@@ -22,6 +22,21 @@ import type {
 	SourceChange,
 } from '../types.ts'
 
+/**
+ * @returns A command runner stub that reports changes exist via git status.
+ */
+function createDiffPresentRunner() {
+	return async (input: { command: string[]; workingDirectory: string }) => {
+		const cmd = input.command.join(' ')
+
+		if (cmd.startsWith('git status --short')) {
+			return { exitCode: 0, stdout: 'M tests/fixtures/example.json\n', stderr: '' }
+		}
+
+		return { exitCode: 0, stdout: '', stderr: '' }
+	}
+}
+
 const SOURCE_REPO: RepoRef = {
 	owner: 'acme',
 	name: 'source-repo',
@@ -543,6 +558,7 @@ describe('runPort', () => {
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => pluginConfig,
+				runCommand: createDiffPresentRunner(),
 				executeDeterministic: async input => {
 					deterministicCalled = true
 					expect(input.deterministicOperations).toEqual(
@@ -736,6 +752,7 @@ describe('runPort', () => {
 			stageOverrides: {
 				readSourceContext: async () => makeSourceChange(),
 				resolvePluginConfig: () => pluginConfig,
+				runCommand: createDiffPresentRunner(),
 				executeDeterministic: async input => {
 					deterministicCalled = true
 					expect(input.deterministicOperations).toEqual(
@@ -825,13 +842,6 @@ describe('runPort', () => {
 				},
 				deliverResult: async input => {
 					deliverCallCount++
-
-					if (deliverCallCount === 1) {
-						expect(input.framingMode).toBe('residual_handoff')
-
-						return { outcome: 'skipped' }
-					}
-
 					expect(input.context.deterministic?.changed).toBe(false)
 
 					return {
@@ -851,7 +861,7 @@ describe('runPort', () => {
 		expect(result.followUpIssueUrl).toBe('https://github.com/acme/target-repo/issues/99')
 		expect(deterministicCalled).toBe(true)
 		expect(executeCalled).toBe(false)
-		expect(deliverCallCount).toBe(2)
+		expect(deliverCallCount).toBe(1)
 		expect(commentOutcomes).toEqual(['needs_human'])
 	})
 

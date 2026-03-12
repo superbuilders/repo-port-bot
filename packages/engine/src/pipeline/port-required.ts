@@ -89,6 +89,48 @@ export async function runPortRequiredFlow(input: PortRequiredFlowInput): Promise
 		}
 	})()
 
+	if (delivery.outcome === 'skipped') {
+		const notifyMs = await postSourcePrCommentBestEffort({
+			commentStage: input.commentStage,
+			context: input.context,
+			decision: input.decision.outcome,
+			decisionTrace: input.decision.trace,
+			writer: input.writer,
+			outcome: 'skipped_not_required',
+			includeCostTelemetry: input.includeCostTelemetry,
+			runId: input.runId,
+			logger: input.logger,
+		})
+
+		if (notifyMs !== undefined) {
+			logStage(input.logger, input.runId, 'notify', {
+				outcome: 'skipped_not_required',
+				notifyMs: (input.stageTimings.notifyMs = notifyMs),
+			})
+		}
+
+		logOutcome(
+			input.logger,
+			input.runId,
+			'skipped_not_required',
+			getDurationMs(input.startedAtMs),
+		)
+
+		return {
+			runId: input.runId,
+			sourceTitle: input.sourceTitle,
+			outcome: 'skipped_not_required',
+			decision: input.decision,
+			execution,
+			summary: renderRunSummary({
+				outcome: 'skipped_not_required',
+				decision: input.decision,
+			}),
+			durationMs: getDurationMs(input.startedAtMs),
+			stageTimings: input.stageTimings,
+		}
+	}
+
 	if (delivery.outcome !== 'pr_opened' && delivery.outcome !== 'draft_pr_opened') {
 		throw new Error(
 			`Unexpected delivery outcome for PORT_REQUIRED decision: ${delivery.outcome}`,
