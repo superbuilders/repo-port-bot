@@ -418,10 +418,17 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		options.targetWorkingDirectory,
 	)
 
+	const framingMode = resolveFramingMode(
+		options.framingMode,
+		isPortRequired,
+		options.execution?.outcome.status,
+		options.decision.kind,
+	)
+
 	const committed = await stageAndCommit(
 		runner,
 		options.targetWorkingDirectory,
-		buildCommitMessage(options.context, options.execution?.trace.model),
+		buildCommitMessage(options.context, options.execution?.trace.model, framingMode),
 		touchedPaths,
 	)
 
@@ -435,12 +442,6 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		options.targetWorkingDirectory,
 	)
 
-	const framingMode = resolveFramingMode(
-		options.framingMode,
-		isPortRequired,
-		options.execution?.outcome.status,
-		options.decision.kind,
-	)
 	const prBody = renderPortPullRequestBody({
 		context: options.context,
 		decision: options.decision,

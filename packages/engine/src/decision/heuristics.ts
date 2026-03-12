@@ -247,9 +247,12 @@ export const PRE_DETERMINISTIC_SKIP_HEURISTICS: DecisionHeuristic[] = [
 
 /**
  * Ordered list of fast heuristics for the decision stage.
+ *
+ * Pre-deterministic skip heuristics are intentionally excluded here because
+ * `decidePreDeterministicSkip` already runs them earlier in the pipeline.
+ * Including them would cause redundant evaluation.
  */
 export const DECISION_HEURISTICS: DecisionHeuristic[] = [
-	...PRE_DETERMINISTIC_SKIP_HEURISTICS,
 	checkDocsOnly,
 	checkConfigOnly,
 	checkNoRemainingFiles,

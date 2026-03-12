@@ -96,10 +96,15 @@ export function buildPortBranchName(context: PortContext): string {
  *
  * @param context - Port context.
  * @param model - Optional agent model identifier for trailer.
+ * @param framingMode - Optional framing mode for title tag suffix.
  * @returns Commit message with git trailers.
  */
-export function buildCommitMessage(context: PortContext, model?: string): string {
-	const title = renderPortPullRequestTitle(context)
+export function buildCommitMessage(
+	context: PortContext,
+	model?: string,
+	framingMode?: PrFramingMode,
+): string {
+	const title = renderPortPullRequestTitle(context, framingMode)
 	const trailers = [
 		context.sourceChange.pullRequest
 			? `Source-PR: ${context.sourceChange.pullRequest.url}`

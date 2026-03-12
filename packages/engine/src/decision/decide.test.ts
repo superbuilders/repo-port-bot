@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { decide } from './decide.ts'
+import { decide, decidePreDeterministicSkip } from './decide.ts'
 
 import type {
 	AgentProvider,
@@ -106,39 +106,42 @@ describe('decide', () => {
 		)
 	})
 
-	test('returns NO_AGENT_PORT_NEEDED when pull request metadata is missing', async () => {
+	test('returns NO_AGENT_PORT_NEEDED when pull request metadata is missing (pre-deterministic)', () => {
 		const context = makeContext({
 			pullRequest: null,
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
 		})
 
-		const result = await decide(context)
+		const result = decidePreDeterministicSkip(context)
 
-		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
-		expect(result.trace.source).toBe('heuristic')
+		expect(result).toBeDefined()
+		expect(result!.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
+		expect(result!.trace.source).toBe('heuristic')
 	})
 
-	test('returns NO_AGENT_PORT_NEEDED for auto-port label (loop prevention)', async () => {
+	test('returns NO_AGENT_PORT_NEEDED for auto-port label (pre-deterministic)', () => {
 		const context = makeContext({
 			labels: ['auto-port'],
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
 		})
 
-		const result = await decide(context)
+		const result = decidePreDeterministicSkip(context)
 
-		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
-		expect(result.trace.heuristicName).toBe('checkLoopPrevention')
+		expect(result).toBeDefined()
+		expect(result!.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
+		expect(result!.trace.heuristicName).toBe('checkLoopPrevention')
 	})
 
-	test('returns NO_AGENT_PORT_NEEDED for no-port label', async () => {
+	test('returns NO_AGENT_PORT_NEEDED for no-port label (pre-deterministic)', () => {
 		const context = makeContext({
 			labels: ['no-port'],
 			files: [{ path: 'src/foo.ts', status: 'modified', additions: 1, deletions: 0 }],
 		})
 
-		const result = await decide(context)
+		const result = decidePreDeterministicSkip(context)
 
-		expect(result.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
+		expect(result).toBeDefined()
+		expect(result!.outcome.kind).toBe('NO_AGENT_PORT_NEEDED')
 	})
 
 	test('returns NO_AGENT_PORT_NEEDED for docs-only changes', async () => {
