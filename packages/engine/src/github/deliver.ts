@@ -444,6 +444,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 
 	const prBody = renderPortPullRequestBody({
 		context: options.context,
+		deterministic,
 		decision: options.decision,
 		decisionTrace: options.decisionTrace,
 		execution: options.execution,
