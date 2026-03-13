@@ -848,7 +848,6 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				input.supersededFailureRunId ? ` (run \`${input.supersededFailureRunId}\`)` : ''
 			}.`
 		: undefined
-	const reasonLines = input.decision.reason.split('\n').map(line => `> ${line}`)
 
 	/**
 	 * @param summary - Collapsible summary label.
@@ -856,10 +855,11 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 	 */
 	function buildReasonDetails(summary: string): string {
 		return [
-			`> <details><summary>${summary}</summary>`,
-			'>',
-			...reasonLines,
-			'> </details>',
+			`<details><summary>${summary}</summary>`,
+			'',
+			input.decision.reason,
+			'',
+			'</details>',
 		].join('\n')
 	}
 
@@ -878,8 +878,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				'',
 				supersededNote,
 				supersededNote ? '' : undefined,
-				`> [!NOTE]\n> Port bot skipped this for \`${targetRepo}\`.`,
-				'>',
+				`Port bot skipped this for \`${targetRepo}\`.`,
+				'',
 				buildReasonDetails('Why was this skipped?'),
 				'',
 				telemetryBlock,
@@ -898,8 +898,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 					'',
 					supersededNote,
 					supersededNote ? '' : undefined,
-					`> [!WARNING]\n> Deterministic changes were delivered to ${prLink} (${shape}), but residual work still needs human review.`,
-					'>',
+					`Deterministic changes were delivered to ${prLink} (${shape}), but residual work still needs human review.`,
+					'',
 					buildReasonDetails('What still needs review?'),
 					'',
 					telemetryBlock,
@@ -939,8 +939,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 					'',
 					supersededNote,
 					supersededNote ? '' : undefined,
-					`> [!WARNING]\n> Deterministic changes were prepared (${shape}), but validation failed. Opened ${prLink}, and residual work still needs human review.`,
-					'>',
+					`Deterministic changes were prepared (${shape}), but validation failed. Opened ${prLink}, and residual work still needs human review.`,
+					'',
 					buildReasonDetails('What still needs review?'),
 					'',
 					telemetryBlock,
@@ -954,8 +954,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				'',
 				supersededNote,
 				supersededNote ? '' : undefined,
-				`> [!WARNING]\n> Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
-				'>',
+				`Port attempted (${shape}) but validation failed after retries. Opened ${prLink}.`,
+				'',
 				buildReasonDetails('Why was this ported?'),
 				'',
 				telemetryBlock,
@@ -970,8 +970,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 					'',
 					supersededNote,
 					supersededNote ? '' : undefined,
-					`> [!WARNING]\n> Deterministic changes were delivered to ${input.targetPullRequestUrl}, but residual work still needs human review.`,
-					'>',
+					`Deterministic changes were delivered to ${input.targetPullRequestUrl}, but residual work still needs human review.`,
+					'',
 					buildReasonDetails('What still needs review?'),
 					'',
 					telemetryBlock,
@@ -989,8 +989,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 				'',
 				supersededNote,
 				supersededNote ? '' : undefined,
-				`> [!WARNING]\n> Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
-				'>',
+				`Could not automatically port to \`${targetRepo}\`. Opened ${issueLink} for manual review.`,
+				'',
 				buildReasonDetails('Why does this need review?'),
 				'',
 				telemetryBlock,
@@ -1002,8 +1002,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			return [
 				buildSourceCommentMarker(input.context),
 				'',
-				`> [!CAUTION]\n> Port to \`${targetRepo}\` failed due to an engine error. Run ID: \`${input.runId}\``,
-				'>',
+				`Port to \`${targetRepo}\` failed due to an engine error. Run ID: \`${input.runId}\``,
+				'',
 				buildReasonDetails('What went wrong?'),
 			].join('\n')
 		}
@@ -1011,8 +1011,8 @@ export function renderSourceComment(input: RenderSourceCommentInput): string {
 			return [
 				buildSourceCommentMarker(input.context),
 				'',
-				`> [!NOTE]\n> Port bot ran for \`${targetRepo}\`.`,
-				'>',
+				`Port bot ran for \`${targetRepo}\`.`,
+				'',
 				buildReasonDetails('Details'),
 			].join('\n')
 		}
