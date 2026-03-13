@@ -637,7 +637,7 @@ describe('render-body', () => {
 		expect(body).toContain('Source-Commit: abc123456789')
 	})
 
-	test('renders source comment for skipped outcome with note admonition', () => {
+	test('renders source comment for skipped outcome without admonition', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
 			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
@@ -645,10 +645,11 @@ describe('render-body', () => {
 			runId: 'run-0',
 		})
 
-		expect(body).toContain('[!NOTE]')
+		expect(body).not.toContain('[!NOTE]')
+		expect(body).not.toContain('[!WARNING]')
 		expect(body).toContain('skipped this for `acme/target-repo`')
-		expect(body).toContain('> <details><summary>Why was this skipped?</summary>')
-		expect(body).toContain('> Decision reason')
+		expect(body).toContain('<details><summary>Why was this skipped?</summary>')
+		expect(body).toContain('Decision reason')
 	})
 
 	test('renders source comment for pr_opened without admonition', () => {
@@ -699,7 +700,7 @@ describe('render-body', () => {
 		expect(body).not.toContain('Cost & Tokens')
 	})
 
-	test('renders source comment for draft_pr_opened and needs_human with warning admonition', () => {
+	test('renders source comment for draft_pr_opened and needs_human without admonitions', () => {
 		const draftBody = renderSourceComment({
 			context: makeContext(),
 			decision: makeDecision('PORT_REQUIRED'),
@@ -715,14 +716,14 @@ describe('render-body', () => {
 			runId: 'run-3',
 		})
 
-		expect(draftBody).toContain('[!WARNING]')
+		expect(draftBody).not.toContain('[!WARNING]')
 		expect(draftBody).toContain('validation failed after retries')
 		expect(draftBody).toContain('draft PR: https://github.com/acme/target-repo/pull/333')
-		expect(draftBody).toContain('> <details><summary>Why was this ported?</summary>')
-		expect(needsHumanBody).toContain('[!WARNING]')
+		expect(draftBody).toContain('<details><summary>Why was this ported?</summary>')
+		expect(needsHumanBody).not.toContain('[!WARNING]')
 		expect(needsHumanBody).toContain('issue: https://github.com/acme/target-repo/issues/55')
 		expect(needsHumanBody).toContain('manual review')
-		expect(needsHumanBody).toContain('> <details><summary>Why does this need review?</summary>')
+		expect(needsHumanBody).toContain('<details><summary>Why does this need review?</summary>')
 	})
 
 	test('renders source comment residual handoff when decision is NEEDS_HUMAN but PR opens', () => {
@@ -734,13 +735,13 @@ describe('render-body', () => {
 			runId: 'run-residual-1',
 		})
 
-		expect(body).toContain('[!WARNING]')
+		expect(body).not.toContain('[!WARNING]')
 		expect(body).toContain('residual work still needs human review')
 		expect(body).toContain('https://github.com/acme/target-repo/pull/444')
 		expect(body).toContain('What still needs review?')
 	})
 
-	test('renders source comment for failed outcome with caution admonition', () => {
+	test('renders source comment for failed outcome without admonition', () => {
 		const body = renderSourceComment({
 			context: makeContext(),
 			decision: makeDecision('NEEDS_HUMAN'),
@@ -748,10 +749,10 @@ describe('render-body', () => {
 			runId: 'run-4',
 		})
 
-		expect(body).toContain('[!CAUTION]')
+		expect(body).not.toContain('[!CAUTION]')
 		expect(body).toContain('failed due to an engine error')
 		expect(body).toContain('Run ID: `run-4`')
-		expect(body).toContain('> <details><summary>What went wrong?</summary>')
+		expect(body).toContain('<details><summary>What went wrong?</summary>')
 	})
 
 	test('renders source comment supersede as note admonition with link', () => {
