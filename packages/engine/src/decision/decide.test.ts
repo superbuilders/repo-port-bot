@@ -28,6 +28,7 @@ const TARGET_REPO: RepoRef = {
 const BASE_PLUGIN_CONFIG: PluginConfig = {
 	targetRepo: TARGET_REPO,
 	ignorePatterns: [],
+	setupCommands: [],
 	validationCommands: ['bun run check'],
 	deterministicOperations: [],
 	pathMappings: {},

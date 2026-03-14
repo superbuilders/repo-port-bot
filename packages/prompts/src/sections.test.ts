@@ -22,6 +22,7 @@ function makeConfig(overrides?: Partial<PluginConfig>): PluginConfig {
 	return {
 		targetRepo: { owner: 'acme', name: 'target', defaultBranch: 'main' },
 		ignorePatterns: [],
+		setupCommands: [],
 		validationCommands: [],
 		deterministicOperations: [],
 		pathMappings: {},

@@ -80,7 +80,8 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
     ```json
     {
     	"target": "acme/target-repo",
-    	"validation": ["bun run check", "bun run test"],
+    	"setup": ["uv sync --all-packages"],
+    	"validation": ["just check-ci"],
     	"mapping": {
     		"src/": "packages/core/src/"
     	},
@@ -93,6 +94,7 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
     ```
 
     - All fields are optional. Action inputs take precedence over config-file values.
+    - `setup` commands run once after cloning the target repo, before the agent starts. Use this for dependency installation (e.g., `uv sync --all-packages`, `bun install`, `npm ci`) so that validation tools like type checkers and test runners can resolve imports correctly.
     - The engine fetches the first matching supported filename from the source repo at the merge commit SHA using its precedence order. If none of the supported files exists, nothing breaks — the engine uses action inputs and defaults.
     - The `skip-port-bot-json: true` action input disables config-file fetching entirely.
 
@@ -106,7 +108,8 @@ Define what a smooth onboarding looks like. The maintainer should go from "no bo
 
 5. **Maintainer reviews and adjusts**
     - After seeing the first port result, the maintainer can tune:
-        - **Validation commands** — add or adjust commands that the agent runs to verify its work (e.g., `bun run check`, `pytest`).
+        - **Setup commands** — install dependencies in the target repo before validation runs (e.g., `uv sync --all-packages`, `bun install`). Without this, tools like pyright or tsc may fail with false import-resolution errors because workspace packages aren't installed. Setup commands run once per port run, not per retry attempt.
+        - **Validation commands** — add or adjust commands that the agent runs to verify its work (e.g., `just check-ci`, `bun run check`, `pytest`).
         - **Path mappings** — help the agent understand where source paths correspond to target paths when the directory structures differ.
         - **Naming conventions** — guide the agent on language-specific conventions (e.g., `camelCase` vs `snake_case`).
         - **Custom prompt** — add repo-specific context the agent needs to make good decisions.
@@ -142,6 +145,7 @@ The maintainer experiences onboarding as "three required inputs and the bot work
 ## Common pitfalls
 
 - **Token permissions too narrow**: the GitHub token needs write access to the target repo for PR creation and git push. A read-only token will fail at the delivery stage. The error appears in the Actions log as a push or API 403.
+- **No setup commands for monorepos**: if the target repo is a monorepo with cross-package imports (e.g., a uv/pip workspace, a Bun/npm workspace), validation tools like pyright or tsc won't resolve sibling packages without an install step. The agent sees dozens of false import errors, wastes retry budget, and stalls. Add `"setup": ["uv sync --all-packages"]` (or `bun install`, `npm ci`, etc.) to the config file.
 - **No validation commands configured**: the bot defaults to no validation. The PR body omits the Validation & Diagnostics section entirely (rather than showing pass/fail results), and the PR is opened as ready-for-review even if the code doesn't compile. Adding at least one validation command (type check, lint, test) is strongly recommended.
 - **Wrong `target-repo` format**: must be `owner/name` (e.g., `acme/python-sdk`). A bare repo name without the owner will fail at input parsing.
 - **Source repo is private, target is in a different org**: split tokens are needed because a single PAT or single-installation token may not have cross-org access.

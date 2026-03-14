@@ -195,6 +195,7 @@ describe('runAction', () => {
 								defaultBranch: 'main',
 							},
 							ignorePatterns: [],
+							setupCommands: [],
 							validationCommands: [],
 							deterministicOperations: [],
 							pathMappings: {},

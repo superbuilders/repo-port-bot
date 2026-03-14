@@ -85,6 +85,13 @@ function validatePluginConfig(config: PluginConfig): void {
 	}
 
 	if (
+		!Array.isArray(config.setupCommands) ||
+		!config.setupCommands.every(command => typeof command === 'string')
+	) {
+		throw new Error('Plugin config `setupCommands` must be a string array.')
+	}
+
+	if (
 		!Array.isArray(config.validationCommands) ||
 		!config.validationCommands.every(command => typeof command === 'string')
 	) {
@@ -177,6 +184,7 @@ export function resolvePluginConfig(options: ResolvePluginConfigOptions): Plugin
 				}
 			: undefined,
 		ignorePatterns: parsedPortBotJson.ignore ?? [],
+		setupCommands: parsedPortBotJson.setup ?? [],
 		validationCommands: parsedPortBotJson.validation ?? [],
 		deterministicOperations: collectDeterministicOperations(parsedPortBotJson),
 		pathMappings: parsedPortBotJson.mapping ?? {},
@@ -195,6 +203,7 @@ export function resolvePluginConfig(options: ResolvePluginConfigOptions): Plugin
 		},
 		ignorePatterns:
 			nonEmpty(builtInConfig.ignorePatterns) ?? fromPortBotJson.ignorePatterns ?? [],
+		setupCommands: nonEmpty(builtInConfig.setupCommands) ?? fromPortBotJson.setupCommands ?? [],
 		validationCommands:
 			nonEmpty(builtInConfig.validationCommands) ?? fromPortBotJson.validationCommands ?? [],
 		deterministicOperations:

@@ -21,6 +21,7 @@ function makePluginConfig(): PluginConfig {
 			defaultBranch: 'main',
 		},
 		ignorePatterns: [],
+		setupCommands: [],
 		validationCommands: ['bun run check'],
 		deterministicOperations: [],
 		pathMappings: {

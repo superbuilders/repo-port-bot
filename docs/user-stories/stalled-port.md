@@ -118,6 +118,7 @@ The maintainer experiences the stall as "the bot got close and told me exactly w
 - The source change touches patterns the agent handles well (straightforward file mapping) but also patterns it doesn't (new APIs, changed signatures, test fixtures that need target-specific data).
 - Validation commands catch real issues (type errors, test failures) that the agent cannot resolve within the retry budget.
 - The source change is large enough that partial success is valuable — some files port cleanly, others don't.
+  -The target repo needs a dependency install step (e.g., `uv sync --all-packages`) before validation tools work, but no `setup` field is configured in `port-bot.json`.
 
 ## Non-goals
 

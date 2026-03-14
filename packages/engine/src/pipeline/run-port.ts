@@ -11,6 +11,7 @@ import {
 } from '../decision/decide.ts'
 import { executeDeterministic } from '../execution/execute-deterministic.ts'
 import { executePort } from '../execution/execute-port.ts'
+import { runValidationCommands } from '../execution/run-validation.ts'
 import { commentOnSourcePr, deliverResult } from '../github/deliver.ts'
 import { readSourceContext } from '../github/read-source-context.ts'
 import { renderRunSummary } from '../github/render-body.ts'
@@ -238,6 +239,14 @@ export async function runPort(options: RunPortOptions): Promise<PortRunResult> {
 			)
 		}
 
+		await runSetupCommands(
+			pluginConfig,
+			options.targetWorkingDirectory,
+			logger,
+			runId,
+			stageTimings,
+		)
+
 		const deterministicStartedAtMs = Date.now()
 
 		const deterministicResult = await buildDeterministicResult(
@@ -389,6 +398,57 @@ async function buildDeterministicResult(
 		sourceWorkingDirectory: options.sourceWorkingDirectory,
 		targetWorkingDirectory: options.targetWorkingDirectory,
 	})
+}
+
+/**
+ * Run setup commands if configured, aborting on first failure.
+ *
+ * @param pluginConfig - Resolved config with setup commands.
+ * @param targetWorkingDirectory - Target repo working directory.
+ * @param logger - Logger.
+ * @param runId - Correlation run ID.
+ * @param stageTimings - Mutable timings object.
+ */
+async function runSetupCommands(
+	pluginConfig: PluginConfig,
+	targetWorkingDirectory: string,
+	logger: Logger,
+	runId: string,
+	stageTimings: NonNullable<PortRunResult['stageTimings']>,
+): Promise<void> {
+	if (pluginConfig.setupCommands.length === 0) {
+		return
+	}
+
+	const setupStartedAtMs = Date.now()
+
+	logger.group('Setup: run setup commands')
+
+	try {
+		const setupResults = await runValidationCommands({
+			commands: pluginConfig.setupCommands,
+			workingDirectory: targetWorkingDirectory,
+		})
+		const setupFailed = setupResults.find(result => !result.ok)
+
+		logStage(logger, runId, 'setup', {
+			commands: pluginConfig.setupCommands.length,
+			passed: setupResults.filter(r => r.ok).length,
+			setupMs: (stageTimings.setupMs = getDurationMs(setupStartedAtMs)),
+		})
+
+		if (setupFailed) {
+			const stdout = setupFailed.stdout.trim()
+			const stderr = setupFailed.stderr.trim()
+			const output = [stdout, stderr].filter(Boolean).join('\n')
+
+			throw new Error(
+				`Setup command failed: \`${setupFailed.command}\` (exit ${String(setupFailed.exitCode ?? 'unknown')})${output.length > 0 ? `\n${output}` : ''}`,
+			)
+		}
+	} finally {
+		logger.groupEnd()
+	}
 }
 
 /**

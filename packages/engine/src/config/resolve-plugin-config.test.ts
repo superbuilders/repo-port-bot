@@ -34,6 +34,7 @@ describe('resolvePluginConfig', () => {
 				defaultBranch: 'dev',
 			},
 			ignorePatterns: ['docs/**', '.github/**'],
+			setupCommands: [],
 			validationCommands: ['bun run test', 'bun run check'],
 			deterministicOperations: [
 				{
@@ -78,6 +79,7 @@ describe('resolvePluginConfig', () => {
 					name: 'in-repo',
 					defaultBranch: 'release',
 				},
+				setupCommands: [],
 				validationCommands: ['bun run check'],
 				deterministicOperations: [
 					{
@@ -122,6 +124,7 @@ describe('resolvePluginConfig', () => {
 				defaultBranch: 'release',
 			},
 			ignorePatterns: ['generated/**'],
+			setupCommands: [],
 			validationCommands: ['bun run check'],
 			deterministicOperations: [
 				{

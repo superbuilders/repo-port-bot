@@ -117,6 +117,7 @@ function makePluginConfig(overrides?: Partial<PluginConfig>): PluginConfig {
 	return {
 		targetRepo: TARGET_REPO,
 		ignorePatterns: [],
+		setupCommands: [],
 		validationCommands: ['bun run check'],
 		deterministicOperations: [],
 		pathMappings: {},

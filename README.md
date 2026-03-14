@@ -161,6 +161,7 @@ Example:
 ```json
 {
 	"target": "org/other-repo",
+	"setup": ["uv sync --all-packages"],
 	"sync": [
 		{
 			"source": "tests/fixtures/**",
@@ -198,7 +199,13 @@ No code executes from the config file: it's purely declarative. Set `skip-port-b
 
 Action inputs take precedence when both exist. You can combine them — e.g., keep stable config in the workflow and use `port-bot.json` for repo-specific overrides that change more often.
 
-Note: `ignore` patterns and `sync` operations are only configurable via the config file, not as action inputs.
+Note: `ignore` patterns, `setup` commands, and `sync` operations are only configurable via the config file, not as action inputs.
+
+#### Setup commands
+
+The `setup` field defines commands that run once in the target working directory after cloning, before deterministic operations or agent execution. Use this for dependency installation (`uv sync`, `bun install`, `pip install -e .`) so validation commands and the agent have a working environment.
+
+If any setup command fails, the entire run aborts with a clear error — it does not produce a stalled PR or trigger agent retries. Setup commands differ from validation in that they run once (not per-attempt) and failure is fatal.
 
 #### Deterministic operations
 

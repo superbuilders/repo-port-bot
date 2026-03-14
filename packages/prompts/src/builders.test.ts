@@ -23,6 +23,7 @@ function makePluginConfig(overrides?: Partial<PluginConfig>): PluginConfig {
 			defaultBranch: 'main',
 		},
 		ignorePatterns: [],
+		setupCommands: [],
 		validationCommands: ['bun run check'],
 		deterministicOperations: [],
 		pathMappings: {},

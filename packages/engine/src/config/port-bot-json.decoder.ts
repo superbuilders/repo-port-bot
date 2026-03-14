@@ -14,6 +14,7 @@ const portBotJsonSyncEntryDecoder = object({
 
 const portBotJsonConfigDecoder = object({
 	target: optional(string),
+	setup: optional(array(string)),
 	sync: optional(array(portBotJsonSyncEntryDecoder)),
 	ignore: optional(array(string)),
 	validation: optional(array(string)),

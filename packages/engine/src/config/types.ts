@@ -22,6 +22,7 @@ export interface PortBotJsonSyncEntry {
 
 export interface PortBotJsonConfig {
 	target?: string
+	setup?: string[]
 	sync?: PortBotJsonSyncEntry[]
 	ignore?: string[]
 	validation?: string[]

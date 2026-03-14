@@ -67,6 +67,7 @@ function makeContext(validationCommands: string[]): PortContext {
 		pluginConfig: {
 			targetRepo: TARGET_REPO,
 			ignorePatterns: [],
+			setupCommands: [],
 			validationCommands,
 			deterministicOperations: [],
 			pathMappings: {},
