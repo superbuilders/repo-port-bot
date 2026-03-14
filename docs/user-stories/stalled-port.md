@@ -42,12 +42,12 @@ See [`docs/arch/state-machine.md`](../arch/state-machine.md) for the canonical a
 3. **Agent attempts the residual port**
     - The agent works on top of the deterministic baseline already applied in the target working tree.
     - On each attempt, the agent reads the source diff, applies edits in the target repo, and the orchestrator runs validation commands against the combined working tree (deterministic + agent edits).
-    - Validation fails. The agent receives the failure output and attempts a fix.
+    - Validation fails. The agent receives the failing command's name, exit code, stdout, and stderr as retry feedback and attempts a fix.
     - This repeats until `maxAttempts` is exhausted.
     - The working directory is incremental — each attempt builds on the previous one, so partial progress is preserved.
 
 4. **Execution returns `success: false`**
-    - The `ExecutionResult` carries the full attempt history: files touched per attempt, validation results (which commands passed, which failed, exit codes), agent notes, a `failureReason` summarizing the final state, and an `incompleteReason` when the agent was cut off before finishing (e.g. "reached max turns", "reached budget limit").
+    - The `ExecutionResult` carries the full attempt history: files touched per attempt, validation results (which commands passed/failed, exit codes, stdout, stderr), agent notes, a `failureReason` summarizing the final state, and an `incompleteReason` when the agent was cut off before finishing (e.g. "reached max turns", "reached budget limit").
 
 5. **Draft PR is opened (or updated) in target repo**
     - The delivery stage commits the agent's final working tree state (even though validation failed) and force-pushes the port branch. If the branch already exists from a previous run, the force-push replaces it.

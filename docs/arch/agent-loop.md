@@ -90,7 +90,7 @@ The agent uses absolute paths to read source files and the diff, and relative pa
 ### Retry policy
 
 - Max attempts: configurable (default 3).
-- Each attempt: agent receives `previousAttempts` feedback (validation errors, touched files), applies targeted fix, reruns.
+- Each attempt: agent receives `previousAttempts` feedback (validation command, exit code, stdout, stderr, touched files), applies targeted fix, reruns.
 - Conversation model: fresh per attempt (new `query()` call each retry).
 - Working directory: incremental (no reset between attempts; each builds on previous edits).
 - On exhaustion: execution returns an outcome status plus a final reason in the execution outcome payload.
@@ -199,7 +199,7 @@ Potential alternatives that would implement the same interface:
 
 ### Prompt tuning
 
-- Does the agent see full validation output or a truncated/parsed version on retry?
+- ~~Does the agent see full validation output or a truncated/parsed version on retry?~~ **Resolved**: the agent receives the first failing command's name, exit code, stdout, and stderr. Passing commands are omitted from retry feedback.
 
 ### Quality signals
 
