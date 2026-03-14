@@ -306,7 +306,13 @@ Edited packages/caliper/tests/...
 
 <details><summary>Validation & diagnostics</summary>
 
-- [PASS] `just check-ci`
+- [PASS] `just check-ci` (exit code 0)
+
+```
+
+All checks passed.
+
+```
 
 </details>
 
@@ -396,8 +402,23 @@ _I preserved the deterministic changes and attempted the Python port, but confid
 
 <details open><summary>Validation & diagnostics</summary>
 
-- [PASS] `just check-manifest`
+- [PASS] `just check-manifest` (exit code 0)
+```
+
+Manifest OK: 758 fixtures across 12 resources.
+
+```
+
 - [FAIL] `just check-ci` (exit code 1)
+
+```
+
+FAILED tests/caliper/test_event_builder.py::test_new_shape - TypeError: missing required argument 'event_type'
+FAILED tests/caliper/test_event_builder.py::test_typed_builder - AssertionError: expected Caliper event
+2 failed, 847 passed
+
+```
+
 - Final status: validation failed after retries.
 - Failure reason: Python type and test failures remain in the target-specific ported files.
 
