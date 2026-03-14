@@ -275,7 +275,7 @@ Once the deterministic changes were in place, the agent ported the remaining beh
 - `packages/caliper/src/...`: Ported the new event builder shape and adjusted Python-side typing to match the source SDK behavior.
 - `packages/caliper/tests/...`: Added the corresponding Python tests for the new behavior.
 
-<details><summary>Deterministic changes</summary>
+<details><summary>Deterministic baseline (2 operations)</summary>
 
 Mirrored:
 

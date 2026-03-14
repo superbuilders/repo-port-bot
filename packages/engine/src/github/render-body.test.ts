@@ -367,6 +367,60 @@ describe('render-body', () => {
 		expect(body).toContain('Validation & diagnostics')
 	})
 
+	test('renders deterministic baseline as collapsed block after summary in agent_success', () => {
+		const context = makeContext()
+
+		context.deterministic = makeDeterministicPhase()
+
+		const body = renderPortPullRequestBody({
+			context,
+			decision: makeDecision('PORT_REQUIRED'),
+			execution: makeExecution(true),
+			framingMode: 'agent_success',
+		})
+
+		expect(body).toContain('<details><summary>Deterministic baseline (2 operations)</summary>')
+		expect(body).toContain('Mirrored:')
+		expect(body).toContain('Copied:')
+		expect(body).not.toContain('### Deterministic baseline')
+
+		const summaryIndex = body.indexOf('## What was ported')
+		const baselineIndex = body.indexOf('Deterministic baseline (2 operations)')
+		const workLogIndex = body.indexOf('Work Log')
+
+		expect(summaryIndex).toBeLessThan(baselineIndex)
+		expect(baselineIndex).toBeLessThan(workLogIndex)
+	})
+
+	test('omits deterministic baseline block when no deterministic changes', () => {
+		const body = renderPortPullRequestBody({
+			context: makeContext(),
+			decision: makeDecision('PORT_REQUIRED'),
+			execution: makeExecution(true),
+			framingMode: 'agent_success',
+		})
+
+		expect(body).not.toContain('Deterministic baseline')
+	})
+
+	test('renders blank line between mirrored and copied groups', () => {
+		const context = makeContext()
+
+		context.deterministic = makeDeterministicPhase()
+
+		const body = renderPortPullRequestBody({
+			context,
+			decision: makeDecision('NO_AGENT_PORT_NEEDED'),
+			framingMode: 'deterministic_only',
+		})
+
+		const mirrorEnd = body.indexOf('`tests/fixtures/`')
+		const copiedStart = body.indexOf('Copied:')
+		const between = body.slice(mirrorEnd, copiedStart)
+
+		expect(between).toContain('\n\n')
+	})
+
 	test('omits author mention when author is absent', () => {
 		const context = makeContext()
 
