@@ -229,3 +229,25 @@ export function logAgentMessage(input: {
 		}),
 	)
 }
+
+/**
+ * Return the value if it's a non-empty array or non-empty object, or
+ * undefined otherwise. Prevents empty action inputs (parsed as `[]` or
+ * `{}`) from clobbering config-file values via the `??` fallback chain.
+ *
+ * @param value - Array, record, or undefined.
+ * @returns The value when non-empty, otherwise undefined.
+ */
+export function nonEmpty<T extends unknown[] | Record<string, unknown>>(
+	value: T | undefined,
+): T | undefined {
+	if (value === undefined) {
+		return undefined
+	}
+
+	if (Array.isArray(value)) {
+		return value.length > 0 ? value : undefined
+	}
+
+	return Object.keys(value).length > 0 ? value : undefined
+}
