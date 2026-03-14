@@ -94,6 +94,17 @@ function isDefinedLine(value: string | undefined): value is string {
 }
 
 /**
+ * Collapse consecutive empty strings so optional absent blocks
+ * don't produce extra blank lines when joined.
+ *
+ * @param lines - Filtered string array (no undefined).
+ * @returns Array with at most one consecutive empty string.
+ */
+function collapseBlankLines(lines: string[]): string[] {
+	return lines.filter((line, index) => line !== '' || lines[index - 1] !== '')
+}
+
+/**
  * Truncate text for compact issue titles.
  *
  * @param value - Raw text.
@@ -304,8 +315,11 @@ function renderDeterministicOperations(operations: DeterministicOperation[]): st
 		}
 
 		if (copied.length > 0) {
+			if (blocks.length > 0) {
+				blocks.push('')
+			}
+
 			blocks.push(
-				'',
 				'Copied:',
 				'',
 				...copied.map(operation => `- \`${operation.source}\` -> \`${operation.target}\``),
@@ -798,8 +812,9 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		? undefined
 		: renderDiagnosticsBlock(input.execution)
 	const agentWorkLog = renderAgentWorkLog(input.execution)
+	const baselineBlock = renderDeterministicBaseline(deterministic) ?? ''
 
-	return [
+	const lines = [
 		'## Port rationale',
 		'',
 		reasonBlockquote,
@@ -813,7 +828,7 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		summaryParts.summary,
 		summaryParts.details,
 		'',
-		renderDeterministicBaseline(deterministic),
+		baselineBlock,
 		'',
 		agentWorkLog,
 		'',
@@ -822,8 +837,8 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'---',
 		`Ported by: [Repo Port Bot](${PORT_BOT_REPO_URL})`,
 	]
-		.filter(isDefinedLine)
-		.join('\n')
+
+	return collapseBlankLines(lines.filter(isDefinedLine)).join('\n')
 }
 
 /**
