@@ -139,6 +139,32 @@ describe('resolvePluginConfig', () => {
 		})
 	})
 
+	test('empty built-in arrays do not clobber port-bot.json values', () => {
+		const result = resolvePluginConfig({
+			builtInConfig: {
+				targetRepo: { owner: 'acme', name: 'target', defaultBranch: 'main' },
+				validationCommands: [],
+				ignorePatterns: [],
+				deterministicOperations: [],
+				pathMappings: {},
+			},
+			portBotJson: {
+				target: 'acme/target',
+				validation: ['just check-ci'],
+				ignore: ['docs/**'],
+				sync: [{ source: 'fixtures/**', target: 'fixtures/', mode: 'mirror' }],
+				mapping: { 'packages/sdk/': 'packages/timeback/' },
+			},
+		})
+
+		expect(result.validationCommands).toEqual(['just check-ci'])
+		expect(result.ignorePatterns).toEqual(['docs/**'])
+		expect(result.deterministicOperations).toEqual([
+			{ kind: 'sync', source: 'fixtures/**', target: 'fixtures/', mode: 'mirror' },
+		])
+		expect(result.pathMappings).toEqual({ 'packages/sdk/': 'packages/timeback/' })
+	})
+
 	test('throws for invalid target format', () => {
 		expect(() => {
 			resolvePluginConfig({

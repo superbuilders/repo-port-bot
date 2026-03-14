@@ -1,5 +1,6 @@
 import micromatch from 'micromatch'
 
+import { nonEmpty } from '../utils.ts'
 import { parseAndDecodePortBotJson } from './port-bot-json.decoder.ts'
 import { collectDeterministicOperations } from './utils'
 
@@ -192,12 +193,15 @@ export function resolvePluginConfig(options: ResolvePluginConfigOptions): Plugin
 				fromPortBotJson.targetRepo?.defaultBranch ??
 				targetDefaultBranch,
 		},
-		ignorePatterns: builtInConfig.ignorePatterns ?? fromPortBotJson.ignorePatterns ?? [],
+		ignorePatterns:
+			nonEmpty(builtInConfig.ignorePatterns) ?? fromPortBotJson.ignorePatterns ?? [],
 		validationCommands:
-			builtInConfig.validationCommands ?? fromPortBotJson.validationCommands ?? [],
+			nonEmpty(builtInConfig.validationCommands) ?? fromPortBotJson.validationCommands ?? [],
 		deterministicOperations:
-			builtInConfig.deterministicOperations ?? fromPortBotJson.deterministicOperations ?? [],
-		pathMappings: builtInConfig.pathMappings ?? fromPortBotJson.pathMappings ?? {},
+			nonEmpty(builtInConfig.deterministicOperations) ??
+			fromPortBotJson.deterministicOperations ??
+			[],
+		pathMappings: nonEmpty(builtInConfig.pathMappings) ?? fromPortBotJson.pathMappings ?? {},
 		namingConventions: builtInConfig.namingConventions ?? fromPortBotJson.namingConventions,
 		prompt: builtInConfig.prompt ?? fromPortBotJson.prompt,
 	}
