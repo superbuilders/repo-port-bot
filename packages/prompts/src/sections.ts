@@ -225,8 +225,11 @@ function renderValidationFailure(validation: ValidationCommandResult[]): string 
 	}
 
 	const exitCode = failed.exitCode === undefined ? 'unknown' : String(failed.exitCode)
-	const stderr = failed.stderr.trim()
-	const stderrSuffix = stderr.length === 0 ? '' : `; stderr: ${stderr}`
+	const output = [failed.stdout, failed.stderr]
+		.map(s => s.trim())
+		.filter(Boolean)
+		.join('\n')
+	const outputSuffix = output.length === 0 ? '' : `\n${output}`
 
-	return `\`${failed.command}\` (exit ${exitCode})${stderrSuffix}`
+	return `\`${failed.command}\` (exit ${exitCode})${outputSuffix}`
 }

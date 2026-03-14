@@ -296,6 +296,7 @@ function renderDeterministicOperations(operations: DeterministicOperation[]): st
 		if (mirrored.length > 0) {
 			blocks.push(
 				'Mirrored:',
+				'',
 				...mirrored.map(
 					operation => `- \`${operation.source}\` -> \`${operation.target}\``,
 				),
@@ -304,13 +305,40 @@ function renderDeterministicOperations(operations: DeterministicOperation[]): st
 
 		if (copied.length > 0) {
 			blocks.push(
+				'',
 				'Copied:',
+				'',
 				...copied.map(operation => `- \`${operation.source}\` -> \`${operation.target}\``),
 			)
 		}
 	}
 
 	return blocks.length > 0 ? blocks.join('\n') : '_No deterministic operations were recorded._'
+}
+
+/**
+ * Render deterministic operations as a collapsed details block.
+ *
+ * @param deterministic - Deterministic phase result.
+ * @returns Collapsed details block, or undefined when no operations ran.
+ */
+function renderDeterministicBaseline(
+	deterministic: DeterministicPhaseResult | undefined,
+): string | undefined {
+	if (!deterministic?.changed || deterministic.operations.length === 0) {
+		return undefined
+	}
+
+	const count = deterministic.operations.length
+	const label = `Deterministic baseline (${String(count)} operation${count === 1 ? '' : 's'})`
+
+	return [
+		`<details><summary>${label}</summary>`,
+		'',
+		renderDeterministicOperations(deterministic.operations),
+		'',
+		'</details>',
+	].join('\n')
 }
 
 /**
@@ -782,16 +810,10 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'',
 		'## What was ported',
 		'',
-		deterministic?.changed
-			? [
-					'### Deterministic baseline',
-					'',
-					renderDeterministicOperations(deterministic.operations),
-				].join('\n')
-			: undefined,
-		deterministic?.changed ? '' : undefined,
 		summaryParts.summary,
 		summaryParts.details,
+		'',
+		renderDeterministicBaseline(deterministic),
 		'',
 		agentWorkLog,
 		'',

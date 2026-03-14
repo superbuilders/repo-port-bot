@@ -16,9 +16,23 @@ The agent loop runs inside a **GitHub Actions runner** triggered by the source r
 - **Network access**: GitHub API, package registries, LLM provider endpoints.
 - **Budget control**: the Claude Agent SDK accepts `maxBudgetUsd` and `maxTurns` per attempt; the engine enforces `maxAttempts` across retries.
 
+### Setup commands
+
+Target repos often need a dependency install step before validation tools work correctly. For example, a Python monorepo using pyright for type checking needs `uv sync --all-packages` to install workspace packages in editable mode — without this, pyright can't resolve cross-package imports and reports dozens of false `reportMissingImports` errors.
+
+The `setup` field in `port-bot.json` defines commands that run once in the target working directory after cloning, before the deterministic phase or agent execution. See [`docs/future/setup-commands.md`](../future/setup-commands.md) for the full design.
+
+```json
+{
+	"setup": ["uv sync --all-packages"],
+	"validation": ["just check-ci"]
+}
+```
+
+Setup commands differ from validation commands: they run once (not per-attempt), and failure aborts the run immediately rather than triggering agent retries.
+
 ### Still undetermined
 
-- **Language runtimes**: does the target repo need Node, Python, Rust, etc. for validation? Who installs them — the workflow or the engine?
 - **Local execution**: should the engine also work when run locally (e.g., `bun run port --pr 123`) or is CI the only supported path?
 
 ## Current understanding
@@ -33,6 +47,7 @@ The agent receives:
 - Path to the source repo clone for exploratory reads
 - Resolved plugin config:
     - target repo ref
+    - setup commands (already executed before agent starts)
     - path mappings (source path → target path)
     - naming conventions
     - validation commands
@@ -90,7 +105,7 @@ The agent uses absolute paths to read source files and the diff, and relative pa
 ### Retry policy
 
 - Max attempts: configurable (default 3).
-- Each attempt: agent receives `previousAttempts` feedback (validation errors, touched files), applies targeted fix, reruns.
+- Each attempt: agent receives `previousAttempts` feedback (validation command, exit code, stdout, stderr, touched files), applies targeted fix, reruns.
 - Conversation model: fresh per attempt (new `query()` call each retry).
 - Working directory: incremental (no reset between attempts; each builds on previous edits).
 - On exhaustion: execution returns an outcome status plus a final reason in the execution outcome payload.
@@ -199,7 +214,7 @@ Potential alternatives that would implement the same interface:
 
 ### Prompt tuning
 
-- Does the agent see full validation output or a truncated/parsed version on retry?
+- ~~Does the agent see full validation output or a truncated/parsed version on retry?~~ **Resolved**: the agent receives the first failing command's name, exit code, stdout, and stderr. Passing commands are omitted from retry feedback.
 
 ### Quality signals
 

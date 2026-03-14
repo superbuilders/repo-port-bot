@@ -77,6 +77,7 @@ Define what "working" means from a maintainer perspective when a change in one r
         - source narrative directly below, extended into a natural provenance sentence that includes a parenthetical `@`-mention of the original PR author (so they receive a GitHub notification about the port without implying they authored the port itself) and includes model name and at-a-glance execution stats
         - collapsed `Cost & Tokens` block showing decision totals, execution totals, and overall run totals
         - `## What was ported` — the agent's per-file summary of changes (the main content)
+        - collapsed `Deterministic baseline` listing sync operations (only present when deterministic ops ran)
         - collapsed `Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (only shown in "What was ported", not repeated in the log)
         - collapsible `Validation & diagnostics` section with pass/fail results, exit codes, and captured command output (stdout/stderr) in fenced code blocks
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention signal remains the git trailer `Ported-By: repo-port-bot`)

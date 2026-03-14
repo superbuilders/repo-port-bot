@@ -158,6 +158,11 @@ export interface PluginConfig {
 	ignorePatterns: string[]
 
 	/**
+	 * Ordered setup commands run once after cloning, before deterministic ops.
+	 */
+	setupCommands: string[]
+
+	/**
 	 * Ordered validation commands run in the target repository.
 	 */
 	validationCommands: string[]
@@ -1248,6 +1253,7 @@ export interface PortRunResult {
 	stageTimings?: {
 		contextMs?: number
 		configMs?: number
+		setupMs?: number
 		deterministicMs?: number
 		decisionMs?: number
 		executeMs?: number

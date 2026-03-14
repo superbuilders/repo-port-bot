@@ -122,6 +122,18 @@ Ported from [<source PR title>](url) (originally authored by @author) in [`<owne
 
 - `<path>`: <per-file description>
 
+<details><summary>Deterministic baseline (N operations)</summary>
+
+Mirrored:
+
+- `tests/fixtures/**` -> `tests/fixtures/`
+
+Copied:
+
+- `tests/manifest.json` -> `tests/manifest.json`
+
+</details>
+
 <details><summary>Work Log</summary>
 _I'll start by reading the source diff and target files._
 ```
@@ -161,6 +173,7 @@ Key design choices:
 - **`## Port rationale`** starts with the decision rationale as a blockquote — the "why" is still first, but it remains visually distinguished from the rest of the narrative
 - **The provenance sentence follows the rationale** — source PR/repo traceability plus a parenthetical `@`-mention of the original PR author (so they receive a GitHub notification about the port without implying they authored the port itself) plus execution attribution (model, files changed, attempts, tool calls, duration) reads as one natural sentence
 - **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing without extra metadata interrupting the section
+- **`Deterministic baseline` as a collapsed details block** — when deterministic operations ran, their operations are listed in a collapsed block between the agent summary and the work log. This keeps mechanical sync context accessible without competing for the reviewer's attention
 - **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks, rendered in full (no truncation). The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — each validation command shows its pass/fail status, exit code, and captured stdout/stderr output in a fenced code block. On happy paths the block is collapsed; for stalled/draft ports it uses `<details open>` so failure output is immediately visible
 - **Cost/token telemetry lives in a collapsed details block in the target PR** — reviewer-facing PRs still stay focused on rationale, changes, and validation by default, while maintainers can expand a compact `Cost & Tokens` block when they want execution telemetry

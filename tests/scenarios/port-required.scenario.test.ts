@@ -18,6 +18,7 @@ import {
 	fileExists,
 	listBranches,
 	makeSourceChange,
+	parsePrBody,
 	readTargetFile,
 	runScenario,
 } from '../harness/index.ts'
@@ -168,5 +169,15 @@ describe('port-required scenarios', () => {
 
 		expect(await readTargetFile(repos.targetDir, 'tests/fixtures/a.json')).toBe('{"new":true}')
 		expect(await readTargetFile(repos.targetDir, 'src/ported.ts')).toBe('ported code')
+
+		const parsed = parsePrBody(state.pullRequests[0]!.body)
+		const baselineBlock = parsed.raw.indexOf('Deterministic baseline')
+		const workLogBlock = parsed.raw.indexOf('Work Log')
+
+		expect(baselineBlock).toBeGreaterThan(-1)
+		expect(workLogBlock).toBeGreaterThan(-1)
+		expect(baselineBlock).toBeLessThan(workLogBlock)
+		expect(parsed.raw).toContain('<details><summary>Deterministic baseline')
+		expect(parsed.raw).not.toContain('### Deterministic baseline')
 	})
 })

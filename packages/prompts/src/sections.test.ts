@@ -22,6 +22,7 @@ function makeConfig(overrides?: Partial<PluginConfig>): PluginConfig {
 	return {
 		targetRepo: { owner: 'acme', name: 'target', defaultBranch: 'main' },
 		ignorePatterns: [],
+		setupCommands: [],
 		validationCommands: [],
 		deterministicOperations: [],
 		pathMappings: {},
@@ -295,6 +296,57 @@ describe('renderRetryFeedback', () => {
 		expect(result).toContain('Attempt 2')
 		expect(result).toContain('err1')
 		expect(result).toContain('err2')
+	})
+
+	test('includes stdout in validation failure feedback', () => {
+		const attempts: ExecutePortAttemptResult[] = [
+			{
+				attempt: 1,
+				status: 'VALIDATION_FAILED',
+				touchedFiles: ['src/app.py'],
+				validation: [
+					{
+						command: 'just check-ci',
+						ok: false,
+						exitCode: 1,
+						stdout: 'FAILED test_app.py::test_main - AssertionError',
+						stderr: '',
+						durationMs: 500,
+					},
+				],
+				trace: { toolCallLog: [], events: [] },
+			},
+		]
+
+		const result = renderRetryFeedback(attempts)
+
+		expect(result).toContain('FAILED test_app.py::test_main')
+	})
+
+	test('includes both stdout and stderr in validation failure feedback', () => {
+		const attempts: ExecutePortAttemptResult[] = [
+			{
+				attempt: 1,
+				status: 'VALIDATION_FAILED',
+				touchedFiles: ['src/app.py'],
+				validation: [
+					{
+						command: 'just check-ci',
+						ok: false,
+						exitCode: 1,
+						stdout: '2 failed, 47 passed',
+						stderr: 'TypeError: missing argument',
+						durationMs: 500,
+					},
+				],
+				trace: { toolCallLog: [], events: [] },
+			},
+		]
+
+		const result = renderRetryFeedback(attempts)
+
+		expect(result).toContain('2 failed, 47 passed')
+		expect(result).toContain('TypeError: missing argument')
 	})
 
 	test('shows "none" when no files touched', () => {
