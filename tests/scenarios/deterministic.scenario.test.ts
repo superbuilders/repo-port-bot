@@ -12,9 +12,12 @@ import {
 	cleanupTempDirs,
 	createRepos,
 	createTrackingWriter,
+	failingValidation,
 	fileExists,
 	listBranches,
 	makeDocsOnlyChange,
+	parsePrBody,
+	passingValidation,
 	readTargetFile,
 	runScenario,
 } from '../harness/index.ts'
@@ -61,12 +64,13 @@ describe('deterministic-only scenarios', () => {
 		expect(branches.some(b => b.startsWith('port/'))).toBe(true)
 	})
 
-	test('synced files with failing validation produce a draft PR', async () => {
+	test('failing validation stderr appears in diagnostics section', async () => {
 		const repos = await createRepos(
 			{ 'tests/fixtures/a.json': '{"old":true}' },
 			{ 'tests/fixtures/a.json': '{"new":true}' },
 		)
 		const { writer, state } = createTrackingWriter()
+		const validation = await failingValidation(repos.targetDir, 'STDERR_VALIDATION_TOKEN')
 
 		const result = await runScenario({
 			sourceChange: makeDocsOnlyChange(),
@@ -81,17 +85,53 @@ describe('deterministic-only scenarios', () => {
 						mode: 'copy',
 					},
 				],
-				validation: ['false'],
+				validation: [validation],
 			},
 		})
 
 		expect(result.outcome).toBe('draft_pr_opened')
-		expect(state.pullRequests).toHaveLength(1)
 
 		const pr = state.pullRequests[0]!
+		const parsed = parsePrBody(pr.body)
 
 		expect(pr.draft).toBe(true)
 		expect(pr.labels).toContain('port-stalled')
+		expect(parsed.diagnostics).toContain('[FAIL]')
+		expect(parsed.diagnostics).toContain('STDERR_VALIDATION_TOKEN')
+	})
+
+	test('passing validation stdout appears in diagnostics section', async () => {
+		const repos = await createRepos(
+			{ 'tests/fixtures/a.json': '{"old":true}' },
+			{ 'tests/fixtures/a.json': '{"new":true}' },
+		)
+		const { writer, state } = createTrackingWriter()
+		const validation = await passingValidation(repos.targetDir, 'STDOUT_VALIDATION_TOKEN')
+
+		const result = await runScenario({
+			sourceChange: makeDocsOnlyChange(),
+			repos,
+			writer,
+			portBotJson: {
+				target: 'acme/target-repo',
+				sync: [
+					{
+						source: 'tests/fixtures/a.json',
+						target: 'tests/fixtures/a.json',
+						mode: 'copy',
+					},
+				],
+				validation: [validation],
+			},
+		})
+
+		expect(result.outcome).toBe('pr_opened')
+
+		const pr = state.pullRequests[0]!
+		const parsed = parsePrBody(pr.body)
+
+		expect(parsed.diagnostics).toContain('[PASS]')
+		expect(parsed.diagnostics).toContain('STDOUT_VALIDATION_TOKEN')
 	})
 
 	test('validation that reverts synced files produces skip, not phantom PR', async () => {

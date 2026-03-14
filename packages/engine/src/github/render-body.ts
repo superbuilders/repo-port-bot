@@ -175,8 +175,17 @@ function renderValidationLine(result: ValidationCommandResult): string {
 	const status = result.ok ? '[PASS]' : '[FAIL]'
 	const exitCodeSuffix =
 		result.exitCode === undefined ? '' : ` (exit code ${String(result.exitCode)})`
+	const headerLine = `- ${status} \`${result.command}\`${exitCodeSuffix}`
+	const output = [result.stdout, result.stderr]
+		.map(s => s.trim())
+		.filter(Boolean)
+		.join('\n')
 
-	return `- ${status} \`${result.command}\`${exitCodeSuffix}`
+	if (output.length === 0) {
+		return headerLine
+	}
+
+	return `${headerLine}\n\n\`\`\`\n${output}\n\`\`\``
 }
 
 /**

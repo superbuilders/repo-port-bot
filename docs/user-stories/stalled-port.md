@@ -60,7 +60,7 @@ See [`docs/arch/state-machine.md`](../arch/state-machine.md) for the canonical a
         - collapsed `Cost & Tokens` block showing decision totals, execution totals aggregated across attempts, and overall run totals
         - `## What was ported` — polished summary of what changed
         - collapsed `Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (not repeated in the log). For retries, per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.)
-        - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes and failure reason
+        - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes, and includes captured stdout/stderr output in fenced code blocks so the reviewer can see exactly what failed
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention remains the git trailer `Ported-By: repo-port-bot`)
 
 6. **Source PR receives a notification comment**

@@ -78,3 +78,14 @@ export interface RunScenarioOptions {
 	portBotJson?: PortBotJsonConfig | string
 	maxAttempts?: number
 }
+
+/**
+ * Parsed PR body with named sections for targeted assertions.
+ */
+export interface ParsedPrBody {
+	raw: string
+	rationale: string
+	diagnostics: string
+	workLog: string
+	sections: Map<string, string>
+}
