@@ -17,6 +17,7 @@ import {
 	renderPortPullRequestBody,
 	renderPortPullRequestTitle,
 	renderSourceComment,
+	truncateBody,
 } from './render-body.ts'
 
 import type { Logger } from '@repo-port-bot/logger'
@@ -371,10 +372,12 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 			owner: targetRepo.owner,
 			repo: targetRepo.name,
 			title: renderNeedsHumanIssueTitle(options.context),
-			body: renderNeedsHumanIssueBody({
-				context: options.context,
-				decision: options.decision,
-			}),
+			body: truncateBody(
+				renderNeedsHumanIssueBody({
+					context: options.context,
+					decision: options.decision,
+				}),
+			),
 			labels: ['needs-human'],
 			sourcePullRequestUrl: options.context.sourceChange.pullRequest?.url,
 			sourceCommitSha: options.context.sourceChange.mergedCommitSha,
@@ -460,7 +463,7 @@ export async function deliverResult(options: DeliverResultOptions): Promise<Deli
 		owner: targetRepo.owner,
 		repo: targetRepo.name,
 		title: renderPortPullRequestTitle(options.context, framingMode),
-		body: prBody,
+		body: truncateBody(prBody),
 		head: branchName,
 		base: targetRepo.defaultBranch,
 		draft: !isSuccessful,

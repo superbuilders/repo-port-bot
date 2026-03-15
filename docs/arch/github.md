@@ -174,7 +174,7 @@ Key design choices:
 - **The provenance sentence follows the rationale** — source PR/repo traceability plus a parenthetical `@`-mention of the original PR author (so they receive a GitHub notification about the port without implying they authored the port itself) plus execution attribution (model, files changed, attempts, tool calls, duration) reads as one natural sentence
 - **`## What was ported`** is the main content — a structured summary with prose overview and per-file bullet descriptions gets top billing without extra metadata interrupting the section
 - **`Deterministic baseline` as a collapsed details block** — when deterministic operations ran, their operations are listed in a collapsed block between the agent summary and the work log. This keeps mechanical sync context accessible without competing for the reviewer's attention
-- **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks, rendered in full (no truncation). The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
+- **`Work Log` as a collapsed details block** — assistant narration in _italics_, tool actions grouped in fenced code blocks, rendered as fully as the body length limit allows. The final assistant note from the last attempt is stripped since it duplicates the "What was ported" summary above
 - **Validation and diagnostics in a collapsible `<details>` block** — each validation command shows its pass/fail status, exit code, and captured stdout/stderr output in a fenced code block. On happy paths the block is collapsed; for stalled/draft ports it uses `<details open>` so failure output is immediately visible
 - **Cost/token telemetry lives in a collapsed details block in the target PR** — reviewer-facing PRs still stay focused on rationale, changes, and validation by default, while maintainers can expand a compact `Cost & Tokens` block when they want execution telemetry
 - **`Ported by: Repo Port Bot`** footer linking to the bot repository, after a horizontal rule for clean separation (the git commit trailer `Ported-By: repo-port-bot` remains the machine-parseable loop prevention signal)
@@ -187,6 +187,16 @@ Telemetry rendering is controlled by a workflow-level action input:
 - When `false`, omit all user-facing cost/token sections while still allowing raw trace data to exist internally for debugging or future artifacts
 
 For **multi-attempt runs** (stalled ports), the `Work Log` section uses per-attempt headings (`### Attempt 1`, `### Attempt 2`) so retries are easy to follow.
+
+**Body length limit:** GitHub enforces a 65,536-character limit on PR and issue bodies. The engine measures the rendered body and, when it exceeds the limit, progressively trims the longest expandable sections until it fits. Nothing is fully removed — each section is reduced to a shorter form that preserves its purpose.
+
+Truncation priority (applied in order until the body fits):
+
+1. **Validation command output** — trim stdout/stderr code blocks to the last N lines, appending `(N lines truncated)`. The pass/fail status line, command name, and exit code are always preserved.
+2. **Work Log** — trim per-attempt event blocks to a summary line per attempt (`Attempt N: M tool calls, N files touched`). The Work Log heading and structure remain.
+3. **Diagnostics block** — if still over the limit after trimming output and log, reduce to pass/fail bullets only (no code blocks).
+
+The rationale, summary, per-file descriptions, deterministic baseline, cost telemetry, and structural headings are never trimmed — they are compact by design and together are well under the limit. The variable-size content is always validation output and agent work logs, which is where the truncation budget is spent.
 
 **How summaries/logs are captured:** The provider requests structured output (`PortSummary`) from the model — a prose overview plus per-file descriptions — which the PR renderer uses for `## What was ported`. When structured output is unavailable, the renderer falls back to the last assistant message text (`trace.notes`). In parallel, the provider records ordered attempt events (assistant text + tool start/end lifecycle) so the PR renderer can build the collapsed, humanized `Work Log` narrative.
 

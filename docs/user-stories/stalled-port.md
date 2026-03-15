@@ -62,6 +62,7 @@ See [`docs/arch/state-machine.md`](../arch/state-machine.md) for the canonical a
         - collapsed `Work Log` with assistant notes in italics and tool actions in code blocks; the final summary is deduplicated (not repeated in the log). For retries, per-attempt headings (`### Attempt 1`, `### Attempt 2`, etc.)
         - `Validation & diagnostics` section is **expanded by default** (`<details open>`) since the failure is the point — shows which commands passed/failed with exit codes, and includes captured stdout/stderr output in fenced code blocks so the reviewer can see exactly what failed
         - `Ported by: Repo Port Bot` footer linking to the bot repository (loop prevention remains the git trailer `Ported-By: repo-port-bot`)
+        - If the body exceeds GitHub's 65,536-character limit (common with multi-attempt runs and verbose validation output), the engine progressively truncates validation output, then work log content, to fit within the limit
 
 6. **Source PR receives a notification comment**
     - Best-effort `[!WARNING]` admonition comment on the merged source PR indicating validation failed and a draft PR was opened, with a collapsible reason.

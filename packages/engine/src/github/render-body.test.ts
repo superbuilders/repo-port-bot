@@ -6,6 +6,7 @@ import {
 	renderPortPullRequestBody,
 	renderPortPullRequestTitle,
 	renderSourceComment,
+	truncateBody,
 } from './render-body.ts'
 
 import type { ExecutePortResult, PortContext, PortDecision, RepoRef } from '../types.ts'
@@ -830,5 +831,105 @@ describe('render-body', () => {
 		expect(body).toContain(
 			'Ported to https://github.com/acme/target-repo/pull/901 (1 file, validation passed).',
 		)
+	})
+})
+
+const GITHUB_BODY_LIMIT = 65_536
+const LINE_PADDING_WIDTH = 80
+const REASON_REPEAT_COUNT = 8000
+
+describe('truncateBody', () => {
+	test('returns body unchanged when under limit', () => {
+		const body = 'Short body.'
+
+		expect(truncateBody(body)).toBe(body)
+	})
+
+	test('trims validation code blocks first', () => {
+		const lineCount = 1000
+		const longOutput = Array.from(
+			{ length: lineCount },
+			(_, i) => `VALIDATION: ${'x'.repeat(LINE_PADDING_WIDTH)} line ${String(i)}`,
+		).join('\n')
+		const body = [
+			'## Port rationale',
+			'',
+			'> reason',
+			'',
+			'## What was ported',
+			'',
+			'summary',
+			'',
+			'<details><summary>Validation & diagnostics</summary>',
+			'',
+			'- [FAIL] `just check-ci` (exit code 1)',
+			'',
+			'```',
+			longOutput,
+			'```',
+			'',
+			'</details>',
+		].join('\n')
+
+		expect(body.length).toBeGreaterThan(GITHUB_BODY_LIMIT)
+
+		const result = truncateBody(body)
+
+		expect(result.length).toBeLessThanOrEqual(GITHUB_BODY_LIMIT)
+		expect(result).toContain('[FAIL]')
+		expect(result).toContain('lines trimmed')
+		expect(result).toContain(`line ${String(lineCount - 1)}`)
+	})
+
+	test('trims work log when validation trimming is not enough', () => {
+		const longLog = Array.from({ length: 5000 }, (_, i) => `_Step ${String(i)}..._`).join('\n')
+		const body = [
+			'## Port rationale',
+			'',
+			'> reason',
+			'',
+			'<details><summary>Work Log</summary>',
+			longLog,
+			'</details>',
+		].join('\n')
+
+		expect(body.length).toBeGreaterThan(GITHUB_BODY_LIMIT)
+
+		const result = truncateBody(body)
+
+		expect(result.length).toBeLessThanOrEqual(GITHUB_BODY_LIMIT)
+		expect(result).toContain('Work Log')
+		expect(result).toContain('trimmed to fit')
+		expect(result).not.toContain('Step 4999')
+	})
+
+	test('strips diagnostics code blocks when validation regex does not match', () => {
+		const longDiagnostics = Array.from(
+			{ length: 1000 },
+			(_, i) => `error ${'e'.repeat(LINE_PADDING_WIDTH)} ${String(i)}`,
+		).join('\n')
+		const body = [
+			'## Port rationale',
+			'',
+			`> ${'reason '.repeat(REASON_REPEAT_COUNT)}`,
+			'',
+			'<details><summary>Validation & diagnostics</summary>',
+			'',
+			'- [FAIL] `check` (exit code 1)',
+			'Unmatched format block:',
+			'```',
+			longDiagnostics,
+			'```',
+			'',
+			'</details>',
+		].join('\n')
+
+		expect(body.length).toBeGreaterThan(GITHUB_BODY_LIMIT)
+
+		const result = truncateBody(body)
+
+		expect(result.length).toBeLessThanOrEqual(GITHUB_BODY_LIMIT)
+		expect(result).toContain('[FAIL]')
+		expect(result).toContain('output trimmed')
 	})
 })

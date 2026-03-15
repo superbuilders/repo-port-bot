@@ -94,6 +94,121 @@ function isDefinedLine(value: string | undefined): value is string {
 }
 
 /**
+ * Collapse consecutive empty strings so optional absent blocks
+ * don't produce extra blank lines when joined.
+ *
+ * @param lines - Filtered string array (no undefined).
+ * @returns Array with at most one consecutive empty string.
+ */
+function collapseBlankLines(lines: string[]): string[] {
+	return lines.filter((line, index) => line !== '' || lines[index - 1] !== '')
+}
+
+const GITHUB_BODY_CHAR_LIMIT = 65_536
+
+/**
+ * Trim a PR or issue body to fit within GitHub's character limit.
+ *
+ * Progressive strategy:
+ * 1. Trim validation stdout/stderr code blocks to the last few lines
+ * 2. Replace Work Log content with a compact summary
+ * 3. Strip remaining code blocks from the diagnostics section
+ *
+ * Structural sections (rationale, summary, headings) are never touched.
+ *
+ * @param body - Rendered markdown body.
+ * @returns Body guaranteed to fit within GitHub's limit.
+ */
+export function truncateBody(body: string): string {
+	if (body.length <= GITHUB_BODY_CHAR_LIMIT) {
+		return body
+	}
+
+	let result = trimValidationCodeBlocks(body)
+
+	if (result.length <= GITHUB_BODY_CHAR_LIMIT) {
+		return result
+	}
+
+	result = trimWorkLog(result)
+
+	if (result.length <= GITHUB_BODY_CHAR_LIMIT) {
+		return result
+	}
+
+	result = trimDiagnosticsCodeBlocks(result)
+
+	if (result.length <= GITHUB_BODY_CHAR_LIMIT) {
+		return result
+	}
+
+	const ELLIPSIS_SUFFIX = '\n...'
+
+	return `${result.slice(0, GITHUB_BODY_CHAR_LIMIT - ELLIPSIS_SUFFIX.length)}${ELLIPSIS_SUFFIX}`
+}
+
+const VALIDATION_OUTPUT_TAIL_LINES = 10
+
+/**
+ * @param body - PR body.
+ * @returns Body with validation code blocks trimmed to last N lines.
+ */
+function trimValidationCodeBlocks(body: string): string {
+	return body.replaceAll(
+		/(- \[(?:PASS|FAIL)\] `.+`[^\n]*\n)\n```\n([\s\S]*?)\n```/gu,
+		(_match, header: string, content: string) => {
+			const lines = content.split('\n')
+
+			if (lines.length <= VALIDATION_OUTPUT_TAIL_LINES) {
+				return `${header}\n\`\`\`\n${content}\n\`\`\``
+			}
+
+			const kept = lines.slice(-VALIDATION_OUTPUT_TAIL_LINES).join('\n')
+			const trimmedCount = lines.length - VALIDATION_OUTPUT_TAIL_LINES
+
+			return `${header}\n\`\`\`\n(${String(trimmedCount)} lines trimmed)\n${kept}\n\`\`\``
+		},
+	)
+}
+
+/**
+ * @param body - PR body.
+ * @returns Body with Work Log details content replaced by a compact note.
+ */
+function trimWorkLog(body: string): string {
+	return body.replace(
+		/(<details><summary>Work Log<\/summary>)\n[\s\S]*?\n(<\/details>)/u,
+		'$1\n\n_Work log trimmed to fit GitHub body limit._\n\n$2',
+	)
+}
+
+/**
+ * @param body - PR body.
+ * @returns Body with code blocks inside the diagnostics section stripped.
+ */
+function trimDiagnosticsCodeBlocks(body: string): string {
+	const diagnosticsStart = body.indexOf('Validation & diagnostics')
+
+	if (diagnosticsStart === -1) {
+		return body
+	}
+
+	const diagnosticsEnd = body.indexOf('</details>', diagnosticsStart)
+
+	if (diagnosticsEnd === -1) {
+		return body
+	}
+
+	const before = body.slice(0, diagnosticsStart)
+	const section = body.slice(diagnosticsStart, diagnosticsEnd)
+	const after = body.slice(diagnosticsEnd)
+
+	const trimmed = section.replaceAll(/\n```\n[\s\S]*?```/gu, '\n_(output trimmed)_')
+
+	return before + trimmed + after
+}
+
+/**
  * Truncate text for compact issue titles.
  *
  * @param value - Raw text.
@@ -304,8 +419,11 @@ function renderDeterministicOperations(operations: DeterministicOperation[]): st
 		}
 
 		if (copied.length > 0) {
+			if (blocks.length > 0) {
+				blocks.push('')
+			}
+
 			blocks.push(
-				'',
 				'Copied:',
 				'',
 				...copied.map(operation => `- \`${operation.source}\` -> \`${operation.target}\``),
@@ -798,8 +916,9 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		? undefined
 		: renderDiagnosticsBlock(input.execution)
 	const agentWorkLog = renderAgentWorkLog(input.execution)
+	const baselineBlock = renderDeterministicBaseline(deterministic) ?? ''
 
-	return [
+	const lines = [
 		'## Port rationale',
 		'',
 		reasonBlockquote,
@@ -813,7 +932,7 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		summaryParts.summary,
 		summaryParts.details,
 		'',
-		renderDeterministicBaseline(deterministic),
+		baselineBlock,
 		'',
 		agentWorkLog,
 		'',
@@ -822,8 +941,8 @@ export function renderPortPullRequestBody(input: RenderPullRequestBodyInput): st
 		'---',
 		`Ported by: [Repo Port Bot](${PORT_BOT_REPO_URL})`,
 	]
-		.filter(isDefinedLine)
-		.join('\n')
+
+	return collapseBlankLines(lines.filter(isDefinedLine)).join('\n')
 }
 
 /**
