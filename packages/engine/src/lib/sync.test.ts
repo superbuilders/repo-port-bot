@@ -98,6 +98,63 @@ describe('applySyncOperation', () => {
 
 			expect(touched.size).toBe(0)
 		})
+
+		test('no-ops when JSON files differ only in formatting', async () => {
+			const source = await createTempDirectory()
+			const target = await createTempDirectory()
+			const touched = new Set<string>()
+
+			const compact = '{"items":["a","b","c"],"count":3}'
+			const expanded = '{\n\t"items": [\n\t\t"a",\n\t\t"b",\n\t\t"c"\n\t],\n\t"count": 3\n}'
+
+			await mkdir(join(source, 'data'), { recursive: true })
+			await mkdir(join(target, 'data'), { recursive: true })
+			await writeFile(join(source, 'data/manifest.json'), compact)
+			await writeFile(join(target, 'data/manifest.json'), expanded)
+
+			await applySyncOperation({
+				operation: {
+					kind: 'sync',
+					mode: 'copy',
+					source: 'data/manifest.json',
+					target: 'data/manifest.json',
+				},
+				sourceWorkingDirectory: source,
+				targetWorkingDirectory: target,
+				touchedFiles: touched,
+			})
+
+			expect(touched.size).toBe(0)
+			expect(await readFile(join(target, 'data/manifest.json'), 'utf8')).toBe(expanded)
+		})
+
+		test('copies JSON file when content actually differs', async () => {
+			const source = await createTempDirectory()
+			const target = await createTempDirectory()
+			const touched = new Set<string>()
+
+			await mkdir(join(source, 'data'), { recursive: true })
+			await mkdir(join(target, 'data'), { recursive: true })
+			await writeFile(join(source, 'data/manifest.json'), '{"items":["a","b","c","d"]}')
+			await writeFile(
+				join(target, 'data/manifest.json'),
+				'{\n\t"items": [\n\t\t"a",\n\t\t"b",\n\t\t"c"\n\t]\n}',
+			)
+
+			await applySyncOperation({
+				operation: {
+					kind: 'sync',
+					mode: 'copy',
+					source: 'data/manifest.json',
+					target: 'data/manifest.json',
+				},
+				sourceWorkingDirectory: source,
+				targetWorkingDirectory: target,
+				touchedFiles: touched,
+			})
+
+			expect(touched.has('data/manifest.json')).toBe(true)
+		})
 	})
 
 	describe('mirror mode', () => {

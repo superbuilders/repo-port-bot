@@ -148,11 +148,37 @@ export async function syncFile(
 		if (sourceContents.equals(existingTargetContents)) {
 			return
 		}
+
+		if (
+			targetPath.endsWith('.json') &&
+			contentEqualJson(sourceContents, existingTargetContents)
+		) {
+			return
+		}
 	}
 
 	await ensureDirectoryPath(dirname(targetPath), targetWorkingDirectory, touchedFiles)
 	await writeFile(targetPath, sourceContents)
 	touchedFiles.add(targetRelativePath)
+}
+
+/**
+ * Compare two buffers as parsed JSON, ignoring formatting differences.
+ * Returns false if either buffer is not valid JSON.
+ *
+ * @param a - First buffer.
+ * @param b - Second buffer.
+ * @returns Whether the parsed JSON values are deeply equal.
+ */
+function contentEqualJson(a: Buffer, b: Buffer): boolean {
+	try {
+		const parsedA = JSON.stringify(JSON.parse(a.toString('utf8')))
+		const parsedB = JSON.stringify(JSON.parse(b.toString('utf8')))
+
+		return parsedA === parsedB
+	} catch {
+		return false
+	}
 }
 
 /**
